@@ -1,0 +1,103 @@
+.container-1 {
+
+  background: linear-gradient(160deg, white, #F3E9DC);
+  border-radius: 10rem 0rem 10rem 0rem; 
+  margin: 1rem 4rem;
+  padding: 125px 125px;
+  min-height: 100px;
+}
+.container-1-inner{
+  display: grid;
+  grid-template-areas:   "title image" "text image";
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 3fr auto;
+  gap: 1rem;
+}
+
+.home {
+  text-align: left;
+  grid-area: title; /* First row, first column */
+  color: #5E3023; 
+  font-family: "Chicle", serif;
+  font-weight: 400;
+  font-size: 300%;
+  font-style: normal;
+  letter-spacing: .2rem;
+  transition: transform 0.3s ease, 0.3s ease;
+  cursor: pointer;
+/* Content will now expand the container properly */
+}
+.home:hover{
+      transform: scale(1.02);
+}
+
+.text-1{
+  text-align: left;
+  grid-area: text; /* Second row, first column */
+  color: #895737FF; 
+  font-family: "Poiret One", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+  letter-spacing: .2rem;
+}
+.get-started{
+  top: 12px; 
+  left: 1182px; 
+  width: 105.5625px; 
+  height: 40px; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  font-family: Nunito; 
+  font-size: 14px; 
+  line-height: 22px; 
+  font-weight: 500; 
+  color: #F3E9DC; /* cream */
+  background: #5E3023FF; 
+  text-decoration: none;
+  opacity: 1; 
+  border: none; 
+  border-radius: 9999px; 
+  /* Smooth transitions for all properties */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* Hover */
+.get-started:hover {
+  color: #F3E9DC; /* white */
+  background: #3E1F17FF; 
+  padding: 0rem .5rem; /* Consistent padding */
+  opacity: 0.9; /* Better opacity for readability */
+  border: 1px solid #5E3023; 
+  border-radius: 9999px; 
+  cursor: pointer;
+}
+
+.image1{
+  grid-row: 1 / span 2; /* Start at row 1, span 2 rows */
+  grid-column: 2; /* Second column */
+  width: 70%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  align-self: stretch; /* Important: makes image fill both rows */
+  cursor: pointer;
+}
+.image1:hover {
+  transform: scale(1.02);
+  box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+}
+
+.section-heading{
+  text-align: center;
+  grid-area: title; /* First row, first column */
+  color: #5E3023; 
+  font-family: "Chicle", serif;
+  font-weight: 400;
+  font-size: 300%;
+  font-style: normal;
+  letter-spacing: .2rem;
+  transition: transform 0.3s ease, 0.3s ease;
+  cursor: pointer;
+}
