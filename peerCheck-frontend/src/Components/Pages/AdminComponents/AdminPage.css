@@ -1,0 +1,161 @@
+/* AdminPage.css - drop in replacement */
+.admin-container-outer {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background-color: #f9f6f2;
+  font-family: "Poiret One", sans-serif;
+}
+
+/* ---------- SIDEBAR ---------- */
+.side-bar {
+  background: #5a3b25;
+  width: 4.2rem;           /* collapsed width (icons-only) */
+  height: 100%;
+  transition: width 250ms ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: visible;
+  box-shadow: 2px 0 6px rgba(0,0,0,0.08);
+}
+
+/* expanded width on hover */
+.side-bar:hover {
+  width: 16.25rem;         /* adjust as needed */
+}
+
+/* top area that contains heading + menu */
+.side-bar .top {
+  display: flex;
+  flex-direction: column;
+  padding-top: 0.5rem;
+}
+
+/* heading: hidden (opacity 0) when collapsed, fades in on hover */
+.side-bar .heading {
+  color: #F3E9DC;
+  margin: 0.7rem 0 0.6rem 0.9rem;
+  font-size: 1.05rem;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+.side-bar:hover .heading {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* menus */
+.side-bar ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* main menu (top) */
+.side-bar .main-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  color: #F3E9DC;
+  padding: 0.75rem 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 160ms ease;
+}
+
+.side-bar .main-list li:hover {
+  background: rgba(137,87,55,0.18);
+}
+
+/* icon always visible and centered */
+.side-bar .main-list li i {
+  width: 2.1rem;
+  text-align: center;
+  font-size: 1.45rem;
+  flex-shrink: 0;
+}
+
+/* label text: hidden by opacity & translate when collapsed, revealed on hover */
+.side-bar .main-list li .label {
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+
+/* reveal labels when hovering the whole sidebar */
+.side-bar:hover .main-list li .label {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* pin logout to bottom */
+.side-bar .bottom {
+  margin-top: auto;    /* pushes bottom area to bottom */
+  padding-bottom: 0.6rem;
+}
+
+/* logout item styling */
+.side-bar .bottom li {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  color: #F3E9DC;
+  padding: 0.9rem 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 160ms ease;
+}
+
+.side-bar .bottom li:hover {
+  background: rgba(137,87,55,0.18);
+}
+
+.side-bar .bottom li i {
+  width: 2.1rem;
+  text-align: center;
+  font-size: 1.45rem;
+  flex-shrink: 0;
+}
+
+/* ---------- MAIN CONTENT ---------- */
+.not-side-bar {
+  flex: 1;
+  background: #fff;
+  padding: 2rem;
+  overflow-y: auto;
+}
+
+/* headings & section visuals (kept from yours) */
+h1 {
+  font-size: 2.5rem;
+  color: #895737;
+  margin-bottom: 1.5rem;
+  text-shadow: 1px 1px 2px #C08552;
+}
+
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 768px) {
+  .side-bar {
+    position: fixed;
+    z-index: 100;
+    width: 4.2rem;
+  }
+
+  .side-bar:hover {
+    width: 12.5rem;
+  }
+
+  .not-side-bar {
+    margin-left: 4.2rem;
+  }
+
+  section {
+    width: 90%;
+    padding: 1rem;
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "peercheck",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "nodemon server/server.js",
+    "frontend": "cd peerCheck-frontend && npm run dev",
+    "dev:all": "concurrently \"nodemon server/server.js\" \"cd peerCheck-frontend && npm run dev\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/okietokie/PeerCheck.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/okietokie/PeerCheck/issues"
+  },
+  "homepage": "https://github.com/okietokie/PeerCheck#readme",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "dependencies": {
+    "mongodb": "^6.20.0"
+  }
+}
