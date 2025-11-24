@@ -43,7 +43,10 @@ export const loginUser = async (req, res) => {
     if (!user) {
       await userData.create({email, ipAddress, status: "Failed", reason: "User not found"})
       return res.status(400).json({ message: "User not found" });
-
+    }
+    if (user.status === "banned") {
+      await userData.create({email, ipAddress, status: "Failed", reason: "User not found"})
+      return res.status(400).json({ message: "User is BANNED! We are so sorry! Do YOU think we made a mistake? Contact us via email!" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -52,10 +55,17 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "12h" });
+    
+    const token = jwt.sign({ id: user._id, username: user.username, role: user.role }, process.env.JWT_SECRET, { expiresIn: "2h" });
 
 
     //save into peerCheck_logins
+
+    await User.findByIdAndUpdate(
+      user._id,
+      { $set: {onlineStatus: "active"}}
+    )
+
 
 
     await userData.create({email, ipAddress})
@@ -139,6 +149,19 @@ export const resetPassword = async (req, res) => {
     res.status(200).json({ message: "Password reset successful!" });
   } catch (error) {
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+export const logoutUser = async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.user.id, {
+      $set: { onlineStatus: "offline"}
+    });
+
+    res.json({ message: "Logged out successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
 

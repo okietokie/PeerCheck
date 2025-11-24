@@ -1,0 +1,9 @@
+installing quill
+
+npm install react-quill
+npm install quill
+
+
+add its css to file
+import "react-quill/dist/quill.snow.css";
+

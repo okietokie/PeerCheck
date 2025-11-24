@@ -15,26 +15,34 @@ const taskSchema = new mongoose.Schema({
         ref : "Project",
         required : true
     },
-    assignedTo : [
+    assignedTo : 
         {
-            user : { type: mongoose.Schema.Types.ObjectId },
-            hoursSpent : { type: Number, default: 0 },
-            progessPercent : { type: Number, default: 0 }
-        }
-    ],
+            user : { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+            assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User"},
+            assignedOn: { type: Date, default: Date.now},
+            selfAssigned: { type: Boolean, default: false}
+        },
+    createdBy : { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true},
+    requiresApproval: { type: Boolean, default: false },//for self assigning tasks, approval required from project-lead
+    approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    approvedOn: Date ,
+    
+    deletedInfo: {
+        isDeleted: { type: Boolean, default: false },
+        deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        deletedOn: Date,
+        deletionReason: String,
+    },
+
     status : {
         type : String,
         enum : ["pending", "in-progress", "completed"],
         default : "pending"
     },
-    startDate : {
-        type : Date,
-        default : Date.now
-    },
-    dueDate : {
-        type : Date,
-        required : true,
-    }
+    priority: { type: String, enum: ["low","medium","high"], default: "medium" },
+    dueDate: { type: Date, required: true },
+    timeSpent: { type: Number, default: 0 },
+    progressPercent: { type: Number, default: 0, min: 0, max: 100 }
 }, { timestamps : true })
 
 const Task = mongoose.model("Task", taskSchema, "peerCheck_tasks")

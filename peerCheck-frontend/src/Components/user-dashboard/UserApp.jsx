@@ -1,0 +1,158 @@
+import React, { useState } from 'react';
+import { 
+  Tabs, 
+  Tab, 
+  Box, 
+  Container
+} from '@mui/material';
+import {
+  Dashboard as DashboardIcon,
+  Folder as ProjectsIcon,
+  Assignment as TasksIcon,
+  Groups as TeamsIcon,
+  Person as ProfileIcon,
+  Logout as LogoutIcon
+} from '@mui/icons-material';
+import { useNavigate, useLocation, Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
+import Dashboard from './Dashboard';
+import Projects from './Projects';
+import Tasks from './Tasks';
+import PeerTeams from './PeerTeams';
+import Profile from './Profile';
+
+export default function UserApp() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  const [selectedTab, setSelectedTab] = useState(0);
+
+  // Map paths to tab values
+  const pathToValue = {
+      '/user-app': 0,
+      '/user-app/dashboard': 0,
+      '/user-app/projects': 1,
+      '/user-app/tasks': 2,
+      '/user-app/peerteams': 3,
+      '/user-app/profile': 4,
+    };
+
+  // Set initial tab value based on current route
+  useEffect(() => {
+    const currentPath = location.pathname;
+    const tabValue = pathToValue[currentPath] || 0;
+    setSelectedTab(tabValue);
+  }, [location.pathname]);
+
+  const handleTabChange = (event, newValue) => {
+    setSelectedTab(newValue);
+    
+  // Navigate to corresponding routes
+  const routes = [
+    '/user-app/dashboard', 
+    '/user-app/projects', 
+    '/user-app/tasks', 
+    '/user-app/peerteams', 
+    '/user-app/profile'
+  ];
+  if (routes[newValue]) {
+    navigate(routes[newValue]);
+  }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    navigate('/login');
+  };
+
+  return (
+    <>
+      <Box sx={{ 
+        width: '100%', 
+        bgcolor: 'background.paper',
+        borderBottom: 1,
+        borderColor: 'divider',
+        boxShadow: 1,
+      }}>
+        <Tabs
+          value={selectedTab}
+          onChange={handleTabChange}
+          scrollButtons="auto"
+          aria-label="main navigation tabs"
+          sx={{
+            minHeight: 64,
+            '& .MuiTab-root': {
+              minHeight: 64,
+              fontSize: '0.9rem',
+              fontWeight: 500,
+              textTransform: 'none',
+            },
+            '& .Mui-selected': {
+              color: 'primary.main',
+              fontWeight: 600,
+            },
+            '& .MuiTabs-indicator': {
+              backgroundColor: 'primary.main',
+              height: 3,
+            },
+          }}
+          centered
+        >
+          <Tab 
+            icon={<DashboardIcon />} 
+            iconPosition="start"
+            label="Dashboard" 
+          />
+          <Tab 
+            icon={<ProjectsIcon />} 
+            iconPosition="start"
+            label="Projects" 
+          />
+          <Tab 
+            icon={<TasksIcon />} 
+            iconPosition="start"
+            label="Tasks" 
+          />
+          <Tab 
+            icon={<TeamsIcon />} 
+            iconPosition="start"
+            label="PeerTeams" 
+          />
+          <Tab 
+            icon={<ProfileIcon />} 
+            iconPosition="start"
+            label="Profile" 
+          />
+          
+          {/* Logout as separate button - not in tabs */}
+          <Tab 
+            icon={<LogoutIcon />}
+            iconPosition="start"
+            label="Logout" 
+            onClick={handleLogout}
+            sx={{
+              '&.MuiTab-root': {
+                color: 'error.main',
+                '&:hover': {
+                  color: 'error.dark',
+                  backgroundColor: 'rgba(211, 47, 47, 0.04)',
+                }
+              }
+            }}
+          />
+        </Tabs>
+      </Box>
+
+      <Container>
+        <Routes>
+          <Route index element={<Dashboard />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="projects" element={<Projects />} />
+          <Route path="tasks" element={<Tasks />} />
+          <Route path="peerteams" element={<PeerTeams />} />
+          <Route path="profile" element={<Profile />} />
+        </Routes>
+      </Container>
+    </>
+  );
+}

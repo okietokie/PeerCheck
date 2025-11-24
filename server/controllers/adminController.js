@@ -1,7 +1,7 @@
 // controllers/adminController.js
 import LoginAttempt from "../models/login_logs.js"; // if you track login attempts
 import PasswordReset from "../models/passwordReset.js"; // if you track reset requests
-
+import usersData from "../models/user.js";
 
 export const getSecurityStats = async (req, res) => {
   try {
@@ -145,4 +145,32 @@ export const passwordResetList = async (req, res) => {
     res.status(500).json({ message: "Error fetching password resets" });
   }
 };
+
+export const getAllUsers = async (req, res) => {
+  try{
+      const totalUsersInDB = await usersData.countDocuments({});
+
+      const allUsers = await usersData.find({}, {name: 1, username:1,  email: 1, joinedOn:1, status:1});
+
+      res.status(200).json({
+        totalUsersInDB,
+        allUsers,
+  });
+  }catch(err){
+    res.status(500).json({message: `Error Fetching Data: ${err}`});
+  }
+}
+
+export const updateStatus = async (req, res) => {
+  try{
+    const { id } = req.params;
+    const updatedData  = req.body;
+    const updatedUser = await usersData.findByIdAndUpdate(id, updatedData, {
+      new: true,
+    });
+    res.status(200).json(updatedUser);
+  }catch(err){
+    res.status(500).json({message : `Error Fetching Data: ${err}`});
+  }
+}
 

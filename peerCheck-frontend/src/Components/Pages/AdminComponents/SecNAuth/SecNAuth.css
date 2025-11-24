@@ -1,3 +1,6 @@
+/* ----------------------------------
+   Container
+---------------------------------- */
 .security-auth-container {
   background: #F3E9DC;
   padding: 2rem;
@@ -5,15 +8,19 @@
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-.section-title {
-  font-family: "Poiret One", sans-serif;
-  font-weight: 400;
+/* ----------------------------------
+   Section Titles
+---------------------------------- */
+.section-title, .details-title {
   font-size: 1.75rem;
   color: #895737;
-  margin: 0 0 1.5rem 0;
+  margin-bottom: 1.5rem;
   text-align: left;
 }
 
+/* ----------------------------------
+   Stats Grid & Cards
+---------------------------------- */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -38,41 +45,39 @@
 }
 
 .stat-card h3 {
-  font-family: "Poiret One", sans-serif;
-  font-weight: 400;
   font-size: 1.1rem;
   color: #F3E9DC;
-  margin: 0 0 1rem 0;
+  margin-bottom: 1rem;
 }
 
 .stat-number {
-  font-family: "Poiret One", sans-serif;
   font-size: 3rem;
-  font-weight: 400;
   color: #F3E9DC;
   margin: 0.5rem 0;
   line-height: 1;
 }
 
 .stat-period {
-  font-family: "Poiret One", sans-serif;
   font-size: 0.9rem;
   color: #F3E9DC;
   opacity: 0.8;
-  margin: 0.5rem 0 1rem 0;
+  margin-bottom: 1rem;
 }
 
+/* ----------------------------------
+   Buttons
+---------------------------------- */
+.details-btn, .back-btn, .pagination-btn {
+  cursor: pointer;
+  border: none;
+  border-radius: 0.5rem;
+  transition: all 0.3s ease;
+}
 
 .details-btn {
-  font-family: "Poiret One", sans-serif;
   padding: 0.5rem 1.25rem;
   background: #F3E9DC;
   color: #895737;
-  border: none;
-  border-radius: 0.5rem;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
   margin-top: auto;
 }
 
@@ -82,15 +87,35 @@
   transform: scale(1.05);
 }
 
-@media (max-width: 768px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .stat-number {
-    font-size: 2.5rem;
-  }
+.back-btn {
+  padding: 8px 14px;
+  background: #444;
+  color: #fff;
 }
+
+.back-btn:hover {
+  background: #222;
+}
+
+.pagination-btn {
+  padding: 0.5rem 1rem;
+  background: #895737;
+  color: white;
+  min-width: 100px;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #6b4228;
+}
+
+.pagination-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+/* ----------------------------------
+   Tables
+---------------------------------- */
 .details-table {
   width: 100%;
   border-collapse: collapse;
@@ -110,28 +135,13 @@
   background: #f4f4f4;
 }
 
-.back-btn {
-  margin-top: 1rem;
-  padding: 8px 14px;
-  background: #444;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.back-btn:hover {
-  background: #222;
-}
-
+/* ----------------------------------
+   Status Labels
+---------------------------------- */
 .status {
   padding: 4px 8px;
   border-radius: 12px;
   font-size: 0.8rem;
-  font-weight: 500;
-}
-
-.status:hover{
-  cursor: pointer;
 }
 
 .status.success {
@@ -144,6 +154,9 @@
   color: #c62828;
 }
 
+/* ----------------------------------
+   Details Section
+---------------------------------- */
 .details-section {
   margin-top: 2rem;
   padding: 1.5rem;
@@ -152,29 +165,26 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.details-title {
-  font-family: "Poiret One", sans-serif;
-  color: #895737;
-  margin-bottom: 1rem;
-}
-
-.search-bar {
-  margin-bottom: 1rem;
+/* ----------------------------------
+   Search & Controls
+---------------------------------- */
+.search-bar input, .records-controls select, .page-input {
+  border: 1px solid #ddd;
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.8rem;
 }
 
 .search-bar input {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-}
-/* Records Controls */
-.records-controls {
   margin-bottom: 1rem;
+}
+
+.records-controls {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  margin-bottom: 1rem;
 }
 
 .records-controls label {
@@ -182,14 +192,6 @@
   color: #666;
 }
 
-.records-controls select {
-  padding: 0.4rem 0.8rem;
-  border: 1px solid #ddd;
-  border-radius: 0.25rem;
-  background: white;
-}
-
-/* Enhanced Pagination Controls */
 .pagination-controls {
   display: flex;
   justify-content: space-between;
@@ -206,35 +208,7 @@
 
 .page-input {
   width: 60px;
-  padding: 0.4rem;
-  border: 1px solid #ddd;
-  border-radius: 0.25rem;
   text-align: center;
-}
-
-.page-input:focus {
-  outline: none;
-  border-color: #895737;
-}
-
-.pagination-btn {
-  padding: 0.5rem 1rem;
-  background: #895737;
-  color: white;
-  border: none;
-  border-radius: 0.25rem;
-  cursor: pointer;
-  transition: background 0.3s ease;
-  min-width: 100px;
-}
-
-.pagination-btn:hover:not(:disabled) {
-  background: #6b4228;
-}
-
-.pagination-btn:disabled {
-  background: #ccc;
-  cursor: not-allowed;
 }
 
 .pagination-info {
@@ -242,4 +216,17 @@
   color: #666;
   font-size: 0.9rem;
   text-align: center;
+}
+
+/* ----------------------------------
+   Responsive
+---------------------------------- */
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-number {
+    font-size: 2.5rem;
+  }
 }

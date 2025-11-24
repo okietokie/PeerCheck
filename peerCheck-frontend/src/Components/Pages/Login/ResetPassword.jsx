@@ -2,7 +2,7 @@ import { useState } from "react";
 import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
 import "./AuthPage.css";
-import Navbar from "./Navbar/Navbar";
+import Navbar from "./Navbar";
 
 
 export default function ResetPassword() {

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import "./AuthPage.css";
-import Navbar from "./Navbar/Navbar";
+import Navbar from "./Navbar";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");

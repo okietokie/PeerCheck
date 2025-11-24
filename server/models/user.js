@@ -1,20 +1,83 @@
-import mongoose from "mongoose"; //used to interact with MongoDB and Node js 
+import mongoose from "mongoose";
 
-/*declare a constant called "userSchema" 
- new mongoose.Schema({}) creates a new schema/structure in a collection */
 const userSchema = new mongoose.Schema({
-  name: { type: String, required: true },  /*The name field must be a string and is required */
-  username: {type: String, unique: true, required: true},
-  email: { type: String, required: true, unique: true }, /*The email field must be a string, is required, and must be unique in the collection. */
-  dob : {type: Date, required: true},
-  password: { type: String, required: true },
-  role: { type: String, enum: ["user", "admin"], default: "user" },
-  joinedOn: {type: Date, default: Date.now },
-  status : { type : String, enum: ["active", "banned"], default : "active"},
+  name: { 
+    type: String, 
+    required: true,
+    trim: true
+  },
+  username: {
+    type: String, 
+    unique: true, // This automatically creates an index
+    required: true,
+    trim: true,
+    lowercase: true
+  },
+  email: { 
+    type: String, 
+    required: true, 
+    unique: true, // This automatically creates an index
+    trim: true,
+    lowercase: true
+  },
+  dob: {
+    type: Date, 
+    required: true
+  },
+  password: { 
+    type: String, 
+    required: true 
+  },
+  role: { 
+    type: String, 
+    enum: ["user", "admin"], 
+    default: "user" 
+  },
+  status: { 
+    type: String, 
+    enum: ["active", "banned"], 
+    default: "active"
+  },
+  
+  // NEW FIELDS FOR PEERTEAMS
+  bio: {
+    type: String,
+    trim: true,
+    maxlength: 500,
+    default: ""
+  },
+  avatar: {
+    type: String, // URL to profile picture
+    default: null
+  },
+  skills: [{
+    type: String,
+    trim: true
+  }],
+  institution: {
+    type: String,
+    trim: true,
+    default: ""
+  },
+  course: {
+    type: String,
+    trim: true,
+    default: ""
+  },
+  year: {
+    type: String,
+    enum: ["1st", "2nd", "3rd", "4th", "Graduate", "Other"],
+    default: "Other"
+  },
+  onlineStatus: {type: String},
   resetPasswordToken: String,
   resetPasswordExpires: Date,
+}, {
+  timestamps: true // Adds createdAt and updatedAt automatically
 });
 
+// REMOVES THE DUPLICATE INDEXES - only keeps the text search index
+userSchema.index({ name: 'text', username: 'text', bio: 'text' }); // Text search index only
 
 const User = mongoose.model("User", userSchema, "peerCheck_users");
 

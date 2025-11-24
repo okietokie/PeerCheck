@@ -6,17 +6,26 @@ const projectSchema = new mongoose.Schema(
         description: { type: String, required: true, trim: true, },
         createdBy: { 
                         user: {type: mongoose.Schema.Types.ObjectId, ref: "User", required: true},
-                        userRole: { type: String, enum: ["project-lead", "project-member"], default: "project-lead"}
                     },
         members: [
             { 
-                user : { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-                userRole: { type: String, enum: ["project-lead", "project-member"], default: "project-member"}
+                user : { type: mongoose.Schema.Types.ObjectId, ref: "User", required : true },
+                userRole: { type: String, enum: ["project-lead", "project-member"], default: "project-member"},
             }
                 ],
-        startDate: { type: Date, default: Date.now, },
-        endDate: { type: Date, required : true },
-        status: { type: String, enum: ["active", "completed", "on-hold"], default: "active", },
+        attributes: [
+            {  
+                key: String,
+                value: mongoose.Schema.Types.Mixed,
+                type: { type: String, enum: ["text", "number", "boolean", "select"] },
+                options: [String],
+                required: Boolean,
+                order: Number
+            }
+        ] ,
+        tasks : [{type: mongoose.Schema.Types.ObjectId, ref: "Task"}],
+        dueDate: { type: Date, required : true },
+        status: { type: String, enum: ["active", "completed", "on-hold"], default: "active"},
     },
     { 
         timestamps: true 

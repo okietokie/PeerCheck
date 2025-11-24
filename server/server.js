@@ -24,8 +24,14 @@ mongoose
 // Routes
 import authRoutes from "./routes/authRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
+
+
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/user", userRoutes)
+app.use("/api/home", authRoutes );
+
 
 // Start Server
 const PORT = process.env.PORT || 5000;

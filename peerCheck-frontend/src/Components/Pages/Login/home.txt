@@ -1,0 +1,24 @@
+MEDIA QUERY
+a CSS feature
+lets webpage detect info on user's device (like screen size, orientation, resolution)
+can be used to apply differnet styles depeneding on that
+
+theme.breakpoints.down('md')
+means true if screen width is smaller than 'md' size (approx. 960px)
+
+sx
+- MUI inline styling engine
+- replaces writing separate css file
+- p-padding, m-margin, px-horizontalPadding, py-verticalPadding
+example: sx={{ p: 3, m: 1 }}
+PSEUDO_CLASSES(hover, active, focus)
+example:
+sx={{
+  background: "lightblue",
+  "&:hover": {
+    background: "blue",
+  },
+  "&:active": {
+    background: "darkblue",
+  }
+}}
