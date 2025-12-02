@@ -3,6 +3,7 @@ import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
 import "./AuthPage.css";
 import Navbar from "./Navbar";
+import axiosClient from "@/api/axiosClient";
 
 
 export default function ResetPassword() {
@@ -14,7 +15,7 @@ export default function ResetPassword() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post(`http://localhost:5000/api/auth/reset-password/${token}`, { password });
+      const res = await axiosClient.post(`/auth/reset-password/${token}`, { password });
       setMessage(res.data.message);
       setTimeout(() => navigate("/login"), 2000);
     } catch (err) {

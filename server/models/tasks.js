@@ -1,50 +1,69 @@
 import mongoose from "mongoose";
 
-const taskSchema = new mongoose.Schema({
-    title : {
-        type : String, 
-        required: true, 
-        trim: true
-    },
-    description : {
-        type : String, 
-        trim : true
-    },
-    project : {
-        type : mongoose.Schema.Types.ObjectId,
-        ref : "Project",
-        required : true
-    },
-    assignedTo : 
-        {
-            user : { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-            assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User"},
-            assignedOn: { type: Date, default: Date.now},
-            selfAssigned: { type: Boolean, default: false}
-        },
-    createdBy : { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true},
-    requiresApproval: { type: Boolean, default: false },//for self assigning tasks, approval required from project-lead
-    approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    approvedOn: Date ,
-    
-    deletedInfo: {
-        isDeleted: { type: Boolean, default: false },
-        deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        deletedOn: Date,
-        deletionReason: String,
+const taskSchema = new mongoose.Schema(
+  {
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project", trim: true },
+
+    taskTitle: { type: String, required: true, trim: true},
+
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true},
+
+    deadline: { type: Date, required: true},
+
+    estimatedTime: {
+      type: Number,     // seconds
+      required: true
     },
 
-    status : {
-        type : String,
-        enum : ["pending", "in-progress", "completed"],
-        default : "pending"
+    status: {
+      type: String,
+      enum: ["not_started", "active", "paused", "completed"],
+      default: "not_started"
     },
-    priority: { type: String, enum: ["low","medium","high"], default: "medium" },
-    dueDate: { type: Date, required: true },
-    timeSpent: { type: Number, default: 0 },
-    progressPercent: { type: Number, default: 0, min: 0, max: 100 }
-}, { timestamps : true })
 
-const Task = mongoose.model("Task", taskSchema, "peerCheck_tasks")
+    totalFocusTime: {
+      type: Number,     // seconds
+      default: 0
+    },
 
+    lastEventTime: { //exact time when the last task status change happened
+      type: Date
+    },
+
+    //WORK PROOF
+    proofUploads: [
+      {
+        filename: String,
+        fileUrl: String,
+        uploadedAt: Date
+      }
+    ],
+
+    //ANTI-FAKE FLAGS
+    flags: {
+      paddedTime: { type: Boolean, default: false },
+      rushedCompletion: { type: Boolean, default: false },
+      noProof: { type: Boolean, default: false },
+      manualReviewRequired: { type: Boolean, default: false }
+    },
+
+    //GRADING HOOKS
+    gradingMeta: {
+      allowPeerReview: { type: Boolean, default: true },
+      qualityScore: {
+        type: Number,
+        min: 0,
+        max: 10
+      },
+      teacherOverrideScore: {
+        type: Number,
+        min: 0,
+        max: 10
+      }
+    }
+  },
+  { timestamps: true }
+);
+
+const Task = mongoose.model("Task", taskSchema);
 export default Task;

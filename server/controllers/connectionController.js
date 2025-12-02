@@ -66,12 +66,10 @@ export const sendConnectionRequest = async (req, res) => {
 export const getIncomingRequests = async (req, res) => {
   try {
     const userId = req.userId;
-    console.log("🔍 [BACKEND] Fetching incoming requests for user ID:", userId);
-    console.log("🔍 [BACKEND] User ID type:", typeof userId);
+
 
     // Check if userId is valid
     if (!userId) {
-      console.log("❌ [BACKEND] No user ID found in request");
       return res.status(400).json({ message: "User ID not found" });
     }
 
@@ -80,14 +78,7 @@ export const getIncomingRequests = async (req, res) => {
       status: "pending"
     }).populate("fromUser", "name username email bio course institution");
 
-    console.log("🔍 [BACKEND] Raw MongoDB query result:", requests);
-    console.log("🔍 [BACKEND] Number of requests found:", requests.length);
-    
-    // Log the actual query being sent to MongoDB
-    console.log("🔍 [BACKEND] Query was:", {
-      toUser: userId,
-      status: "pending"
-    });
+
 
     res.status(200).json({ 
       success: true, 
@@ -96,7 +87,6 @@ export const getIncomingRequests = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('❌ [BACKEND] Get incoming requests error:', err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };

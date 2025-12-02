@@ -1,37 +1,35 @@
 import mongoose from 'mongoose';
 
 const projectSchema = new mongoose.Schema(
-    {
-        name: { type: String, required: true, trim: true, },
-        description: { type: String, required: true, trim: true, },
-        createdBy: { 
-                        user: {type: mongoose.Schema.Types.ObjectId, ref: "User", required: true},
-                    },
-        members: [
-            { 
-                user : { type: mongoose.Schema.Types.ObjectId, ref: "User", required : true },
-                userRole: { type: String, enum: ["project-lead", "project-member"], default: "project-member"},
-            }
-                ],
-        attributes: [
-            {  
-                key: String,
-                value: mongoose.Schema.Types.Mixed,
-                type: { type: String, enum: ["text", "number", "boolean", "select"] },
-                options: [String],
-                required: Boolean,
-                order: Number
-            }
-        ] ,
-        tasks : [{type: mongoose.Schema.Types.ObjectId, ref: "Task"}],
-        dueDate: { type: Date, required : true },
-        status: { type: String, enum: ["active", "completed", "on-hold"], default: "active"},
+  {
+    projectName: { type: String, required: true, trim: true},
+    description: { type: String, required: true, trim: true},
+    startDate: { type: Date, required: true},
+    endDate: { type: Date, required: true},
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true} ,
+    status: { type: String, enum: ['not_started', 'ongoing', 'completed', 'on_hold'], default: 'not_started'},
+    tags: [ { type:String, trim: true } ],
+    team: [{ 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'User' 
+    }],
+    teamName:{ type: String, trim: true},
+    milestones: [{ title: String }],
+    progress: { 
+      type: Number, 
+      min: 0, 
+      max: 100, 
+      default: 0 
     },
-    { 
-        timestamps: true 
+    gradingCriteria: {
+      taskCompletionWeight: { type: Number, default: 40 },
+      peerReviewWeight: { type: Number, default: 30 },
+      teacherReviewWeight: { type: Number, default: 30 },
+      allowPeerReview: { type: Boolean, default: true }
     }
-); 
+  },
+  { timestamps: true }
+);
 
-const Project = mongoose.model("Project", projectSchema, "peerCheck_projects");
-
+const Project = mongoose.model("Project", projectSchema);
 export default Project;

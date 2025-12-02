@@ -1,7 +1,7 @@
 import { useState } from "react";
-import axios from "axios";
 import "./AuthPage.css";
 import Navbar from "./Navbar";
+import axiosClient from "@/api/axiosClient";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -10,7 +10,7 @@ export default function ForgotPassword() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post("http://localhost:5000/api/auth/forgot-password", { email });
+      const res = await axiosClient.post("/auth/forgot-password", { email });
       setMessage(res.data.message);
     } catch (err) {
       setMessage(err.response?.data?.message || "Something went wrong");

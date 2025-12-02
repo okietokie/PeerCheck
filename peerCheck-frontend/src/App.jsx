@@ -23,8 +23,11 @@ import {
   Button,
   alpha
 } from "@mui/material";
-import { Palette, Shuffle, CheckCircle, ExpandMore, ExpandLess, Close } from "@mui/icons-material";
+import { Palette, Shuffle, CheckCircle, ExpandMore, ExpandLess, Close, Task } from "@mui/icons-material";
 import themes from './assets/theme.js';
+import Tasks from "./Components/user-dashboard/Tasks.jsx";
+import Projects from "./Components/user-dashboard/Projects.jsx";
+import MyProject from "./Components/user-dashboard/MyProject.jsx";
 
 // Extract theme names dynamically
 const themeNames = Object.keys(themes);
@@ -108,6 +111,30 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <UserApp />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tasks"
+              element={
+                <ProtectedRoute>
+                  <Tasks />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/projects"
+              element={
+                <ProtectedRoute>
+                  <Projects />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/my-project"
+              element={
+                <ProtectedRoute>
+                  <MyProject />
                 </ProtectedRoute>
               }
             />

@@ -1,5 +1,4 @@
 import { useState, useContext } from "react";
-import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
 import {
   Card,
@@ -15,6 +14,7 @@ import {
 } from "@mui/material";
 import { motion } from "framer-motion";
 import Navbar from "./Navbar";
+import axiosClient from "@/api/axiosClient";
 
 export default function Login() {
   const [formData, setFormData] = useState({ email: "", password: "" });
@@ -31,7 +31,7 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await axios.post("http://localhost:5000/api/auth/login", formData);
+      const res = await axiosClient.post("/auth/login", formData);
       setMessage(res.data.message);
       localStorage.setItem("token", res.data.token);
       setLoading(false);

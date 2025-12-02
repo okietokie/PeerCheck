@@ -11,7 +11,8 @@ import {
   Assignment as TasksIcon,
   Groups as TeamsIcon,
   Person as ProfileIcon,
-  Logout as LogoutIcon
+  Logout as LogoutIcon,
+  VisibilityOutlined
 } from '@mui/icons-material';
 import { useNavigate, useLocation, Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
@@ -20,6 +21,7 @@ import Projects from './Projects';
 import Tasks from './Tasks';
 import PeerTeams from './PeerTeams';
 import Profile from './Profile';
+import MyProject from './MyProject';
 
 export default function UserApp() {
   const navigate = useNavigate();
@@ -33,8 +35,9 @@ export default function UserApp() {
       '/user-app/dashboard': 0,
       '/user-app/projects': 1,
       '/user-app/tasks': 2,
-      '/user-app/peerteams': 3,
-      '/user-app/profile': 4,
+      '/user-app/my-project':3,
+      '/user-app/peerteams': 4,
+      '/user-app/profile': 5,
     };
 
   // Set initial tab value based on current route
@@ -52,6 +55,7 @@ export default function UserApp() {
     '/user-app/dashboard', 
     '/user-app/projects', 
     '/user-app/tasks', 
+    '/user-app/my-project', 
     '/user-app/peerteams', 
     '/user-app/profile'
   ];
@@ -114,6 +118,11 @@ export default function UserApp() {
             label="Tasks" 
           />
           <Tab 
+            icon={<VisibilityOutlined />} 
+            iconPosition="start"
+            label="My Project" 
+          />
+          <Tab 
             icon={<TeamsIcon />} 
             iconPosition="start"
             label="PeerTeams" 
@@ -149,6 +158,8 @@ export default function UserApp() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="projects" element={<Projects />} />
           <Route path="tasks" element={<Tasks />} />
+          <Route path="my-project" element={<MyProject />} />
+
           <Route path="peerteams" element={<PeerTeams />} />
           <Route path="profile" element={<Profile />} />
         </Routes>

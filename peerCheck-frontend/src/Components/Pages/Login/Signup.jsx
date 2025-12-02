@@ -16,6 +16,7 @@ import {
 import { motion } from "framer-motion";
 import Navbar from "./Navbar";
 import { PersonAdd, ArrowForward } from "@mui/icons-material";
+import axiosClient from "@/api/axiosClient";
 
 export default function Signup() {
   const [formData, setFormData] = useState({
@@ -38,8 +39,8 @@ export default function Signup() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await axios.post(
-        "http://localhost:5000/api/auth/register",
+      const res = await axiosClient.post(
+        "/auth/register",
         formData
       );
       setMessage(res.data.message);

@@ -22,8 +22,9 @@ import {
   getUserTeams,
   createTeam,
   leaveTeam,
-  addMemberToTeam,  
-  updateTeam
+  updateTeam,
+  inviteToTeam,
+  getTeamSuggestions
 } from '../controllers/teamController.js';
 
 import {
@@ -53,7 +54,7 @@ router.post("/create-task", authMiddleware, createTask);
 router.put("/tasks/:taskId/status", authMiddleware, updateTaskStatus);
 router.delete("/del-task/:taskId", authMiddleware, deleteTask);
 
-// FIXED Connection routes
+//  Connection routes
 router.get("/peerteam/", authMiddleware, getPeerTeam); // Changed from getIncomingRequests to getPeerTeam
 router.get("/peer-requests", authMiddleware, getIncomingRequests); // This gets incoming requests
 router.get("/sent-requests", authMiddleware, getSentRequests); // Added this route for sent requests
@@ -63,11 +64,13 @@ router.put("/decline-request/:connectionId", authMiddleware, rejectRequest);
 router.delete("/remove-connection/:connectionId", authMiddleware, removeConnection);
 
 // Team routes
-router.get("/teams", authMiddleware, getUserTeams);
-router.post("/create-team", authMiddleware, createTeam);
-router.post("/add-team-member/:teamId", authMiddleware, addMemberToTeam);
-router.delete("/leave-team/:teamId", authMiddleware, leaveTeam);
-router.put("/update-team/:teamId", authMiddleware, updateTeam);
+router.get('/teams', authMiddleware, getUserTeams);
+router.post('/create-team', authMiddleware, createTeam);
+router.delete('/leave-team/:teamId', authMiddleware, leaveTeam);
+router.put('/update-team/:teamId', authMiddleware, updateTeam);
+router.post('/invite-to-team/:teamId', authMiddleware, inviteToTeam);
+router.get('/team-suggestions',authMiddleware,  getTeamSuggestions);
+
 
 // User discovery routes
 router.get("/suggested-users", authMiddleware, getSuggestedUsers);

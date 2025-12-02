@@ -29,7 +29,7 @@ import {
   Launch as LaunchIcon
 } from '@mui/icons-material';
 import axiosClient from '@/api/axiosClient';
-import TeamDetails from './TeamDetails';
+import TeamDetails from './PeerTeams/TeamDetails';
 import Profile from './Profile.jsx';
 
 export default function PeerTeams() {
