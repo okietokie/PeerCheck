@@ -103,13 +103,11 @@ export const forgotPassword = async (req, res) => {
       },
     });
 
-    const resetLink = `http://localhost:5173/reset-password/${resetToken}`;
 
     const mailOptions = {
       to: user.email,
       from: process.env.EMAIL_USER,
       subject: "PeerCheck Password Reset",
-      text: `You requested a password reset.\n\nClick the link below to reset your password:\n${resetLink}\n\nIf you didn't request this, ignore it.`,
     };
 
     await transporter.sendMail(mailOptions);
