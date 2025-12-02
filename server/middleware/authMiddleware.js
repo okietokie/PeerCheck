@@ -31,11 +31,21 @@ export const authMiddleware = async (req, res, next) => {
 
     const token = authHeader.split(" ")[1]; // "Bearer <token>" -> extract token
 
-    //Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      console.error("JWT verification failed:", err.message);
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+      
+    if (!decoded || !decoded.id) {
+        return res.status(401).json({ message: "Token payload invalid" });
+    }
 
     // Attach user ID to request object
     req.userId = decoded.id;
+    req.user = decoded;   
     req.username = decoded.username;
     console.log("[authMiddleware.js]\nToken decoded:", decoded)
 

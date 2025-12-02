@@ -66,9 +66,16 @@ export default function App() {
   }, [themeName]);
 
   useEffect(() => {
-    const storedUser = JSON.parse(localStorage.getItem("user"));
-    if (storedUser) setUser(storedUser);
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error("Failed to parse stored user:", error);
+      }
+    }
   }, []);
+  
 
   const handleRandomTheme = () => {
     const availableThemes = themeNames.filter(name => name !== themeName);

@@ -8,8 +8,6 @@ export const getUserTeams = async (req, res) => {
   try {
     const userId = req.userId;
 
-    console.log(`Fetching teams for user ID: ${userId}`);
-
     // Find groups where the user is a member
     const teams = await Group.find({
       members: userId,
@@ -18,8 +16,6 @@ export const getUserTeams = async (req, res) => {
     .populate('members', 'name username email course institution bio avatar skills year onlineStatus')
     .populate('projects', 'name description status')
     .sort({ createdAt: -1 });
-
-    console.log(`Found ${teams.length} teams for user ${userId}`);
 
     // Format response to match frontend expectations
     const formattedTeams = teams.map(team => ({

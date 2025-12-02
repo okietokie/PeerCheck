@@ -56,7 +56,7 @@ export const loginUser = async (req, res) => {
     }
 
     
-    const token = jwt.sign({ id: user._id, username: user.username, role: user.role }, process.env.JWT_SECRET, { expiresIn: "2h" });
+    const token = jwt.sign({ id: user._id, username: user.username, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1d" });
 
 
     //save into peerCheck_logins
@@ -73,7 +73,12 @@ export const loginUser = async (req, res) => {
     //save into login_logs
 
 
-    res.json({ message: "Login successful", token, role: user.role });
+    res.json({ message: "Login successful", token, role: user.role, user: {
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+    }});
 
 
   } catch (error) {

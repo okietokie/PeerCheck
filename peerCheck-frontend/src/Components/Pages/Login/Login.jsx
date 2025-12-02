@@ -32,8 +32,11 @@ export default function Login() {
     setLoading(true);
     try {
       const res = await axiosClient.post("/auth/login", formData);
-      setMessage(res.data.message);
+
       localStorage.setItem("token", res.data.token);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+
+      setMessage(res.data.message);
       setLoading(false);
 
       if (res.data.role === "admin") {

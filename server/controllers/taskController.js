@@ -3,7 +3,79 @@ import Project from '../models/projects.js';
 import User from '../models/user.js';
 import TaskActivityEvent from '../models/taskActivityEvent.js';
 
-// Get all tasks for a project
+// Helper functions for derived metrics
+const getStatusWeight = (status) => {
+  switch (status) {
+    case 'completed': return 1;
+    case 'active': return 0.5;
+    case 'paused': return 0.3;
+    default: return 0; // not_started
+  }
+};
+
+// Converts multiple behavioural flags into a single numerical risk score for a task
+const calculateTaskRisk = (task) => {
+  let risk = 0;
+  
+  // Ensure flags exist
+  const flags = task.flags || {
+    paddedTime: false,
+    rushedCompletion: false,
+    noProof: false,
+    manualReviewRequired: false
+  };
+
+  if (flags.paddedTime) risk += 2;
+  if (flags.rushedCompletion) risk += 2;
+  if (flags.noProof) risk += 1;
+  if (flags.manualReviewRequired) risk += 3;
+
+  return risk;
+};
+
+// Helper to calculate task efficiency
+const calculateTaskEfficiency = (task) => {
+  const estimatedTime = task.estimatedTime || 0;
+  const totalFocusTime = task.totalFocusTime || 0;
+  
+  if (estimatedTime <= 0) return 0;
+  
+  return (totalFocusTime / estimatedTime) * 100;
+};
+
+// Helper to enrich a single task with metrics
+const enrichTaskWithMetrics = (task) => {
+  if (!task) return null;
+  
+  const efficiency = calculateTaskEfficiency(task);
+  const riskScore = calculateTaskRisk(task);
+  const statusWeight = getStatusWeight(task.status);
+  
+  return {
+    ...task,
+    _id: task._id,
+    metrics: {
+      efficiency: Number(efficiency.toFixed(2)),
+      riskScore,
+      statusWeight,
+      statusWeightPercentage: statusWeight * 100,
+      hasProof: task.proofUploads && task.proofUploads.length > 0,
+      proofCount: task.proofUploads ? task.proofUploads.length : 0,
+      isOverdue: task.deadline ? new Date(task.deadline) < new Date() && task.status !== 'completed' : false,
+      daysUntilDeadline: task.deadline ? 
+        Math.ceil((new Date(task.deadline) - new Date()) / (1000 * 60 * 60 * 24)) : 0
+    }
+  };
+};
+
+// Helper to enrich multiple tasks with metrics
+const enrichTasksWithMetrics = (tasks) => {
+  if (!tasks || !Array.isArray(tasks)) return [];
+  
+  return tasks.map(task => enrichTaskWithMetrics(task));
+};
+
+// Get all tasks for a project WITH METRICS
 export const getTasks = async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -35,9 +107,35 @@ export const getTasks = async (req, res) => {
     .sort({ deadline: 1 })
     .lean();
 
+    // Enrich tasks with metrics
+    const enrichedTasks = enrichTasksWithMetrics(tasks);
+
+    // Calculate summary statistics
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter(t => t.status === 'completed').length;
+    const activeTasks = tasks.filter(t => t.status === 'active').length;
+    const totalRiskScore = enrichedTasks.reduce((sum, task) => sum + (task.metrics.riskScore || 0), 0);
+    const averageRiskScore = totalTasks > 0 ? totalRiskScore / totalTasks : 0;
+    const totalStatusWeight = enrichedTasks.reduce((sum, task) => sum + (task.metrics.statusWeight || 0), 0);
+    const weightedProgress = totalTasks > 0 ? (totalStatusWeight / totalTasks) * 100 : 0;
+
     res.status(200).json({ 
       success: true,
-      tasks 
+      tasks: enrichedTasks,
+      metrics: {
+        totalTasks,
+        completedTasks,
+        activeTasks,
+        averageRiskScore: Number(averageRiskScore.toFixed(2)),
+        weightedProgress: Number(weightedProgress.toFixed(2)),
+        summary: {
+          highRiskTasks: enrichedTasks.filter(t => t.metrics.riskScore >= 4).length,
+          mediumRiskTasks: enrichedTasks.filter(t => t.metrics.riskScore >= 2 && t.metrics.riskScore < 4).length,
+          lowRiskTasks: enrichedTasks.filter(t => t.metrics.riskScore < 2).length,
+          overdueTasks: enrichedTasks.filter(t => t.metrics.isOverdue).length,
+          tasksWithProof: enrichedTasks.filter(t => t.metrics.hasProof).length
+        }
+      }
     });
   } catch (err) {
     console.error('Error fetching tasks:', err);
@@ -102,14 +200,16 @@ export const createTask = async (req, res) => {
     const task = new Task({
       projectId,
       taskTitle: taskTitle.trim(),
+      description: description || '',
       assignedTo,
       deadline: new Date(deadline),
       estimatedTime, // in seconds
       status: 'not_started',
+      tags: tags || [],
       flags: {
         paddedTime: false,
         rushedCompletion: false,
-        noProof: false,
+        noProof: true, // Initially true since no proof uploaded yet
         manualReviewRequired: false
       },
       gradingMeta: {
@@ -121,6 +221,13 @@ export const createTask = async (req, res) => {
 
     await task.save();
 
+    // Get populated task
+    const populatedTask = await Task.findById(task._id)
+      .populate('assignedTo', 'name email avatar')
+      .lean();
+
+    // Enrich task with metrics
+    const enrichedTask = enrichTaskWithMetrics(populatedTask);
 
     // Log task creation activity
     await TaskActivityEvent.create({
@@ -133,7 +240,7 @@ export const createTask = async (req, res) => {
     res.status(201).json({ 
       success: true,
       message: "Task created successfully", 
-      task: populatedTask 
+      task: enrichedTask
     });
 
   } catch (err) {
@@ -206,6 +313,11 @@ export const updateTaskStatus = async (req, res) => {
         task.flags.rushedCompletion = true;
         task.flags.manualReviewRequired = true;
       }
+      
+      // Also check if no proof uploaded
+      if (!task.proofUploads || task.proofUploads.length === 0) {
+        task.flags.noProof = true;
+      }
     }
 
     await task.save();
@@ -219,12 +331,24 @@ export const updateTaskStatus = async (req, res) => {
     });
 
     const updatedTask = await Task.findById(taskId)
-      .populate('assignedTo', 'name email avatar');
+      .populate('assignedTo', 'name email avatar')
+      .lean();
+
+    // Enrich task with updated metrics
+    const enrichedTask = enrichTaskWithMetrics(updatedTask);
 
     res.status(200).json({ 
       success: true,
       message: "Task status updated successfully", 
-      task: updatedTask 
+      task: enrichedTask,
+      statusChange: {
+        from: previousStatus,
+        to: status,
+        weightChange: {
+          from: getStatusWeight(previousStatus),
+          to: getStatusWeight(status)
+        }
+      }
     });
   } catch (err) {
     console.error('Error updating task:', err);
@@ -289,10 +413,18 @@ export const updateTaskTime = async (req, res) => {
       comment: `Added ${duration} seconds of focus time`
     });
 
+    const updatedTask = await Task.findById(taskId)
+      .populate('assignedTo', 'name email avatar')
+      .lean();
+
+    // Enrich task with updated metrics
+    const enrichedTask = enrichTaskWithMetrics(updatedTask);
+
     res.status(200).json({
       success: true,
       message: "Task time updated successfully",
-      totalFocusTime: task.totalFocusTime
+      totalFocusTime: task.totalFocusTime,
+      task: enrichedTask
     });
   } catch (err) {
     console.error('Error updating task time:', err);
@@ -355,10 +487,18 @@ export const uploadProof = async (req, res) => {
       comment: `Uploaded proof: ${filename}`
     });
 
+    const updatedTask = await Task.findById(taskId)
+      .populate('assignedTo', 'name email avatar')
+      .lean();
+
+    // Enrich task with updated metrics
+    const enrichedTask = enrichTaskWithMetrics(updatedTask);
+
     res.status(200).json({
       success: true,
       message: "Proof uploaded successfully",
-      proofUploads: task.proofUploads
+      proofUploads: task.proofUploads,
+      task: enrichedTask
     });
   } catch (err) {
     console.error('Error uploading proof:', err);
@@ -405,10 +545,18 @@ export const updateTaskFlags = async (req, res) => {
       comment: `Updated task flags: ${JSON.stringify(flags)}`
     });
 
+    const updatedTask = await Task.findById(taskId)
+      .populate('assignedTo', 'name email avatar')
+      .lean();
+
+    // Enrich task with updated metrics
+    const enrichedTask = enrichTaskWithMetrics(updatedTask);
+
     res.status(200).json({
       success: true,
       message: "Task flags updated successfully",
-      flags: task.flags
+      flags: task.flags,
+      task: enrichedTask
     });
   } catch (err) {
     console.error('Error updating task flags:', err);
@@ -433,7 +581,6 @@ export const deleteTask = async (req, res) => {
       });
     }
 
-    // Check if user is project creator or admin
     const project = await Project.findById(task.projectId);
     if (!project) {
       return res.status(404).json({
@@ -442,12 +589,13 @@ export const deleteTask = async (req, res) => {
       });
     }
 
+    // Check if user is project creator or admin
     if (project.createdBy.toString() !== userId) {
       const user = await User.findById(userId);
       if (user.role !== 'admin') {
         return res.status(403).json({
           success: false,
-          message: "Only project creator or admin can delete tasks"
+          message: "Only project creator can delete tasks"
         });
       }
     }
@@ -497,6 +645,7 @@ export const assignTask = async (req, res) => {
 
     // Check permissions: project creator, admin, or current assignee can reassign
     const project = await Project.findById(task.projectId);
+
     const isProjectCreator = project.createdBy.toString() === userId;
     const isAdmin = req.user.role === 'admin';
     const isCurrentAssignee = task.assignedTo.toString() === userId;
@@ -521,12 +670,16 @@ export const assignTask = async (req, res) => {
     });
 
     const updatedTask = await Task.findById(taskId)
-      .populate('assignedTo', 'name email avatar');
+      .populate('assignedTo', 'name email avatar')
+      .lean();
+
+    // Enrich task with updated metrics
+    const enrichedTask = enrichTaskWithMetrics(updatedTask);
 
     res.status(200).json({
       success: true,
       message: "Task assigned successfully",
-      task: updatedTask
+      task: enrichedTask
     });
 
   } catch (err) {
@@ -538,7 +691,7 @@ export const assignTask = async (req, res) => {
   }
 };
 
-// Get task details with activities
+// Get task details with activities AND METRICS
 export const getTaskDetails = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -575,20 +728,39 @@ export const getTaskDetails = async (req, res) => {
       .sort({ timestamp: -1 })
       .limit(50);
 
-    // Calculate efficiency
-    const efficiency = task.estimatedTime > 0 
-      ? (task.totalFocusTime / task.estimatedTime) * 100 
-      : 0;
+    // Calculate metrics
+    const efficiency = calculateTaskEfficiency(task);
+    const riskScore = calculateTaskRisk(task);
+    const statusWeight = getStatusWeight(task.status);
+    
+    // Check if overdue
+    const now = new Date();
+    const deadline = new Date(task.deadline);
+    const isOverdue = deadline < now && task.status !== 'completed';
+    const daysUntilDeadline = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
 
     res.status(200).json({
       success: true,
       task,
       activities,
       statistics: {
-        efficiency: efficiency.toFixed(2),
+        efficiency: Number(efficiency.toFixed(2)),
+        riskScore,
+        statusWeight,
+        statusWeightPercentage: statusWeight * 100,
         totalFocusTime: task.totalFocusTime,
         estimatedTime: task.estimatedTime,
-        proofCount: task.proofUploads.length
+        proofCount: task.proofUploads.length,
+        isOverdue,
+        daysUntilDeadline: daysUntilDeadline < 0 ? 0 : daysUntilDeadline,
+        hasProof: task.proofUploads && task.proofUploads.length > 0,
+        riskLevel: riskScore >= 4 ? 'high' : riskScore >= 2 ? 'medium' : 'low',
+        flags: {
+          paddedTime: task.flags?.paddedTime || false,
+          rushedCompletion: task.flags?.rushedCompletion || false,
+          noProof: task.flags?.noProof || false,
+          manualReviewRequired: task.flags?.manualReviewRequired || false
+        }
       }
     });
   } catch (err) {
@@ -612,7 +784,7 @@ export const updateTaskGrading = async (req, res) => {
     if (user.role !== 'admin' && user.role !== 'teacher') {
       return res.status(403).json({
         success: false,
-        message: "Only teachers/admins can update task grading"
+        message: "Only teachers can update task grading"
       });
     }
 
@@ -628,10 +800,18 @@ export const updateTaskGrading = async (req, res) => {
     task.gradingMeta = { ...task.gradingMeta, ...gradingMeta };
     await task.save();
 
+    const updatedTask = await Task.findById(taskId)
+      .populate('assignedTo', 'name email avatar')
+      .lean();
+
+    // Enrich task with updated metrics
+    const enrichedTask = enrichTaskWithMetrics(updatedTask);
+
     res.status(200).json({
       success: true,
       message: "Task grading updated successfully",
-      gradingMeta: task.gradingMeta
+      gradingMeta: task.gradingMeta,
+      task: enrichedTask
     });
   } catch (err) {
     console.error('Error updating task grading:', err);
@@ -642,6 +822,230 @@ export const updateTaskGrading = async (req, res) => {
   }
 };
 
+// NEW: Get tasks with advanced filtering and metrics
+export const getTasksWithFilter = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { 
+      status, 
+      riskLevel, 
+      hasProof, 
+      isOverdue,
+      assignedTo,
+      sortBy = 'deadline',
+      sortOrder = 'asc',
+      page = 1,
+      limit = 20
+    } = req.query;
+    
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found"
+      });
+    }
+    
+    // Check access
+    const userId = req.user.id;
+    if (project.createdBy.toString() !== userId && 
+        !project.team.some(member => member.toString() === userId)) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied to project"
+      });
+    }
+    
+    // Build query
+    const query = { projectId };
+    
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+    
+    if (assignedTo && assignedTo !== 'all') {
+      query.assignedTo = assignedTo;
+    }
+    
+    // Get all tasks first to filter by computed metrics
+    let tasks = await Task.find(query)
+      .populate('assignedTo', 'name email avatar')
+      .lean();
+    
+    // Apply computed filters
+    if (riskLevel && riskLevel !== 'all') {
+      tasks = tasks.filter(task => {
+        const riskScore = calculateTaskRisk(task);
+        if (riskLevel === 'high') return riskScore >= 4;
+        if (riskLevel === 'medium') return riskScore >= 2 && riskScore < 4;
+        if (riskLevel === 'low') return riskScore < 2;
+        return true;
+      });
+    }
+    
+    if (hasProof === 'true') {
+      tasks = tasks.filter(task => task.proofUploads && task.proofUploads.length > 0);
+    } else if (hasProof === 'false') {
+      tasks = tasks.filter(task => !task.proofUploads || task.proofUploads.length === 0);
+    }
+    
+    if (isOverdue === 'true') {
+      const now = new Date();
+      tasks = tasks.filter(task => {
+        const deadline = new Date(task.deadline);
+        return deadline < now && task.status !== 'completed';
+      });
+    }
+    
+    // Sort tasks
+    const sortFunctions = {
+      deadline: (a, b) => new Date(a.deadline) - new Date(b.deadline),
+      'deadline-desc': (a, b) => new Date(b.deadline) - new Date(a.deadline),
+      risk: (a, b) => calculateTaskRisk(b) - calculateTaskRisk(a),
+      'risk-desc': (a, b) => calculateTaskRisk(a) - calculateTaskRisk(b),
+      efficiency: (a, b) => calculateTaskEfficiency(a) - calculateTaskEfficiency(b),
+      'efficiency-desc': (a, b) => calculateTaskEfficiency(b) - calculateTaskEfficiency(a),
+      status: (a, b) => getStatusWeight(b.status) - getStatusWeight(a.status),
+      'status-desc': (a, b) => getStatusWeight(a.status) - getStatusWeight(b.status)
+    };
+    
+    const sortFunc = sortFunctions[`${sortBy}${sortOrder === 'desc' ? '-desc' : ''}`] || sortFunctions.deadline;
+    tasks.sort(sortFunc);
+    
+    // Pagination
+    const startIndex = (page - 1) * limit;
+    const endIndex = page * limit;
+    const paginatedTasks = tasks.slice(startIndex, endIndex);
+    
+    // Enrich tasks with metrics
+    const enrichedTasks = enrichTasksWithMetrics(paginatedTasks);
+    
+    // Calculate summary
+    const totalTasks = tasks.length;
+    const totalPages = Math.ceil(totalTasks / limit);
+    
+    res.status(200).json({
+      success: true,
+      tasks: enrichedTasks,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalTasks,
+        totalPages,
+        hasNextPage: endIndex < totalTasks,
+        hasPrevPage: startIndex > 0
+      },
+      filters: {
+        status,
+        riskLevel,
+        hasProof,
+        isOverdue,
+        assignedTo,
+        sortBy,
+        sortOrder
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching filtered tasks:', err);
+    res.status(500).json({
+      success: false,
+      message: `Error fetching tasks: ${err.message}`
+    });
+  }
+};
+
+// NEW: Get user's tasks across all projects with metrics
+export const getUserTasks = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { 
+      status, 
+      projectId,
+      limit = 50,
+      page = 1 
+    } = req.query;
+    
+    // Build query
+    const query = { assignedTo: userId };
+    
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+    
+    if (projectId && projectId !== 'all') {
+      query.projectId = projectId;
+    }
+    
+    const tasks = await Task.find(query)
+      .populate('assignedTo', 'name email avatar')
+      .populate('projectId', 'projectName')
+      .sort({ deadline: 1 })
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit))
+      .lean();
+    
+    // Enrich tasks with metrics
+    const enrichedTasks = enrichTasksWithMetrics(tasks);
+    
+    // Get user statistics
+    const allUserTasks = await Task.find({ assignedTo: userId }).lean();
+    
+    const totalTasks = allUserTasks.length;
+    const completedTasks = allUserTasks.filter(t => t.status === 'completed').length;
+    const activeTasks = allUserTasks.filter(t => t.status === 'active').length;
+    
+    const totalRiskScore = allUserTasks.reduce((sum, task) => sum + calculateTaskRisk(task), 0);
+    const averageRiskScore = totalTasks > 0 ? totalRiskScore / totalTasks : 0;
+    
+    const totalEfficiency = allUserTasks.reduce((sum, task) => {
+      const efficiency = calculateTaskEfficiency(task);
+      return sum + (isNaN(efficiency) ? 0 : efficiency);
+    }, 0);
+    const averageEfficiency = totalTasks > 0 ? totalEfficiency / totalTasks : 0;
+    
+    const now = new Date();
+    const overdueTasks = allUserTasks.filter(t => {
+      const deadline = new Date(t.deadline);
+      return deadline < now && t.status !== 'completed';
+    }).length;
+    
+    const tasksWithProof = allUserTasks.filter(t => t.proofUploads && t.proofUploads.length > 0).length;
+    
+    res.status(200).json({
+      success: true,
+      tasks: enrichedTasks,
+      userMetrics: {
+        totalTasks,
+        completedTasks,
+        activeTasks,
+        overdueTasks,
+        tasksWithProof,
+        completionRate: totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0,
+        averageRiskScore: Number(averageRiskScore.toFixed(2)),
+        averageEfficiency: Number(averageEfficiency.toFixed(2)),
+        riskDistribution: {
+          high: allUserTasks.filter(t => calculateTaskRisk(t) >= 4).length,
+          medium: allUserTasks.filter(t => calculateTaskRisk(t) >= 2 && calculateTaskRisk(t) < 4).length,
+          low: allUserTasks.filter(t => calculateTaskRisk(t) < 2).length
+        }
+      },
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalTasks: allUserTasks.length,
+        totalPages: Math.ceil(allUserTasks.length / limit)
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching user tasks:', err);
+    res.status(500).json({
+      success: false,
+      message: `Error fetching user tasks: ${err.message}`
+    });
+  }
+};
+
+// Export all functions
 export default {
   getTasks,
   createTask,
@@ -652,5 +1056,7 @@ export default {
   deleteTask,
   assignTask,
   getTaskDetails,
-  updateTaskGrading
+  updateTaskGrading,
+  getTasksWithFilter,  // NEW
+  getUserTasks         // NEW
 };

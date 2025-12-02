@@ -1,5 +1,8 @@
+//server/userDiscoveryController.js
+
 import User from "../models/user.js";
 import Connection from "../models/connection.js";
+
 
 
 // Get suggested users (users not connected with current user)

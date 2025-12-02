@@ -31,7 +31,7 @@ import projectRoutes from "./routes/projectRoutes.js";
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/user", userRoutes);
-app.use("/api/project", projectRoutes);
+app.use("/api/projects", projectRoutes);
 app.use("/api/home", authRoutes );
 
 
