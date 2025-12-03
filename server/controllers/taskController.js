@@ -1,3 +1,4 @@
+// taskController.js - OPTIMIZED VERSION
 import Task from '../models/tasks.js';
 import Project from '../models/projects.js';
 import User from '../models/user.js';
@@ -43,6 +44,19 @@ const calculateTaskEfficiency = (task) => {
   return (totalFocusTime / estimatedTime) * 100;
 };
 
+// Helper to calculate if task is overdue
+const calculateIsOverdue = (task) => {
+  if (!task.deadline) return false;
+  return new Date(task.deadline) < new Date() && task.status !== 'completed';
+};
+
+// Helper to calculate days until deadline
+const calculateDaysUntilDeadline = (task) => {
+  if (!task.deadline) return 0;
+  const days = Math.ceil((new Date(task.deadline) - new Date()) / (1000 * 60 * 60 * 24));
+  return days < 0 ? 0 : days;
+};
+
 // Helper to enrich a single task with metrics
 const enrichTaskWithMetrics = (task) => {
   if (!task) return null;
@@ -50,6 +64,8 @@ const enrichTaskWithMetrics = (task) => {
   const efficiency = calculateTaskEfficiency(task);
   const riskScore = calculateTaskRisk(task);
   const statusWeight = getStatusWeight(task.status);
+  const isOverdue = calculateIsOverdue(task);
+  const daysUntilDeadline = calculateDaysUntilDeadline(task);
   
   return {
     ...task,
@@ -61,9 +77,8 @@ const enrichTaskWithMetrics = (task) => {
       statusWeightPercentage: statusWeight * 100,
       hasProof: task.proofUploads && task.proofUploads.length > 0,
       proofCount: task.proofUploads ? task.proofUploads.length : 0,
-      isOverdue: task.deadline ? new Date(task.deadline) < new Date() && task.status !== 'completed' : false,
-      daysUntilDeadline: task.deadline ? 
-        Math.ceil((new Date(task.deadline) - new Date()) / (1000 * 60 * 60 * 24)) : 0
+      isOverdue,
+      daysUntilDeadline
     }
   };
 };
@@ -71,16 +86,51 @@ const enrichTaskWithMetrics = (task) => {
 // Helper to enrich multiple tasks with metrics
 const enrichTasksWithMetrics = (tasks) => {
   if (!tasks || !Array.isArray(tasks)) return [];
-  
   return tasks.map(task => enrichTaskWithMetrics(task));
+};
+
+// Common function to calculate summary metrics
+const calculateSummaryMetrics = (enrichedTasks) => {
+  const totalTasks = enrichedTasks.length;
+  const completedTasks = enrichedTasks.filter(t => t.status === 'completed').length;
+  const activeTasks = enrichedTasks.filter(t => t.status === 'active').length;
+  const totalRiskScore = enrichedTasks.reduce((sum, task) => sum + (task.metrics.riskScore || 0), 0);
+  const averageRiskScore = totalTasks > 0 ? totalRiskScore / totalTasks : 0;
+  const totalStatusWeight = enrichedTasks.reduce((sum, task) => sum + (task.metrics.statusWeight || 0), 0);
+  const weightedProgress = totalTasks > 0 ? (totalStatusWeight / totalTasks) * 100 : 0;
+
+  return {
+    totalTasks,
+    completedTasks,
+    activeTasks,
+    averageRiskScore: Number(averageRiskScore.toFixed(2)),
+    weightedProgress: Number(weightedProgress.toFixed(2)),
+    summary: {
+      highRiskTasks: enrichedTasks.filter(t => t.metrics.riskScore >= 4).length,
+      mediumRiskTasks: enrichedTasks.filter(t => t.metrics.riskScore >= 2 && t.metrics.riskScore < 4).length,
+      lowRiskTasks: enrichedTasks.filter(t => t.metrics.riskScore < 2).length,
+      overdueTasks: enrichedTasks.filter(t => t.metrics.isOverdue).length,
+      tasksWithProof: enrichedTasks.filter(t => t.metrics.hasProof).length
+    }
+  };
+};
+
+// Common error handler
+const handleError = (res, err, context) => {
+  console.error(`Error in ${context}:`, err);
+  res.status(500).json({ 
+    success: false,
+    message: `Error ${context}: ${err.message}` 
+  });
 };
 
 // Get all tasks for a project WITH METRICS
 export const getTasks = async (req, res) => {
   try {
     const { projectId } = req.params;
+    const userId = req.user.id;
     
-    // Check if project exists
+    // Check if project exists and user has access
     const project = await Project.findById(projectId);
     if (!project) {
       return res.status(404).json({
@@ -88,9 +138,6 @@ export const getTasks = async (req, res) => {
         message: "Project not found"
       });
     }
-    
-    // Checking if user has access to project (creator or team member)
-    const userId = req.user.id; 
     
     if (project.createdBy.toString() !== userId && 
         !project.team.some(member => member.toString() === userId)) {
@@ -100,49 +147,21 @@ export const getTasks = async (req, res) => {
       });
     }
     
-    const tasks = await Task.find({ 
-      projectId: projectId
-    })
-    .populate('assignedTo', 'name email avatar')
-    .sort({ deadline: 1 })
-    .lean();
+    const tasks = await Task.find({ projectId })
+      .populate('assignedTo', 'name email avatar')
+      .sort({ deadline: 1 })
+      .lean();
 
-    // Enrich tasks with metrics
     const enrichedTasks = enrichTasksWithMetrics(tasks);
-
-    // Calculate summary statistics
-    const totalTasks = tasks.length;
-    const completedTasks = tasks.filter(t => t.status === 'completed').length;
-    const activeTasks = tasks.filter(t => t.status === 'active').length;
-    const totalRiskScore = enrichedTasks.reduce((sum, task) => sum + (task.metrics.riskScore || 0), 0);
-    const averageRiskScore = totalTasks > 0 ? totalRiskScore / totalTasks : 0;
-    const totalStatusWeight = enrichedTasks.reduce((sum, task) => sum + (task.metrics.statusWeight || 0), 0);
-    const weightedProgress = totalTasks > 0 ? (totalStatusWeight / totalTasks) * 100 : 0;
+    const metrics = calculateSummaryMetrics(enrichedTasks);
 
     res.status(200).json({ 
       success: true,
       tasks: enrichedTasks,
-      metrics: {
-        totalTasks,
-        completedTasks,
-        activeTasks,
-        averageRiskScore: Number(averageRiskScore.toFixed(2)),
-        weightedProgress: Number(weightedProgress.toFixed(2)),
-        summary: {
-          highRiskTasks: enrichedTasks.filter(t => t.metrics.riskScore >= 4).length,
-          mediumRiskTasks: enrichedTasks.filter(t => t.metrics.riskScore >= 2 && t.metrics.riskScore < 4).length,
-          lowRiskTasks: enrichedTasks.filter(t => t.metrics.riskScore < 2).length,
-          overdueTasks: enrichedTasks.filter(t => t.metrics.isOverdue).length,
-          tasksWithProof: enrichedTasks.filter(t => t.metrics.hasProof).length
-        }
-      }
+      metrics
     });
   } catch (err) {
-    console.error('Error fetching tasks:', err);
-    res.status(500).json({ 
-      success: false,
-      message: "Error fetching tasks from server!" 
-    });
+    handleError(res, err, 'fetching tasks');
   }
 };
 
@@ -159,7 +178,7 @@ export const createTask = async (req, res) => {
       tags = []
     } = req.body;
     
-    const userId = req.user.id; // Gets user ID from authMiddleware
+    const userId = req.user.id;
 
     // Validate required fields
     if (!taskTitle || !projectId || !assignedTo || !deadline || !estimatedTime) {
@@ -187,7 +206,7 @@ export const createTask = async (req, res) => {
       });
     }
 
-    // Check if assigned user is in project team (for improved security)
+    // Check if assigned user is in project team
     if (!project.team.some(member => member.toString() === assignedTo) && 
         project.createdBy.toString() !== assignedTo) {
       return res.status(400).json({
@@ -209,7 +228,7 @@ export const createTask = async (req, res) => {
       flags: {
         paddedTime: false,
         rushedCompletion: false,
-        noProof: true, // Initially true since no proof uploaded yet
+        noProof: true,
         manualReviewRequired: false
       },
       gradingMeta: {
@@ -226,7 +245,6 @@ export const createTask = async (req, res) => {
       .populate('assignedTo', 'name email avatar')
       .lean();
 
-    // Enrich task with metrics
     const enrichedTask = enrichTaskWithMetrics(populatedTask);
 
     // Log task creation activity
@@ -244,15 +262,11 @@ export const createTask = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Error creating task:', err);
-    res.status(500).json({ 
-      success: false,
-      message: `Error creating task: ${err.message}` 
-    });
+    handleError(res, err, 'creating task');
   }
 };
 
-// Update task status
+// Update task status (FIXED: No major issues)
 export const updateTaskStatus = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -285,7 +299,7 @@ export const updateTaskStatus = async (req, res) => {
       });
     }
 
-    // Check access: user must be creator, assigned to task, or admin
+    // Check access: user must be creator, assigned to task, or team member
     const hasAccess = 
       project.createdBy.toString() === userId ||
       task.assignedTo.toString() === userId ||
@@ -334,7 +348,6 @@ export const updateTaskStatus = async (req, res) => {
       .populate('assignedTo', 'name email avatar')
       .lean();
 
-    // Enrich task with updated metrics
     const enrichedTask = enrichTaskWithMetrics(updatedTask);
 
     res.status(200).json({ 
@@ -351,11 +364,7 @@ export const updateTaskStatus = async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Error updating task:', err);
-    res.status(500).json({ 
-      success: false,
-      message: `Error updating task: ${err.message}` 
-    });
+    handleError(res, err, 'updating task status');
   }
 };
 
@@ -397,7 +406,7 @@ export const updateTaskTime = async (req, res) => {
     const totalLoggedTime = task.totalFocusTime;
     const estimatedTime = task.estimatedTime;
     
-    if (totalLoggedTime > (estimatedTime * 2)) { // More than 200% of estimated time
+    if (totalLoggedTime > (estimatedTime * 2)) {
       task.flags.paddedTime = true;
       task.flags.manualReviewRequired = true;
     }
@@ -417,7 +426,6 @@ export const updateTaskTime = async (req, res) => {
       .populate('assignedTo', 'name email avatar')
       .lean();
 
-    // Enrich task with updated metrics
     const enrichedTask = enrichTaskWithMetrics(updatedTask);
 
     res.status(200).json({
@@ -427,15 +435,11 @@ export const updateTaskTime = async (req, res) => {
       task: enrichedTask
     });
   } catch (err) {
-    console.error('Error updating task time:', err);
-    res.status(500).json({
-      success: false,
-      message: `Error updating task time: ${err.message}`
-    });
+    handleError(res, err, 'updating task time');
   }
 };
 
-// Upload proof for task
+// Upload proof for task (FIXED: No major issues)
 export const uploadProof = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -491,7 +495,6 @@ export const uploadProof = async (req, res) => {
       .populate('assignedTo', 'name email avatar')
       .lean();
 
-    // Enrich task with updated metrics
     const enrichedTask = enrichTaskWithMetrics(updatedTask);
 
     res.status(200).json({
@@ -501,15 +504,11 @@ export const uploadProof = async (req, res) => {
       task: enrichedTask
     });
   } catch (err) {
-    console.error('Error uploading proof:', err);
-    res.status(500).json({
-      success: false,
-      message: `Error uploading proof: ${err.message}`
-    });
+    handleError(res, err, 'uploading proof');
   }
 };
 
-// Update task flags
+// Update task flags (FIXED: No major issues)
 export const updateTaskFlags = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -524,7 +523,7 @@ export const updateTaskFlags = async (req, res) => {
       });
     }
 
-    // Check if user is teacher/admin (only teachers can modify flags)
+    // Check if user is teacher/admin
     const user = await User.findById(userId);
     if (user.role !== 'admin' && user.role !== 'teacher') {
       return res.status(403).json({
@@ -549,7 +548,6 @@ export const updateTaskFlags = async (req, res) => {
       .populate('assignedTo', 'name email avatar')
       .lean();
 
-    // Enrich task with updated metrics
     const enrichedTask = enrichTaskWithMetrics(updatedTask);
 
     res.status(200).json({
@@ -559,15 +557,11 @@ export const updateTaskFlags = async (req, res) => {
       task: enrichedTask
     });
   } catch (err) {
-    console.error('Error updating task flags:', err);
-    res.status(500).json({
-      success: false,
-      message: `Error updating task flags: ${err.message}`
-    });
+    handleError(res, err, 'updating task flags');
   }
 };
 
-// Delete task
+// Delete task (FIXED: No major issues)
 export const deleteTask = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -611,15 +605,11 @@ export const deleteTask = async (req, res) => {
       message: "Task deleted successfully" 
     });
   } catch (err) {
-    console.error('Error deleting task:', err);
-    res.status(500).json({ 
-      success: false,
-      message: `Error deleting task: ${err.message}` 
-    });
+    handleError(res, err, 'deleting task');
   }
 };
 
-// Assign/reassign task
+// Assign/reassign task (FIXED: User role check)
 export const assignTask = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -645,9 +635,10 @@ export const assignTask = async (req, res) => {
 
     // Check permissions: project creator, admin, or current assignee can reassign
     const project = await Project.findById(task.projectId);
+    const user = await User.findById(userId);
 
     const isProjectCreator = project.createdBy.toString() === userId;
-    const isAdmin = req.user.role === 'admin';
+    const isAdmin = user.role === 'admin'; // FIXED: Get user from DB
     const isCurrentAssignee = task.assignedTo.toString() === userId;
 
     if (!isProjectCreator && !isAdmin && !isCurrentAssignee) {
@@ -673,7 +664,6 @@ export const assignTask = async (req, res) => {
       .populate('assignedTo', 'name email avatar')
       .lean();
 
-    // Enrich task with updated metrics
     const enrichedTask = enrichTaskWithMetrics(updatedTask);
 
     res.status(200).json({
@@ -683,15 +673,11 @@ export const assignTask = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Error assigning task:', err);
-    res.status(500).json({
-      success: false,
-      message: `Error assigning task: ${err.message}`
-    });
+    handleError(res, err, 'assigning task');
   }
 };
 
-// Get task details with activities AND METRICS
+// Get task details with activities AND METRICS (FIXED: Use helper functions)
 export const getTaskDetails = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -728,16 +714,12 @@ export const getTaskDetails = async (req, res) => {
       .sort({ timestamp: -1 })
       .limit(50);
 
-    // Calculate metrics
+    // Calculate metrics using helper functions
     const efficiency = calculateTaskEfficiency(task);
     const riskScore = calculateTaskRisk(task);
     const statusWeight = getStatusWeight(task.status);
-    
-    // Check if overdue
-    const now = new Date();
-    const deadline = new Date(task.deadline);
-    const isOverdue = deadline < now && task.status !== 'completed';
-    const daysUntilDeadline = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
+    const isOverdue = calculateIsOverdue(task);
+    const daysUntilDeadline = calculateDaysUntilDeadline(task);
 
     res.status(200).json({
       success: true,
@@ -752,7 +734,7 @@ export const getTaskDetails = async (req, res) => {
         estimatedTime: task.estimatedTime,
         proofCount: task.proofUploads.length,
         isOverdue,
-        daysUntilDeadline: daysUntilDeadline < 0 ? 0 : daysUntilDeadline,
+        daysUntilDeadline,
         hasProof: task.proofUploads && task.proofUploads.length > 0,
         riskLevel: riskScore >= 4 ? 'high' : riskScore >= 2 ? 'medium' : 'low',
         flags: {
@@ -764,15 +746,11 @@ export const getTaskDetails = async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Error fetching task details:', err);
-    res.status(500).json({
-      success: false,
-      message: `Error fetching task details: ${err.message}`
-    });
+    handleError(res, err, 'fetching task details');
   }
 };
 
-// Update task grading metadata
+// Update task grading metadata (FIXED: No major issues)
 export const updateTaskGrading = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -804,7 +782,6 @@ export const updateTaskGrading = async (req, res) => {
       .populate('assignedTo', 'name email avatar')
       .lean();
 
-    // Enrich task with updated metrics
     const enrichedTask = enrichTaskWithMetrics(updatedTask);
 
     res.status(200).json({
@@ -814,15 +791,11 @@ export const updateTaskGrading = async (req, res) => {
       task: enrichedTask
     });
   } catch (err) {
-    console.error('Error updating task grading:', err);
-    res.status(500).json({
-      success: false,
-      message: `Error updating task grading: ${err.message}`
-    });
+    handleError(res, err, 'updating task grading');
   }
 };
 
-// NEW: Get tasks with advanced filtering and metrics
+// Get tasks with advanced filtering and metrics for a project
 export const getTasksWithFilter = async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -890,11 +863,7 @@ export const getTasksWithFilter = async (req, res) => {
     }
     
     if (isOverdue === 'true') {
-      const now = new Date();
-      tasks = tasks.filter(task => {
-        const deadline = new Date(task.deadline);
-        return deadline < now && task.status !== 'completed';
-      });
+      tasks = tasks.filter(task => calculateIsOverdue(task));
     }
     
     // Sort tasks
@@ -946,15 +915,11 @@ export const getTasksWithFilter = async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Error fetching filtered tasks:', err);
-    res.status(500).json({
-      success: false,
-      message: `Error fetching tasks: ${err.message}`
-    });
+    handleError(res, err, 'fetching filtered tasks');
   }
 };
 
-// NEW: Get user's tasks across all projects with metrics
+// Get user's tasks across all projects with metrics
 export const getUserTasks = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -1004,10 +969,7 @@ export const getUserTasks = async (req, res) => {
     const averageEfficiency = totalTasks > 0 ? totalEfficiency / totalTasks : 0;
     
     const now = new Date();
-    const overdueTasks = allUserTasks.filter(t => {
-      const deadline = new Date(t.deadline);
-      return deadline < now && t.status !== 'completed';
-    }).length;
+    const overdueTasks = allUserTasks.filter(t => calculateIsOverdue(t)).length;
     
     const tasksWithProof = allUserTasks.filter(t => t.proofUploads && t.proofUploads.length > 0).length;
     
@@ -1037,17 +999,283 @@ export const getUserTasks = async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Error fetching user tasks:', err);
-    res.status(500).json({
-      success: false,
-      message: `Error fetching user tasks: ${err.message}`
-    });
+    handleError(res, err, 'fetching user tasks');
   }
 };
 
-// Export all functions
+// Get all tasks across all projects for the current user
+export const getAllTasks = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // 1. Get all projects the user has access to
+    const userProjects = await Project.find({
+      $or: [
+        { createdBy: userId },
+        { team: { $in: [userId] } }
+      ]
+    }).select('_id projectName');
+
+    if (!userProjects || userProjects.length === 0) {
+      return res.status(200).json({ 
+        success: true,
+        tasks: [],
+        metrics: {
+          totalTasks: 0,
+          completedTasks: 0,
+          activeTasks: 0,
+          averageRiskScore: 0,
+          weightedProgress: 0,
+          summary: {
+            highRiskTasks: 0,
+            mediumRiskTasks: 0,
+            lowRiskTasks: 0,
+            overdueTasks: 0,
+            tasksWithProof: 0
+          },
+          projectBreakdown: {}
+        }
+      });
+    }
+
+    const projectIds = userProjects.map(project => project._id);
+    
+    // 2. Get all tasks from these projects
+    const tasks = await Task.find({ 
+      projectId: { $in: projectIds }
+    })
+    .populate('assignedTo', 'name email avatar')
+    .populate('projectId', 'projectName')
+    .sort({ deadline: 1 })
+    .lean();
+
+    // 3. Enrich tasks with metrics
+    const enrichedTasks = enrichTasksWithMetrics(tasks);
+
+    // 4. Calculate summary statistics
+    const metrics = calculateSummaryMetrics(enrichedTasks);
+
+    // 5. Calculate project breakdown
+    const projectBreakdown = {};
+    userProjects.forEach(project => {
+      const projectTasks = enrichedTasks.filter(t => 
+        t.projectId && t.projectId._id.toString() === project._id.toString()
+      );
+      const projectCompleted = projectTasks.filter(t => t.status === 'completed').length;
+      
+      projectBreakdown[project._id] = {
+        projectName: project.projectName,
+        totalTasks: projectTasks.length,
+        completedTasks: projectCompleted,
+        completionRate: projectTasks.length > 0 ? (projectCompleted / projectTasks.length) * 100 : 0,
+        highRiskTasks: projectTasks.filter(t => t.metrics.riskScore >= 4).length,
+        overdueTasks: projectTasks.filter(t => t.metrics.isOverdue).length
+      };
+    });
+
+    // 6. Calculate user-specific metrics
+    const userAssignedTasks = enrichedTasks.filter(t => 
+      t.assignedTo && t.assignedTo._id.toString() === userId
+    );
+    const userTasksCount = userAssignedTasks.length;
+    const userCompletedTasks = userAssignedTasks.filter(t => t.status === 'completed').length;
+    const userOverdueTasks = userAssignedTasks.filter(t => t.metrics.isOverdue).length;
+    
+    // 7. Calculate efficiency distribution
+    const efficiencyDistribution = {
+      rushed: enrichedTasks.filter(t => t.metrics.efficiency < 50).length,
+      optimal: enrichedTasks.filter(t => t.metrics.efficiency >= 50 && t.metrics.efficiency <= 120).length,
+      overworked: enrichedTasks.filter(t => t.metrics.efficiency > 120).length
+    };
+
+    // Add additional metrics
+    const enhancedMetrics = {
+      ...metrics,
+      userSpecific: {
+        assignedTasks: userTasksCount,
+        completedTasks: userCompletedTasks,
+        completionRate: userTasksCount > 0 ? (userCompletedTasks / userTasksCount) * 100 : 0,
+        overdueTasks: userOverdueTasks,
+        efficiency: userTasksCount > 0 ? 
+          userAssignedTasks.reduce((sum, task) => sum + (task.metrics.efficiency || 0), 0) / userTasksCount : 0
+      },
+      summary: {
+        ...metrics.summary,
+        efficiencyDistribution
+      },
+      projectBreakdown,
+      accessInfo: {
+        totalProjects: userProjects.length,
+        projectNames: userProjects.map(p => p.projectName)
+      }
+    };
+
+    res.status(200).json({ 
+      success: true,
+      tasks: enrichedTasks,
+      metrics: enhancedMetrics
+    });
+  } catch (err) {
+    handleError(res, err, 'fetching all tasks');
+  }
+};
+
+// Get all tasks with filtering options
+export const getAllTasksWithFilters = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { 
+      status, 
+      riskLevel, 
+      hasProof, 
+      isOverdue,
+      assignedTo,
+      projectId,
+      sortBy = 'deadline',
+      sortOrder = 'asc',
+      page = 1,
+      limit = 50,
+      search
+    } = req.query;
+
+    // 1. Get all projects the user has access to
+    const userProjects = await Project.find({
+      $or: [
+        { createdBy: userId },
+        { team: { $in: [userId] } }
+      ]
+    }).select('_id projectName');
+
+    if (!userProjects || userProjects.length === 0) {
+      return res.status(200).json({ 
+        success: true,
+        tasks: [],
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          totalTasks: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPrevPage: false
+        },
+        filters: req.query
+      });
+    }
+
+    const projectIds = userProjects.map(project => project._id);
+    
+    // 2. Build query
+    const query = { projectId: { $in: projectIds } };
+    
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+    
+    if (assignedTo && assignedTo !== 'all') {
+      query.assignedTo = assignedTo;
+    }
+    
+    if (projectId && projectId !== 'all') {
+      query.projectId = projectId;
+    }
+    
+    if (search) {
+      query.$or = [
+        { taskTitle: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // 3. Get tasks with pagination
+    const skip = (page - 1) * limit;
+    
+    let tasks = await Task.find(query)
+      .populate('assignedTo', 'name email avatar')
+      .populate('projectId', 'projectName')
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+
+    // 4. Apply computed filters
+    if (riskLevel && riskLevel !== 'all') {
+      tasks = tasks.filter(task => {
+        const riskScore = calculateTaskRisk(task);
+        if (riskLevel === 'high') return riskScore >= 4;
+        if (riskLevel === 'medium') return riskScore >= 2 && riskScore < 4;
+        if (riskLevel === 'low') return riskScore < 2;
+        return true;
+      });
+    }
+    
+    if (hasProof === 'true') {
+      tasks = tasks.filter(task => task.proofUploads && task.proofUploads.length > 0);
+    } else if (hasProof === 'false') {
+      tasks = tasks.filter(task => !task.proofUploads || task.proofUploads.length === 0);
+    }
+    
+    if (isOverdue === 'true') {
+      tasks = tasks.filter(task => calculateIsOverdue(task));
+    }
+
+    // 5. Sort tasks
+    const sortOptions = {
+      deadline: (a, b) => new Date(a.deadline) - new Date(b.deadline),
+      'deadline-desc': (a, b) => new Date(b.deadline) - new Date(a.deadline),
+      risk: (a, b) => calculateTaskRisk(b) - calculateTaskRisk(a),
+      'risk-desc': (a, b) => calculateTaskRisk(a) - calculateTaskRisk(b),
+      efficiency: (a, b) => calculateTaskEfficiency(a) - calculateTaskEfficiency(b),
+      'efficiency-desc': (a, b) => calculateTaskEfficiency(b) - calculateTaskEfficiency(a),
+      updatedAt: (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt),
+      'updatedAt-desc': (a, b) => new Date(a.updatedAt) - new Date(b.updatedAt)
+    };
+    
+    const sortFunc = sortOptions[`${sortBy}${sortOrder === 'desc' ? '-desc' : ''}`] || sortOptions.deadline;
+    tasks.sort(sortFunc);
+
+    // 6. Get total count for pagination
+    const totalTasks = await Task.countDocuments(query);
+
+    // 7. Enrich tasks with metrics
+    const enrichedTasks = enrichTasksWithMetrics(tasks);
+
+    // 8. Calculate summary
+    const summaryMetrics = calculateSummaryMetrics(enrichedTasks);
+
+    res.status(200).json({
+      success: true,
+      tasks: enrichedTasks,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalTasks,
+        totalPages: Math.ceil(totalTasks / limit),
+        hasNextPage: page < Math.ceil(totalTasks / limit),
+        hasPrevPage: page > 1
+      },
+      filters: {
+        status,
+        riskLevel,
+        hasProof,
+        isOverdue,
+        assignedTo,
+        projectId,
+        sortBy,
+        sortOrder,
+        search,
+        limit
+      },
+      summary: summaryMetrics.summary
+    });
+  } catch (err) {
+    handleError(res, err, 'fetching all tasks with filters');
+  }
+};
+
+// Export all functions (FIXED: Add missing functions)
 export default {
   getTasks,
+  getAllTasks,           // ADDED
+  getAllTasksWithFilters, // ADDED
   createTask,
   updateTaskStatus,
   updateTaskTime,
@@ -1057,6 +1285,6 @@ export default {
   assignTask,
   getTaskDetails,
   updateTaskGrading,
-  getTasksWithFilter,  // NEW
-  getUserTasks         // NEW
+  getTasksWithFilter,  
+  getUserTasks         
 };

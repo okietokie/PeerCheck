@@ -15,7 +15,11 @@ import {
   Avatar,
   AvatarGroup,
   Paper,
-  alpha
+  alpha,
+  CircularProgress,
+  Alert,
+  IconButton,
+  Rating
 } from "@mui/material";
 import { 
   People,
@@ -41,75 +45,145 @@ import {
   LinkedIn,
   Email,
   Phone,
-  LocationOn
+  LocationOn,
+  Refresh,
+  ThumbUp,
+  AccessTime
 } from "@mui/icons-material";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axiosClient from "@/api/axiosClient";
 import { motion } from "framer-motion";
+import ReviewDialog from "./ReviewDialog";
+
 
 export default function Home() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));  
-  const [stdCountActive, setStdCountActive] = useState(0);
+  const [stats, setStats] = useState({
+    activeUsers: 0,
+    totalUsers: 0,
+    newUsersLast30Days: 0,
+    reviewStats: {
+      averageRating: 0,
+      totalReviews: 0,
+      helpfulVotes: 0,
+      satisfactionRate: 0
+    },
+    recentReviews: []
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [animatedStats, setAnimatedStats] = useState({
-    users: 0, 
-    feedback: 0,
+    users: 0,
+    reviews: 0,
     satisfaction: 0
   });
 
-  const fetchBasicUserData = async () => {
+  // Helper to get auth token
+  const getAuthToken = () => {
+    return localStorage.getItem("token");
+  };
+
+  // Check if user is logged in
+  const isLoggedIn = () => {
+    return !!getAuthToken();
+  };
+
+  // Fetch live data from backend
+  const fetchLiveData = useCallback(async () => {
     try {
-      const token = localStorage.getItem("token");
-      const res = await axiosClient.get("/home/basic-data", {
-        headers: {Authorization : `Bearer ${token}`}
-      })
-      setStdCountActive(res.data.activeUsers || 0);
-    } catch (error) {
-      console.log(`Error fetching basic data ${error}`)
-    }
-  }
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchBasicUserData();
-    }, 10000);
-    
-    return () => clearInterval(interval);
-  }, [])
-
-  useEffect(() => {
-    const animateStats = () => {
-      const duration = 2000;
-      const steps = 60;
-      const incrementUsers = 1500 / steps;
-      const incrementFeedback = 3200 / steps;
-      const incrementSatisfaction = 98 / steps;
-
-      let currentUsers = 0;
-      let currentFeedback = 0;
-      let currentSatisfaction = 0;
-      let step = 0;
-
-      const timer = setInterval(() => {
-        step++;
-        currentUsers = Math.min(1500, currentUsers + incrementUsers);
-        currentFeedback = Math.min(3200, currentFeedback + incrementFeedback);
-        currentSatisfaction = Math.min(98, currentSatisfaction + incrementSatisfaction);
-
-        setAnimatedStats({
-          users: Math.floor(currentUsers),
-          feedback: Math.floor(currentFeedback),
-          satisfaction: Math.floor(currentSatisfaction)
+      setLoading(true);
+      setError('');
+      
+      const response = await axiosClient.get("/user/basic-data");
+      
+      if (response.data.success) {
+        const data = response.data;
+        setStats({
+          activeUsers: data.activeUsers || 0,
+          totalUsers: data.totalUsers || 0,
+          newUsersLast30Days: data.newUsersLast30Days || 0,
+          reviewStats: data.reviewStats || {
+            averageRating: 0,
+            totalReviews: 0,
+            helpfulVotes: 0,
+            satisfactionRate: 0
+          },
+          recentReviews: data.recentReviews || []
         });
 
-        if (step >= steps) {
-          clearInterval(timer);
-        }
-      }, duration / steps);
-    };
-
-    animateStats();
+        // Animate stats
+        animateStats(data);
+      } else {
+        setError('Failed to load data');
+      }
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError('Unable to load live data. Please try again.');
+      
+      // Fallback to static data for demo
+      setStats({
+        activeUsers: 0,
+        totalUsers: 0,
+        newUsersLast30Days: 0,
+        reviewStats: {
+          averageRating: 0,
+          totalReviews: 0,
+          helpfulVotes: 0,
+          satisfactionRate: 0
+        },
+        recentReviews: []
+      });
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // Animate statistics
+  const animateStats = (data) => {
+    const duration = 2000;
+    const steps = 60;
+    const incrementUsers = (data.totalUsers || 0) / steps;
+    const incrementReviews = (data.reviewStats?.totalReviews || 0) / steps;
+    const incrementSatisfaction = (data.reviewStats?.satisfactionRate || 0) / steps;
+
+    let currentUsers = 0;
+    let currentReviews = 0;
+    let currentSatisfaction = 0;
+    let step = 0;
+
+    const timer = setInterval(() => {
+      step++;
+      currentUsers = Math.min(data.totalUsers || 0, currentUsers + incrementUsers);
+      currentReviews = Math.min(data.reviewStats?.totalReviews || 0, currentReviews + incrementReviews);
+      currentSatisfaction = Math.min(data.reviewStats?.satisfactionRate || 0, currentSatisfaction + incrementSatisfaction);
+
+      setAnimatedStats({
+        users: Math.floor(currentUsers),
+        reviews: Math.floor(currentReviews),
+        satisfaction: Math.floor(currentSatisfaction)
+      });
+
+      if (step >= steps) {
+        clearInterval(timer);
+      }
+    }, duration / steps);
+  };
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchLiveData();
+  }, [fetchLiveData]);
+
+  // Auto-refresh data every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchLiveData();
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [fetchLiveData]);
 
   const features = [
     {
@@ -138,32 +212,43 @@ export default function Home() {
     }
   ];
 
-  const testimonials = [
-    {
-      name: "Sarah Chen",
-      role: "Computer Science Student",
-      content: "PeerCheck transformed how our study group collaborates. The feedback system is incredible!",
-      avatar: "SC"
-    },
-    {
-      name: "Marcus Rodriguez",
-      role: "Engineering Student",
-      content: "Finally, a platform that understands how students actually work together.",
-      avatar: "MR"
-    },
-    {
-      name: "Priya Patel",
-      role: "Medical Student",
-      content: "The progress tracking helped our group stay motivated throughout the semester.",
-      avatar: "PP"
+  // Handle review submission success
+  const handleReviewSubmitted = () => {
+    // Refresh data to show new review
+    fetchLiveData();
+  };
+
+  // Format date helper
+  const formatDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch (err) {
+      return 'Recent';
     }
-  ];
+  };
+
+  // Render star rating component
+  const renderStars = (rating) => {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Rating value={rating} readOnly precision={0.5} size="small" />
+        <Typography variant="body2" color="text.secondary">
+          ({rating.toFixed(1)})
+        </Typography>
+      </Box>
+    );
+  };
 
   return (
     <>
       <Navbar />
 
-      {/* Enhanced Hero Section with Particles */}
+      {/* Enhanced Hero Section */}
       <Box
         sx={{
           background: `linear-gradient(135deg, 
@@ -221,7 +306,7 @@ export default function Home() {
             <Grid item xs={12} md={6}>
               <Box sx={{ position: "relative", zIndex: 1, pt: 12 }}>
                 <Chip
-                  label="Trusted by 1500+ Students"
+                  label={`${animatedStats.users}+ Active Students`}
                   icon={<Star sx={{ color: 'inherit' }} />}
                   sx={{
                     background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
@@ -272,17 +357,29 @@ export default function Home() {
                   <br/> For the students, by the students!
                 </Typography>
 
-                {/* Trust Indicators */}
-                <Box sx={{ mt: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
-                  <AvatarGroup max={4}>
-                    <Avatar sx={{ bgcolor: theme.palette.primary.main, width: 40, height: 40 }}>A</Avatar>
-                    <Avatar sx={{ bgcolor: theme.palette.secondary.main, width: 40, height: 40 }}>B</Avatar>
-                    <Avatar sx={{ bgcolor: theme.palette.tertiary?.main || theme.palette.primary.light, width: 40, height: 40 }}>C</Avatar>
-                    <Avatar sx={{ bgcolor: theme.palette.secondary.light, width: 40, height: 40 }}>+15</Avatar>
-                  </AvatarGroup>
-                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, opacity: 0.8 }}>
-                    Join 1500+ students already learning together
-                  </Typography>
+                {/* Live Stats Indicator */}
+                <Box sx={{ mt: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ 
+                      width: 8, 
+                      height: 8, 
+                      borderRadius: '50%',
+                      backgroundColor: stats.activeUsers > 0 ? '#4CAF50' : '#ff9800',
+                      animation: stats.activeUsers > 0 ? 'pulse 2s infinite' : 'none'
+                    }} />
+                    <Typography variant="body2" color="text.secondary">
+                      {stats.activeUsers} students active now
+                    </Typography>
+                  </Box>
+                  
+                  <IconButton 
+                    size="small" 
+                    onClick={fetchLiveData}
+                    disabled={loading}
+                    sx={{ color: theme.palette.primary.main }}
+                  >
+                    <Refresh fontSize="small" />
+                  </IconButton>
                 </Box>
               </Box>
             </Grid>
@@ -336,7 +433,7 @@ export default function Home() {
                   }}
                 />
 
-                {/* Floating Stats Card */}
+                {/* Live Stats Card */}
                 <Card
                   sx={{
                     position: "absolute",
@@ -349,25 +446,34 @@ export default function Home() {
                     animation: "float 5s ease-in-out infinite",
                     border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
                     zIndex: 2,
+                    minWidth: 200
                   }}
                 >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
                     <Box
                       sx={{
                         width: 12,
                         height: 12,
-                        background: "#4CAF50",
-                        borderRadius: "50%"
+                        background: stats.activeUsers > 0 ? "#4CAF50" : "#ff9800",
+                        borderRadius: "50%",
+                        animation: stats.activeUsers > 0 ? 'pulse 2s infinite' : 'none'
                       }}
                     />
                     <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.primary.main }}>
-                      Live Collaboration
+                      Live Stats
                     </Typography>
                   </Box>
 
-                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mt: 1 }}>
-                    {stdCountActive} students active now
+                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                    {stats.activeUsers} students active now
                   </Typography>
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                    <ThumbUp fontSize="small" color="primary" />
+                    <Typography variant="caption" color="text.secondary">
+                      {stats.reviewStats.totalReviews} reviews
+                    </Typography>
+                  </Box>
                 </Card>
               </Box>
 
@@ -425,6 +531,30 @@ export default function Home() {
                   }}
                 >
                   Watch Demo
+                </Button>
+
+                {/* New: Add Review Button */}
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={<Star />}
+                  onClick={() => setReviewDialogOpen(true)}
+                  sx={{
+                    background: `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.primary.light} 100%)`,
+                    color: "white",
+                    px: 4,
+                    py: 1.5,
+                    borderRadius: "50px",
+                    textTransform: "none",
+                    fontWeight: 600,
+                    "&:hover": {
+                      transform: "translateY(-2px)",
+                      boxShadow: `0 12px 35px ${alpha(theme.palette.secondary.main, 0.4)}`,
+                    },
+                    transition: "all 0.3s ease"
+                  }}
+                >
+                  Add Your Review
                 </Button>
               </Box>
             </Box>
@@ -540,7 +670,7 @@ export default function Home() {
         </Container>
       </Box>
 
-      {/* Interactive Stats Section */}
+      {/* Interactive Stats Section with Live Data */}
       <Box sx={{ 
         py: 15, 
         background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
@@ -583,18 +713,33 @@ export default function Home() {
               </Typography>
               
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: "center" }}>
-                <Chip label="Seamless Sync" sx={{ background: "rgba(255,255,255,0.2)", color: "white" }} />
-                <Chip label="Real-Time Collaboration" sx={{ background: "rgba(255,255,255,0.2)", color: "white" }} />
-                <Chip label="Peer Powered" sx={{ background: "rgba(255,255,255,0.2)", color: "white" }} />
+                <Chip label="Live Updates" sx={{ background: "rgba(255,255,255,0.2)", color: "white" }} />
+                <Chip label="Real Reviews" sx={{ background: "rgba(255,255,255,0.2)", color: "white" }} />
+                <Chip label="Peer Verified" sx={{ background: "rgba(255,255,255,0.2)", color: "white" }} />
               </Box>
             </Box>
 
-            {/* Right Section - Stats */}
+            {/* Right Section - Live Stats */}
             <Box sx={{ flex: 1, minWidth: { xs: "100%", md: "45%" }, display: "flex", flexDirection: "column", gap: 4}}>
               {[
-                { value: `${animatedStats.users}+`, label: "Active Users", icon: <People /> },
-                { value: `${animatedStats.feedback}+`, label: "Feedback Given", icon: <Message /> },
-                { value: `${animatedStats.satisfaction}%`, label: "Satisfaction Rate", icon: <Favorite /> }
+                { 
+                  value: `${animatedStats.users}+`, 
+                  label: "Active Users", 
+                  icon: <People />,
+                  description: `${stats.activeUsers} currently online`
+                },
+                { 
+                  value: `${animatedStats.reviews}+`, 
+                  label: "Verified Reviews", 
+                  icon: <Message />,
+                  description: `Average ${stats.reviewStats.averageRating.toFixed(1)}/5 rating`
+                },
+                { 
+                  value: `${animatedStats.satisfaction}%`, 
+                  label: "Satisfaction Rate", 
+                  icon: <Favorite />,
+                  description: "Based on recent feedback"
+                }
               ].map((stat, idx) => (
                 <motion.div
                   key={idx}
@@ -608,118 +753,273 @@ export default function Home() {
                       background: "rgba(255, 255, 255, 0.1)",
                       backdropFilter: "blur(10px)",
                       borderRadius: "20px",
-                      padding: 4,
+                      padding: 3,
                       border: "1px solid rgba(255, 255, 255, 0.2)",
                       transition: "all 0.3s ease",
                       "&:hover": {
                         background: "rgba(255, 255, 255, 0.15)",
                         transform: "translateX(10px)"
-                      },
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 3
+                      }
                     }}
                   >
-                    <Box sx={{ fontSize: '2.5rem', color: 'white', opacity: 0.9 }}>
-                      {stat.icon}
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
+                      <Box sx={{ fontSize: '2rem', color: 'white', opacity: 0.9 }}>
+                        {stat.icon}
+                      </Box>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography
+                          variant="h3"
+                          sx={{
+                            fontWeight: 800,
+                            color: "white",
+                            lineHeight: 1
+                          }}
+                        >
+                          {stat.value}
+                        </Typography>
+                        <Typography sx={{ color: 'rgba(255,255,255,0.9)', fontSize: '1rem' }}>
+                          {stat.label}
+                        </Typography>
+                      </Box>
                     </Box>
-                    <Box>
-                      <Typography
-                        variant="h3"
-                        sx={{
-                          fontWeight: 800,
-                          color: "white",
-                          mb: 0.5
-                        }}
-                      >
-                        {stat.value}
-                      </Typography>
-                      <Typography sx={{ color: 'rgba(255,255,255,0.9)', fontSize: '1.1rem' }}>
-                        {stat.label}
-                      </Typography>
-                    </Box>
+                    <Typography sx={{ 
+                      color: 'rgba(255,255,255,0.7)', 
+                      fontSize: '0.85rem',
+                      mt: 1
+                    }}>
+                      {stat.description}
+                    </Typography>
                   </Paper>
                 </motion.div>
               ))}
             </Box>
           </Box>
+
+          {/* Refresh Button */}
+          <Box sx={{ textAlign: 'center', mt: 4 }}>
+            <Button
+              variant="outlined"
+              startIcon={<Refresh />}
+              onClick={fetchLiveData}
+              disabled={loading}
+              sx={{
+                color: 'white',
+                borderColor: 'rgba(255,255,255,0.3)',
+                '&:hover': {
+                  borderColor: 'white',
+                  backgroundColor: 'rgba(255,255,255,0.1)'
+                }
+              }}
+            >
+              {loading ? 'Updating...' : 'Refresh Live Data'}
+            </Button>
+          </Box>
         </Container>
       </Box>
 
-      {/* Testimonials Section */}
+      {/* Live Reviews Section */}
       <Box sx={{ py: 15, background: theme.palette.background.default }}>
         <Container maxWidth="lg">
-          <Box textAlign="center" mb={8}>
-            <Typography
-              variant="h2"
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 6 }}>
+            <Box>
+              <Typography
+                variant="h2"
+                sx={{
+                  fontWeight: 700,
+                  color: theme.palette.primary.main,
+                  mb: 1
+                }}
+              >
+                Recent Student Reviews
+              </Typography>
+              <Typography
+                variant="h6"
+                sx={{
+                  color: theme.palette.text.secondary,
+                  opacity: 0.8
+                }}
+              >
+                Real feedback from real students
+              </Typography>
+            </Box>
+
+            <Button
+              variant="contained"
+              startIcon={<Star />}
+              onClick={() => setReviewDialogOpen(true)}
               sx={{
-                fontWeight: 700,
-                color: theme.palette.primary.main,
-                mb: 3
+                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+                borderRadius: "50px",
+                px: 4,
+                py: 1.5
               }}
             >
-              What Students Say
-            </Typography>
-            <Typography
-              variant="h6"
-              sx={{
-                color: theme.palette.text.secondary,
-                opacity: 0.8
-              }}
-            >
-              Real stories from real students
-            </Typography>
+              Share Your Experience
+            </Button>
           </Box>
 
-          <Grid container spacing={4}>
-            {testimonials.map((testimonial, idx) => (
-              <Grid item xs={12} md={4} key={idx}>
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.1 }}
-                  viewport={{ once: true }}
-                >
-                  <Card
-                    sx={{
-                      background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.8)} 0%, ${theme.palette.background.paper} 100%)`,
-                      borderRadius: "25px",
-                      padding: 4,
-                      height: "100%",
-                      border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                      transition: "all 0.3s ease",
-                      "&:hover": {
-                        transform: "translateY(-10px)",
-                        boxShadow: `0 20px 40px ${alpha(theme.palette.primary.main, 0.15)}`,
-                      }
-                    }}
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
+              <CircularProgress />
+            </Box>
+          ) : error ? (
+            <Alert 
+              severity="error" 
+              sx={{ mb: 4 }}
+              action={
+                <Button color="inherit" size="small" onClick={fetchLiveData}>
+                  Retry
+                </Button>
+              }
+            >
+              {error}
+            </Alert>
+          ) : stats.recentReviews.length === 0 ? (
+            <Paper sx={{ p: 8, textAlign: 'center', borderRadius: 2 }}>
+              <Star sx={{ fontSize: 60, color: theme.palette.text.disabled, mb: 3 }} />
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                No reviews yet
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+                Be the first to share your experience!
+              </Typography>
+              <Button
+                variant="contained"
+                startIcon={<Star />}
+                onClick={() => setReviewDialogOpen(true)}
+              >
+                Write First Review
+              </Button>
+            </Paper>
+          ) : (
+            <Grid container spacing={4}>
+              {stats.recentReviews.slice(0, 3).map((review, idx) => (
+                <Grid item xs={12} md={4} key={idx}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                    viewport={{ once: true }}
                   >
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                      <Avatar sx={{ bgcolor: theme.palette.primary.main, mr: 2 }}>
-                        {testimonial.avatar}
-                      </Avatar>
-                      <Box>
-                        <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.primary.main }}>
-                          {testimonial.name}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                          {testimonial.role}
-                        </Typography>
+                    <Card
+                      sx={{
+                        background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.8)} 0%, ${theme.palette.background.paper} 100%)`,
+                        borderRadius: "25px",
+                        padding: 4,
+                        height: "100%",
+                        border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                        transition: "all 0.3s ease",
+                        "&:hover": {
+                          transform: "translateY(-10px)",
+                          boxShadow: `0 20px 40px ${alpha(theme.palette.primary.main, 0.15)}`,
+                        }
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                        <Avatar sx={{ 
+                          bgcolor: theme.palette.primary.main, 
+                          mr: 2,
+                          width: 48,
+                          height: 48 
+                        }}>
+                          {review.user?.name?.charAt(0) || 'U'}
+                        </Avatar>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.primary.main }}>
+                            {review.user?.name || 'Anonymous'}
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                            {review.user?.username ? `@${review.user.username}` : 'Student'}
+                          </Typography>
+                        </Box>
+                        {renderStars(review.rating)}
                       </Box>
-                    </Box>
-                    <Typography sx={{ color: theme.palette.text.primary, lineHeight: 1.6, fontStyle: 'italic' }}>
-                      "{testimonial.content}"
+                      
+                      <Typography 
+                        variant="h6" 
+                        sx={{ 
+                          color: theme.palette.text.primary, 
+                          mb: 2,
+                          fontWeight: 600 
+                        }}
+                      >
+                        "{review.title}"
+                      </Typography>
+                      
+                      <Typography sx={{ 
+                        color: theme.palette.text.secondary, 
+                        lineHeight: 1.6, 
+                        mb: 2,
+                        fontStyle: 'italic'
+                      }}>
+                        {review.content}
+                      </Typography>
+                      
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 3 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <AccessTime fontSize="small" color="action" />
+                          <Typography variant="caption" color="text.secondary">
+                            {formatDate(review.createdAt)}
+                          </Typography>
+                        </Box>
+                        
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          {review.tags?.slice(0, 2).map((tag, tagIdx) => (
+                            <Chip
+                              key={tagIdx}
+                              label={tag}
+                              size="small"
+                              sx={{
+                                backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                                color: theme.palette.primary.main,
+                                fontSize: '0.7rem'
+                              }}
+                            />
+                          ))}
+                        </Box>
+                      </Box>
+                    </Card>
+                  </motion.div>
+                </Grid>
+              ))}
+            </Grid>
+          )}
+
+          {/* Overall Rating Summary */}
+          {stats.reviewStats.totalReviews > 0 && (
+            <Box sx={{ mt: 8, textAlign: 'center' }}>
+              <Paper
+                sx={{
+                  p: 4,
+                  borderRadius: "20px",
+                  background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                  maxWidth: 600,
+                  mx: 'auto'
+                }}
+              >
+                <Typography variant="h5" sx={{ fontWeight: 600, color: theme.palette.primary.main, mb: 2 }}>
+                  Overall Rating
+                </Typography>
+                
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, mb: 2 }}>
+                  <Typography variant="h1" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
+                    {stats.reviewStats.averageRating.toFixed(1)}
+                  </Typography>
+                  <Box>
+                    {renderStars(stats.reviewStats.averageRating)}
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      Based on {stats.reviewStats.totalReviews} verified reviews
                     </Typography>
-                    <Box sx={{ display: 'flex', mt: 2 }}>
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Star key={star} sx={{ color: '#ffb400', mr: 0.5, fontSize: '1.2rem' }} />
-                      ))}
-                    </Box>
-                  </Card>
-                </motion.div>
-              </Grid>
-            ))}
-          </Grid>
+                  </Box>
+                </Box>
+                
+                <Typography variant="body2" color="text.secondary">
+                  {stats.reviewStats.satisfactionRate}% of students are satisfied with PeerCheck
+                </Typography>
+              </Paper>
+            </Box>
+          )}
         </Container>
       </Box>
 
@@ -753,7 +1053,7 @@ export default function Home() {
               lineHeight: 1.6
             }}
           >
-            Join thousands of students already accelerating their learning journey with PeerCheck. 
+            Join {animatedStats.users}+ students already accelerating their learning journey with PeerCheck. 
             Get started in seconds - no credit card required.
           </Typography>
           
@@ -787,6 +1087,8 @@ export default function Home() {
             <Button
               variant="outlined"
               size="large"
+              startIcon={<Star />}
+              onClick={() => setReviewDialogOpen(true)}
               sx={{
                 borderColor: theme.palette.primary.main,
                 color: theme.palette.primary.main,
@@ -804,7 +1106,7 @@ export default function Home() {
                 transition: "all 0.3s ease"
               }}
             >
-              Schedule Demo
+              Share Your Experience
             </Button>
           </Box>
 
@@ -813,6 +1115,14 @@ export default function Home() {
           </Typography>
         </Container>
       </Box>
+
+      {/* Review Dialog */}
+      <ReviewDialog
+        open={reviewDialogOpen}
+        onClose={() => setReviewDialogOpen(false)}
+        onReviewSubmitted={handleReviewSubmitted}
+        theme={theme}
+      />
 
       {/* Enhanced Footer */}
       <Box
@@ -951,9 +1261,31 @@ export default function Home() {
             <Typography variant="body2">
               © 2025 PeerCheck. All rights reserved. Made with <Favorite sx={{ fontSize: '1rem', color: '#ff6b6b' }} /> for students everywhere.
             </Typography>
+            <Typography variant="caption" sx={{ opacity: 0.6, mt: 1, display: 'block' }}>
+              Live stats updated every 30 seconds • {stats.totalUsers} registered users
+            </Typography>
           </Box>
         </Container>
       </Box>
+
+      {/* Add CSS animations */}
+      <style>
+        {`
+          @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+          }
+          
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+          }
+          
+          .footer-link:hover {
+            color: white !important;
+          }
+        `}
+      </style>
     </>
   );
 }

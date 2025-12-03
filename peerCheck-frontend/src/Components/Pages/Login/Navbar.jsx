@@ -24,7 +24,7 @@ export default function Navbar() {
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const navItems = [
-    { label: "Home", link: "#top" },
+    { label: "Home", link: "/" },
   ];
 
   const drawerContent = (

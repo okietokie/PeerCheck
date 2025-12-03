@@ -6,7 +6,25 @@ const taskActivityEventSchema = new mongoose.Schema(
 
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 
-    eventType: { type: String, enum: ["start", "pause", "resume", "complete"], required: true },
+    eventType: { type: String, enum: [
+                                    // lifecycle
+                                    "created",
+                                    "start",
+                                    "pause",
+                                    "resume",
+                                    "complete",
+
+                                    // updates
+                                    "status_change",
+                                    "time_update",
+                                    "proof_upload",
+                                    "flag_update",
+                                    "reassigned",
+
+                                    // admin
+                                    "manual_review",
+                                    "peer_review"
+                                  ], required: true },
 
     timestamp: { type: Date, default: Date.now },
 

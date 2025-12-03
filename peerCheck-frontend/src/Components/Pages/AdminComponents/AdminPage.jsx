@@ -90,14 +90,16 @@ function AdminPage() {
   const handleLogout = async () => {
     try {
       const token = localStorage.getItem("token");
-      await axiosClient.get("/auth/log-out", null, {
+      await axiosClient.get("/auth/log-out", {
         headers: {Authorization: `Bearer ${token}`}
       })
       
       localStorage.removeItem("token");
-      window.location.href = '/login';
+      setUser(null);
+
+      navigate('/login');
     } catch (error) {
-      
+      console.error(error)
     }
 
   };

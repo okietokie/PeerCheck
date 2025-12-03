@@ -8,6 +8,7 @@ function AuthPage() {
 
   return (
       <Routes location={location} key={location.pathname}>
+
         <Route
           path="/sign-up"
           element={<SignUp />}

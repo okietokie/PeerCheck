@@ -28,11 +28,12 @@ router.route('/search')
 
 router.route('/:projectId')
   .get(getProjectById)
-  .delete(protect, deleteProject);
+  .delete(deleteProject);
 // Project metrics routes
-router.get('/projects/:projectId/metrics', getProjectMetrics);
-router.get('/projects/:projectId/contributors', getContributorAnalytics);
-router.post('/projects/:projectId/metrics/refresh', refreshProjectMetrics);
+router.get('/:projectId/metrics', getProjectMetrics);
+router.get('/:projectId/contributors', getContributorAnalytics);
+router.post('/:projectId/metrics/refresh', refreshProjectMetrics);
+
 
 // Task metrics route
 router.get('/tasks/:taskId/metrics', getTaskMetrics);

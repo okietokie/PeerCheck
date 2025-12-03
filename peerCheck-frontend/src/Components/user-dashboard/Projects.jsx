@@ -3,8 +3,6 @@ import {
   Box,
   Typography,
   Grid,
-  Card,
-  CardContent,
   Button,
   TextField,
   InputAdornment,
@@ -35,35 +33,34 @@ import {
   alpha,
   useTheme,
   CircularProgress,
-  Badge,
   Popover,
   List,
   ListItem,
   ListItemText,
   ListItemAvatar,
-  Divider
+  Divider,
+  FormControlLabel,
+  Checkbox as MuiCheckbox
 } from '@mui/material';
 import {
   Search,
   Add,
   Group,
   FilterList,
-  Sort,
-  CheckCircle,
-  PauseCircle,
-  PlayCircle,
   Close,
   AddTask,
   CalendarToday,
   Grade,
   Delete,
-  MoreHoriz,
   Tag,
   People,
   Assessment,
   AccessTime,
-  KeyboardArrowDown,
-  KeyboardArrowUp
+  CheckCircle,
+  PauseCircle,
+  PlayCircle,
+  FlagOutlined,
+  Flag
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import axiosClient from '@/api/axiosClient';
@@ -91,6 +88,598 @@ const getUserData = () => {
   }
 };
 
+// Create Project Modal Component
+const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
+  const [formData, setFormData] = useState({
+    projectName: '',
+    description: '',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    tags: '',
+    teamName: '',
+    allowPeerReview: true,
+    taskCompletionWeight: 40,
+    peerReviewWeight: 30,
+    teacherReviewWeight: 30
+  });
+  
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [teams, setTeams] = useState([]);
+  const [tagInput, setTagInput] = useState('');
+  const [tags, setTags] = useState([]);
+
+  // Fetch user's teams
+  useEffect(() => {
+    const fetchUserTeams = async () => {
+      try {
+        const token = getAuthToken();
+        if (!token) return;
+
+        const response = await axiosClient.get("/user/teams", {
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const teamsData = response.data?.teams || response.data?.data || response.data || [];
+        setTeams(Array.isArray(teamsData) ? teamsData : []);
+        
+        // Auto-select first team if available
+        if (teamsData.length > 0) {
+          setFormData(prev => ({
+            ...prev,
+            teamId: teamsData[0]._id || teamsData[0].id
+          }));
+        }
+      } catch (err) {
+        console.error('Error fetching teams:', err);
+      }
+    };
+
+    if (open) {
+      fetchUserTeams();
+      setTags([]);
+      setError('');
+    }
+  }, [open]);
+
+  const handleChange = (field) => (e) => {
+    const value = e.target.value;
+    
+    // Handle weight changes to ensure they sum to 100
+    if (field === 'taskCompletionWeight') {
+      const weight = parseInt(value) || 0;
+      setFormData(prev => ({
+        ...prev,
+        [field]: weight,
+        peerReviewWeight: 30,
+        teacherReviewWeight: 70 - weight
+      }));
+    } else if (field === 'peerReviewWeight') {
+      const weight = parseInt(value) || 0;
+      setFormData(prev => ({
+        ...prev,
+        [field]: weight,
+        teacherReviewWeight: 100 - (prev.taskCompletionWeight + weight)
+      }));
+    } else if (field === 'teacherReviewWeight') {
+      const weight = parseInt(value) || 0;
+      setFormData(prev => ({
+        ...prev,
+        [field]: weight,
+        peerReviewWeight: 100 - (prev.taskCompletionWeight + weight)
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
+  };
+
+  const handleTagAdd = () => {
+    if (tagInput.trim() && !tags.includes(tagInput.trim())) {
+      setTags([...tags, tagInput.trim()]);
+      setTagInput('');
+    }
+  };
+
+  const handleTagRemove = (tagToRemove) => {
+    setTags(tags.filter(tag => tag !== tagToRemove));
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleTagAdd();
+    }
+  };
+
+  const validateForm = () => {
+    if (!formData.projectName.trim()) {
+      setError('Project name is required');
+      return false;
+    }
+    
+    if (!formData.description.trim()) {
+      setError('Description is required');
+      return false;
+    }
+    
+    if (!formData.startDate) {
+      setError('Start date is required');
+      return false;
+    }
+    
+    if (!formData.endDate) {
+      setError('End date is required');
+      return false;
+    }
+    
+    const start = new Date(formData.startDate);
+    const end = new Date(formData.endDate);
+    
+    if (end <= start) {
+      setError('End date must be after start date');
+      return false;
+    }
+    
+    if (teams.length > 0 && !formData.teamId) {
+      setError('Please select a team for the project');
+      return false;
+    }
+    
+    // Validate weights sum to 100
+    const totalWeight = formData.taskCompletionWeight + formData.peerReviewWeight + formData.teacherReviewWeight;
+    if (totalWeight !== 100) {
+      setError('Grading weights must sum to 100%');
+      return false;
+    }
+    
+    return true;
+  };
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    
+    if (!validateForm()) {
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        setError('Authentication required');
+        setLoading(false);
+        return;
+      }
+  
+      // Get the selected team object
+      const selectedTeam = teams.find(team => 
+        (team._id || team.id) === formData.teamId
+      );
+      
+      const projectData = {
+        projectName: formData.projectName.trim(),
+        description: formData.description.trim(),
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        tags: tags,
+        team: formData.teamId ? [formData.teamId] : [],
+        teamName: selectedTeam?.teamName || selectedTeam?.name || 'Unnamed Team', 
+        gradingCriteria: {
+          taskCompletionWeight: formData.taskCompletionWeight,
+          peerReviewWeight: formData.peerReviewWeight,
+          teacherReviewWeight: formData.teacherReviewWeight,
+          allowPeerReview: formData.allowPeerReview
+        }
+      };
+  
+      console.log('Creating project with data:', projectData); // Add for debugging
+  
+      const response = await axiosClient.post('/projects', projectData, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('Project created response:', response.data); // Add for debugging
+      
+      if (onProjectCreated) {
+        onProjectCreated(response.data);
+      }
+      
+      onClose();
+      
+    } catch (err) {
+      console.error('Error creating project:', err);
+      console.error('Error response:', err.response?.data);
+      setError(err.response?.data?.error || err.message || 'Failed to create project');
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <Dialog 
+      open={open} 
+      onClose={!loading ? onClose : undefined} 
+      maxWidth="md" 
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 2,
+          backgroundColor: theme.palette.background.paper,
+        }
+      }}
+    >
+      <DialogTitle sx={{ pb: 2 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center">
+          <Typography variant="h6" fontWeight="600">
+            Create New Project
+          </Typography>
+          <IconButton 
+            onClick={onClose} 
+            disabled={loading} 
+            size="small"
+            sx={{
+              color: theme.palette.text.secondary,
+              '&:hover': {
+                backgroundColor: alpha(theme.palette.action.hover, 0.1),
+              }
+            }}
+          >
+            <Close />
+          </IconButton>
+        </Box>
+      </DialogTitle>
+      
+      <DialogContent dividers sx={{ pt: 3 }}>
+        <Box component="form" onSubmit={handleSubmit}>
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Project Name"
+                value={formData.projectName}
+                onChange={handleChange('projectName')}
+                disabled={loading}
+                required
+                size="small"
+                InputProps={{
+                  sx: { borderRadius: 1 }
+                }}
+              />
+            </Grid>
+            
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Description"
+                value={formData.description}
+                onChange={handleChange('description')}
+                multiline
+                rows={4}
+                disabled={loading}
+                required
+                size="small"
+                InputProps={{
+                  sx: { borderRadius: 1 }
+                }}
+              />
+            </Grid>
+            
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Start Date"
+                type="date"
+                value={formData.startDate}
+                onChange={handleChange('startDate')}
+                InputLabelProps={{ shrink: true }}
+                disabled={loading}
+                required
+                size="small"
+                InputProps={{
+                  sx: { borderRadius: 1 }
+                }}
+              />
+            </Grid>
+            
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="End Date"
+                type="date"
+                value={formData.endDate}
+                onChange={handleChange('endDate')}
+                InputLabelProps={{ shrink: true }}
+                disabled={loading}
+                required
+                size="small"
+                InputProps={{
+                  sx: { borderRadius: 1 }
+                }}
+              />
+            </Grid>
+            
+            {teams.length > 0 && (
+              <Grid item xs={12}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Select Team</InputLabel>
+                  <Select
+                    value={formData.teamId}
+                    onChange={handleChange('teamId')}
+                    label="Select Team"
+                    disabled={loading}
+                    sx={{ borderRadius: 1 }}
+                  >
+                    {teams.map(team => (
+                      <MenuItem key={team._id || team.id} value={team._id || team.id}>
+                        <Box display="flex" alignItems="center" gap={1.5}>
+                          <Avatar 
+                            sx={{ 
+                              width: 28, 
+                              height: 28, 
+                              fontSize: 12,
+                              bgcolor: theme.palette.primary.main 
+                            }}
+                          >
+                            {team.teamName?.charAt(0) || 'T'}
+                          </Avatar>
+                          <Box>
+                            <Typography variant="body2" fontWeight="500">
+                              {team.teamName || team.name || 'Unnamed Team'}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {team.members?.length || 0} members
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
+            
+            <Grid item xs={12}>
+              <FormControl fullWidth size="small">
+                <TextField
+                  label="Add Tags"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={loading}
+                  size="small"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton 
+                          onClick={handleTagAdd} 
+                          disabled={!tagInput.trim()}
+                          size="small"
+                          sx={{ mr: -1 }}
+                        >
+                          <Add fontSize="small" />
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                    sx: { borderRadius: 1 }
+                  }}
+                />
+              </FormControl>
+              
+              {tags.length > 0 && (
+                <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {tags.map((tag, index) => (
+                    <Chip
+                      key={index}
+                      label={tag}
+                      size="small"
+                      onDelete={() => handleTagRemove(tag)}
+                      deleteIcon={<Close fontSize="small" />}
+                      sx={{
+                        backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                        color: theme.palette.primary.main,
+                        '& .MuiChip-deleteIcon': {
+                          color: alpha(theme.palette.primary.main, 0.6),
+                          '&:hover': {
+                            color: theme.palette.primary.main,
+                          }
+                        }
+                      }}
+                    />
+                  ))}
+                </Box>
+              )}
+            </Grid>
+            
+            <Grid item xs={12}>
+              <Paper 
+                variant="outlined" 
+                sx={{ 
+                  p: 2.5, 
+                  borderRadius: 1.5,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.02),
+                  borderColor: alpha(theme.palette.primary.main, 0.1)
+                }}
+              >
+                <Typography variant="subtitle1" fontWeight="600" gutterBottom sx={{ mb: 2 }}>
+                  Grading Criteria
+                </Typography>
+                
+                <FormControlLabel
+                  control={
+                    <MuiCheckbox
+                      checked={formData.allowPeerReview}
+                      onChange={(e) => handleChange('allowPeerReview')({ target: { value: e.target.checked } })}
+                      size="small"
+                    />
+                  }
+                  label={
+                    <Typography variant="body2">
+                      Allow Peer Review
+                      <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                        (Team members can evaluate each other)
+                      </Typography>
+                    </Typography>
+                  }
+                  sx={{ mb: 2 }}
+                />
+                
+                <Typography variant="body2" fontWeight="500" gutterBottom sx={{ mt: 2 }}>
+                  Grading Weights (Total must equal 100%)
+                </Typography>
+                
+                <Grid container spacing={2} sx={{ mt: 1 }}>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      label="Task Completion"
+                      type="number"
+                      value={formData.taskCompletionWeight}
+                      onChange={handleChange('taskCompletionWeight')}
+                      disabled={loading}
+                      size="small"
+                      inputProps={{ min: 0, max: 100, step: 5 }}
+                      InputProps={{
+                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                        sx: { borderRadius: 1 }
+                      }}
+                    />
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      label="Peer Review"
+                      type="number"
+                      value={formData.peerReviewWeight}
+                      onChange={handleChange('peerReviewWeight')}
+                      disabled={loading}
+                      size="small"
+                      inputProps={{ min: 0, max: 100, step: 5 }}
+                      InputProps={{
+                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                        sx: { borderRadius: 1 }
+                      }}
+                    />
+                  </Grid>
+                  
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      label="Teacher Review"
+                      type="number"
+                      value={formData.teacherReviewWeight}
+                      onChange={handleChange('teacherReviewWeight')}
+                      disabled={loading}
+                      size="small"
+                      inputProps={{ min: 0, max: 100, step: 5 }}
+                      InputProps={{
+                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                        sx: { borderRadius: 1 }
+                      }}
+                    />
+                  </Grid>
+                </Grid>
+                
+                <Box sx={{ 
+                  mt: 2, 
+                  p: 1.5, 
+                  borderRadius: 1,
+                  backgroundColor: alpha(
+                    (formData.taskCompletionWeight + formData.peerReviewWeight + formData.teacherReviewWeight) === 100 
+                      ? theme.palette.success.main 
+                      : theme.palette.error.main, 
+                    0.1
+                  ),
+                  border: `1px solid ${alpha(
+                    (formData.taskCompletionWeight + formData.peerReviewWeight + formData.teacherReviewWeight) === 100 
+                      ? theme.palette.success.main 
+                      : theme.palette.error.main, 
+                    0.2
+                  )}`
+                }}>
+                  <Typography 
+                    variant="body2" 
+                    fontWeight="500"
+                    color={
+                      (formData.taskCompletionWeight + formData.peerReviewWeight + formData.teacherReviewWeight) === 100 
+                        ? 'success.main' 
+                        : 'error.main'
+                    }
+                    sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}
+                  >
+                    <span>Total: </span>
+                    <span style={{ fontWeight: 600 }}>
+                      {formData.taskCompletionWeight + formData.peerReviewWeight + formData.teacherReviewWeight}%
+                    </span>
+                    <span>
+                      {(formData.taskCompletionWeight + formData.peerReviewWeight + formData.teacherReviewWeight) === 100 
+                        ? '✓ Balanced' 
+                        : '✗ Needs adjustment'}
+                    </span>
+                  </Typography>
+                </Box>
+              </Paper>
+            </Grid>
+          </Grid>
+          
+          {error && (
+            <Alert 
+              severity="error" 
+              sx={{ 
+                mt: 3, 
+                borderRadius: 1,
+              }}
+              onClose={() => setError('')}
+            >
+              {error}
+            </Alert>
+          )}
+        </Box>
+      </DialogContent>
+      
+      <DialogActions sx={{ px: 3, py: 2 }}>
+        <Button 
+          onClick={onClose} 
+          disabled={loading}
+          variant="outlined"
+          sx={{
+            borderRadius: 1,
+            px: 3,
+            borderColor: alpha(theme.palette.divider, 0.3),
+            '&:hover': {
+              borderColor: theme.palette.divider,
+            }
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSubmit}
+          variant="contained"
+          disabled={loading}
+          startIcon={loading ? <CircularProgress size={20} /> : <Add />}
+          sx={{
+            borderRadius: 1,
+            px: 3,
+            boxShadow: 'none',
+            '&:hover': {
+              boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+            }
+          }}
+        >
+          {loading ? 'Creating...' : 'Create Project'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
 // Create Task Modal
 const CreateTaskModal = ({ open, onClose, project, theme }) => {
   const [formData, setFormData] = useState({
@@ -104,36 +693,81 @@ const CreateTaskModal = ({ open, onClose, project, theme }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [teamMembers, setTeamMembers] = useState([]);
+  const [fetchingMembers, setFetchingMembers] = useState(false);
 
   useEffect(() => {
-    if (open && project) {
-      // Extract team members from project
-      const members = project.team || [];
-      setTeamMembers(members);
+    const fetchTeamMembers = async () => {
+      if (!open || !project) return;
       
-      // Reset form
+      setFetchingMembers(true);
+      try {
+        const token = getAuthToken();
+        if (!token) return;
+
+        let members = [];
+        
+        // Check if project has team data
+        if (project.team && Array.isArray(project.team)) {
+          // Filter out invalid members and get populated ones
+          members = project.team.filter(member => 
+            member && typeof member === 'object' && (member._id || member.id)
+          );
+          
+          if (members.length === 0 && project.team.length > 0) {
+            // Team might contain just IDs - try to fetch user details
+            try {
+              const userIds = project.team.filter(id => typeof id === 'string');
+              if (userIds.length > 0) {
+                // You would need an API endpoint to fetch multiple users by IDs
+                // For now, we'll use the existing team structure
+              }
+            } catch (err) {
+              console.error('Error fetching member details:', err);
+            }
+          }
+        }
+        
+        console.log('Team members for task creation:', members);
+        setTeamMembers(members);
+        
+        // Set default assignedTo if we have members
+        if (members.length > 0) {
+          const firstMember = members[0];
+          const memberId = firstMember._id || firstMember.id;
+          if (memberId) {
+            setFormData(prev => ({
+              ...prev,
+              assignedTo: memberId
+            }));
+          }
+        }
+        
+      } catch (err) {
+        console.error('Error fetching team members:', err);
+      } finally {
+        setFetchingMembers(false);
+      }
+    };
+
+    if (open && project) {
       setFormData({
         taskTitle: '',
         description: '',
-        assignedTo: members.length > 0 ? members[0]._id : '',
+        assignedTo: '',
         deadline: new Date().toISOString().split('T')[0],
         estimatedTime: '',
         estimatedTimeUnit: 'hours'
       });
       setError('');
+      fetchTeamMembers();
     }
   }, [open, project]);
-
-  const handleChange = (field) => (e) => {
-    setFormData(prev => ({ ...prev, [field]: e.target.value }));
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    // Validation
     if (!formData.taskTitle.trim()) {
       setError('Task title is required');
       setLoading(false);
@@ -144,7 +778,7 @@ const CreateTaskModal = ({ open, onClose, project, theme }) => {
       setLoading(false);
       return;
     }
-    if (!formData.estimatedTime || isNaN(formData.estimatedTime)) {
+    if (!formData.estimatedTime || isNaN(formData.estimatedTime) || parseFloat(formData.estimatedTime) <= 0) {
       setError('Valid estimated time is required');
       setLoading(false);
       return;
@@ -158,7 +792,6 @@ const CreateTaskModal = ({ open, onClose, project, theme }) => {
         return;
       }
 
-      // Convert estimated time to seconds
       let estimatedSeconds = 0;
       const timeValue = parseFloat(formData.estimatedTime);
       switch (formData.estimatedTimeUnit) {
@@ -169,7 +802,7 @@ const CreateTaskModal = ({ open, onClose, project, theme }) => {
           estimatedSeconds = timeValue * 60 * 60;
           break;
         case 'days':
-          estimatedSeconds = timeValue * 60 * 60 * 8; // 8 working hours per day
+          estimatedSeconds = timeValue * 60 * 60 * 8;
           break;
         default:
           estimatedSeconds = timeValue * 60 * 60;
@@ -184,140 +817,288 @@ const CreateTaskModal = ({ open, onClose, project, theme }) => {
         estimatedTime: Math.round(estimatedSeconds)
       };
 
-      // For now, just simulate creation
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      console.log('Task would be created:', taskData);
-      onClose();
-      // In real implementation, call API:
-      // await axiosClient.post('/tasks', taskData, {
-      //   headers: { Authorization: `Bearer ${token}` }
-      // });
+      const response = await axiosClient.post('/user/task/create', taskData, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
+      console.log('Task created successfully:', response.data);
+      onClose();
+      
     } catch (err) {
       console.error('Error creating task:', err);
-      setError(err.message || 'Failed to create task');
+      setError(err.response?.data?.error || err.message || 'Failed to create task');
     } finally {
       setLoading(false);
     }
   };
 
+  const getMemberDisplay = (member) => {
+    if (!member || typeof member !== 'object') {
+      return { id: '', name: 'Unknown Member', email: '' };
+    }
+    
+    return {
+      id: member._id || member.id || '',
+      name: member.name || member.fullName || member.email || 'Unknown Member',
+      email: member.email || '',
+      initial: (member.name || member.email || 'U').charAt(0).toUpperCase()
+    };
+  };
+
   return (
-    <Dialog open={open} onClose={!loading ? onClose : undefined} maxWidth="sm" fullWidth>
-      <DialogTitle>
-        <Box display="flex" justifyContent="space-between" alignItems="center">
-          <Typography variant="h6">Create New Task</Typography>
-          <IconButton onClick={onClose} disabled={loading} size="small">
+    <Dialog 
+      open={open} 
+      onClose={!loading ? onClose : undefined} 
+      maxWidth="sm" 
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 2,
+          backgroundColor: theme.palette.background.paper,
+        }
+      }}
+    >
+      <DialogTitle sx={{ pb: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <Box>
+            <Typography variant="h6" fontWeight="600">
+              Create New Task
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              {project?.projectName || 'Untitled Project'}
+            </Typography>
+          </Box>
+          <IconButton 
+            onClick={onClose} 
+            disabled={loading} 
+            size="small"
+            sx={{
+              color: theme.palette.text.secondary,
+              '&:hover': {
+                backgroundColor: alpha(theme.palette.action.hover, 0.1),
+              }
+            }}
+          >
             <Close />
           </IconButton>
         </Box>
-        <Typography variant="body2" color="text.secondary">
-          {project?.projectName}
-        </Typography>
       </DialogTitle>
-      <DialogContent>
-        <form onSubmit={handleSubmit}>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Task Title"
-                value={formData.taskTitle}
-                onChange={handleChange('taskTitle')}
-                disabled={loading}
-                required
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Description"
-                value={formData.description}
-                onChange={handleChange('description')}
-                multiline
-                rows={3}
-                disabled={loading}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <FormControl fullWidth required>
-                <InputLabel>Assign To</InputLabel>
-                <Select
-                  value={formData.assignedTo}
-                  onChange={handleChange('assignedTo')}
-                  label="Assign To"
-                  disabled={loading || teamMembers.length === 0}
-                >
-                  {teamMembers.map(member => (
-                    <MenuItem key={member._id} value={member._id}>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <Avatar sx={{ width: 24, height: 24, fontSize: 12 }}>
-                          {member.name?.charAt(0) || 'U'}
-                        </Avatar>
-                        <Typography>{member.name || 'Unknown User'}</Typography>
-                      </Box>
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={6}>
+      
+      <DialogContent dividers sx={{ pt: 3 }}>
+        <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
+          <Box sx={{ mb: 3 }}>
+            <TextField
+              fullWidth
+              label="Task Title"
+              value={formData.taskTitle}
+              onChange={(e) => setFormData(prev => ({ ...prev, taskTitle: e.target.value }))}
+              disabled={loading}
+              required
+              size="small"
+              placeholder="Enter task title"
+              InputProps={{
+                sx: { borderRadius: 1 }
+              }}
+            />
+          </Box>
+          
+          <Box sx={{ mb: 3 }}>
+            <TextField
+              fullWidth
+              label="Description"
+              value={formData.description}
+              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              multiline
+              rows={3}
+              disabled={loading}
+              placeholder="Describe the task details..."
+              size="small"
+              InputProps={{
+                sx: { borderRadius: 1 }
+              }}
+            />
+          </Box>
+          
+          <Box sx={{ mb: 3 }}>
+            <FormControl fullWidth required size="small">
+              <InputLabel>Assign To</InputLabel>
+              <Select
+                value={formData.assignedTo}
+                onChange={(e) => setFormData(prev => ({ ...prev, assignedTo: e.target.value }))}
+                label="Assign To"
+                disabled={loading || fetchingMembers || teamMembers.length === 0}
+                sx={{ borderRadius: 1 }}
+              >
+                {fetchingMembers ? (
+                  <MenuItem disabled value="">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
+                      <CircularProgress size={16} />
+                      <Typography variant="body2" color="text.secondary">
+                        Loading team members...
+                      </Typography>
+                    </Box>
+                  </MenuItem>
+                ) : teamMembers.length === 0 ? (
+                  <MenuItem disabled value="">
+                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                      No team members available
+                    </Typography>
+                  </MenuItem>
+                ) : (
+                  teamMembers.map((member, index) => {
+                    const memberInfo = getMemberDisplay(member);
+                    return (
+                      <MenuItem key={memberInfo.id || index} value={memberInfo.id}>
+                        <Box sx={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: 1.5,
+                          py: 0.5
+                        }}>
+                          <Avatar 
+                            sx={{ 
+                              width: 32, 
+                              height: 32, 
+                              fontSize: 14,
+                              bgcolor: theme.palette.primary.main
+                            }}
+                          >
+                            {memberInfo.initial}
+                          </Avatar>
+                          <Box>
+                            <Typography variant="body2" fontWeight="500">
+                              {memberInfo.name}
+                            </Typography>
+                            {memberInfo.email && (
+                              <Typography variant="caption" color="text.secondary">
+                                {memberInfo.email}
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      </MenuItem>
+                    );
+                  })
+                )}
+              </Select>
+            </FormControl>
+            
+            {teamMembers.length === 0 && !fetchingMembers && (
+              <Typography variant="caption" color="warning.main" sx={{ mt: 1, display: 'block' }}>
+                Add team members to the project first
+              </Typography>
+            )}
+          </Box>
+          
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: 3,
+            mb: 3
+          }}>
+            <Box sx={{ flex: 1 }}>
               <TextField
                 fullWidth
                 label="Deadline"
                 type="date"
                 value={formData.deadline}
-                onChange={handleChange('deadline')}
+                onChange={(e) => setFormData(prev => ({ ...prev, deadline: e.target.value }))}
                 InputLabelProps={{ shrink: true }}
                 disabled={loading}
                 required
+                size="small"
+                InputProps={{
+                  sx: { borderRadius: 1 }
+                }}
               />
-            </Grid>
-            <Grid item xs={6} container spacing={1}>
-              <Grid item xs={8}>
+            </Box>
+            
+            <Box sx={{ 
+              flex: 1,
+              display: 'flex',
+              gap: 1
+            }}>
+              <Box sx={{ flex: 1 }}>
                 <TextField
                   fullWidth
                   label="Estimated Time"
                   type="number"
                   value={formData.estimatedTime}
-                  onChange={handleChange('estimatedTime')}
+                  onChange={(e) => setFormData(prev => ({ ...prev, estimatedTime: e.target.value }))}
                   disabled={loading}
-                  inputProps={{ min: 0.1, step: 0.1 }}
+                  inputProps={{ 
+                    min: 0.1, 
+                    step: 0.1,
+                    placeholder: 'e.g., 2.5'
+                  }}
                   required
+                  size="small"
+                  InputProps={{
+                    sx: { borderRadius: 1 }
+                  }}
                 />
-              </Grid>
-              <Grid item xs={4}>
-                <FormControl fullWidth>
+              </Box>
+              <Box sx={{ width: 120 }}>
+                <FormControl fullWidth size="small">
                   <Select
                     value={formData.estimatedTimeUnit}
-                    onChange={handleChange('estimatedTimeUnit')}
+                    onChange={(e) => setFormData(prev => ({ ...prev, estimatedTimeUnit: e.target.value }))}
                     disabled={loading}
+                    sx={{ borderRadius: 1 }}
                   >
                     <MenuItem value="minutes">Minutes</MenuItem>
                     <MenuItem value="hours">Hours</MenuItem>
                     <MenuItem value="days">Days</MenuItem>
                   </Select>
                 </FormControl>
-              </Grid>
-            </Grid>
-          </Grid>
+              </Box>
+            </Box>
+          </Box>
           
           {error && (
-            <Alert severity="error" sx={{ mt: 2 }}>
+            <Alert 
+              severity="error" 
+              sx={{ 
+                mb: 3, 
+                borderRadius: 1,
+              }}
+              onClose={() => setError('')}
+            >
               {error}
             </Alert>
           )}
-        </form>
+        </Box>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={loading}>
+      
+      <DialogActions sx={{ px: 3, py: 2.5 }}>
+        <Button 
+          onClick={onClose} 
+          disabled={loading}
+          variant="outlined"
+          sx={{
+            borderRadius: 1,
+            px: 3,
+            borderColor: alpha(theme.palette.divider, 0.3),
+          }}
+        >
           Cancel
         </Button>
         <Button
           onClick={handleSubmit}
           variant="contained"
-          disabled={loading}
+          disabled={loading || teamMembers.length === 0 || fetchingMembers}
           startIcon={loading ? <CircularProgress size={20} /> : <AddTask />}
+          sx={{
+            borderRadius: 1,
+            px: 3,
+            boxShadow: 'none',
+            '&:hover': {
+              boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+            },
+          }}
         >
           {loading ? 'Creating...' : 'Create Task'}
         </Button>
@@ -341,10 +1122,9 @@ const ReviewProjectModal = ({ open, onClose, project, theme }) => {
 
   useEffect(() => {
     if (open && project) {
-      // Initialize member evaluations
       const members = project.team || [];
       const memberEvaluations = members.map(member => ({
-        member: member._id,
+        member: member._id || member.id,
         contributionScore: 0,
         honestyFlag: false,
         comment: ''
@@ -358,28 +1138,6 @@ const ReviewProjectModal = ({ open, onClose, project, theme }) => {
     }
   }, [open, project]);
 
-  const handleScoreChange = (category, field, value) => {
-    setReviewData(prev => ({
-      ...prev,
-      [category]: {
-        ...prev[category],
-        [field]: value
-      }
-    }));
-  };
-
-  const handleMemberScoreChange = (index, field, value) => {
-    const newEvaluations = [...reviewData.memberEvaluations];
-    newEvaluations[index] = {
-      ...newEvaluations[index],
-      [field]: value
-    };
-    setReviewData(prev => ({
-      ...prev,
-      memberEvaluations: newEvaluations
-    }));
-  };
-
   const handleSubmit = async () => {
     setLoading(true);
     setError('');
@@ -392,39 +1150,19 @@ const ReviewProjectModal = ({ open, onClose, project, theme }) => {
         return;
       }
 
-      // Calculate final score (simple average for now)
-      const scores = [
-        reviewData.technicalExecution.score,
-        reviewData.taskValidity.score,
-        reviewData.timeAuthenticity.score,
-        reviewData.teamwork.score,
-        reviewData.documentationQuality.score
-      ];
-      const finalScore = scores.reduce((a, b) => a + b, 0);
-
       const reviewPayload = {
         project: project._id,
-        evaluatedTeam: project.teamName || 'Team',
         evaluator: getUserData()?.id,
         evaluatorRole: 'peer',
         grading: reviewData,
-        memberEvaluations: reviewData.memberEvaluations,
-        finalScore,
-        allowPeerReview: true,
-        suspicionFlags: {
-          paddedTasksDetected: false,
-          unrealisticTimeLogs: false,
-          copyPasteWork: false,
-          comment: ''
-        }
+        memberEvaluations: reviewData.memberEvaluations
       };
 
-      // For now, just simulate submission
+      // Simulate submission
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      console.log('Review would be submitted:', reviewPayload);
+      console.log('Review submitted:', reviewPayload);
       onClose();
-      // In real implementation, call API to submit review
 
     } catch (err) {
       setError(err.message || 'Failed to submit review');
@@ -448,7 +1186,6 @@ const ReviewProjectModal = ({ open, onClose, project, theme }) => {
       </DialogTitle>
       <DialogContent>
         <Box sx={{ maxHeight: '70vh', overflow: 'auto' }}>
-          {/* Grading Categories */}
           <Typography variant="h6" sx={{ mt: 2, mb: 2 }}>
             Project Evaluation (0-10 each)
           </Typography>
@@ -470,7 +1207,10 @@ const ReviewProjectModal = ({ open, onClose, project, theme }) => {
                 </Box>
                 <Select
                   value={reviewData[category.key]?.score || 0}
-                  onChange={(e) => handleScoreChange(category.key, 'score', e.target.value)}
+                  onChange={(e) => setReviewData(prev => ({
+                    ...prev,
+                    [category.key]: { ...prev[category.key], score: e.target.value }
+                  }))}
                   size="small"
                   sx={{ minWidth: 80 }}
                 >
@@ -485,25 +1225,27 @@ const ReviewProjectModal = ({ open, onClose, project, theme }) => {
                 multiline
                 rows={2}
                 value={reviewData[category.key]?.comment || ''}
-                onChange={(e) => handleScoreChange(category.key, 'comment', e.target.value)}
+                onChange={(e) => setReviewData(prev => ({
+                  ...prev,
+                  [category.key]: { ...prev[category.key], comment: e.target.value }
+                }))}
                 size="small"
               />
             </Box>
           ))}
 
-          {/* Member Evaluations */}
           <Divider sx={{ my: 3 }} />
           <Typography variant="h6" sx={{ mb: 2 }}>
             Team Member Evaluations
           </Typography>
           
           {reviewData.memberEvaluations.map((evalItem, index) => {
-            const member = project?.team?.find(m => m._id === evalItem.member);
+            const member = project.team?.find(m => (m._id || m.id) === evalItem.member);
             return (
               <Paper key={index} sx={{ p: 2, mb: 2 }}>
                 <Box display="flex" alignItems="center" gap={2} mb={2}>
                   <Avatar>
-                    {member?.name?.charAt(0) || 'U'}
+                    {(member?.name || 'U').charAt(0)}
                   </Avatar>
                   <Box>
                     <Typography fontWeight="medium">{member?.name || 'Unknown Member'}</Typography>
@@ -519,7 +1261,11 @@ const ReviewProjectModal = ({ open, onClose, project, theme }) => {
                       <InputLabel>Contribution Score</InputLabel>
                       <Select
                         value={evalItem.contributionScore}
-                        onChange={(e) => handleMemberScoreChange(index, 'contributionScore', e.target.value)}
+                        onChange={(e) => {
+                          const newEvaluations = [...reviewData.memberEvaluations];
+                          newEvaluations[index] = { ...newEvaluations[index], contributionScore: e.target.value };
+                          setReviewData(prev => ({ ...prev, memberEvaluations: newEvaluations }));
+                        }}
                         label="Contribution Score"
                       >
                         {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => (
@@ -530,11 +1276,15 @@ const ReviewProjectModal = ({ open, onClose, project, theme }) => {
                   </Grid>
                   <Grid item xs={6}>
                     <Box display="flex" alignItems="center" height="100%">
-                      <Checkbox
+                      <MuiCheckbox
                         checked={evalItem.honestyFlag}
-                        onChange={(e) => handleMemberScoreChange(index, 'honestyFlag', e.target.checked)}
-                        icon={<Close />}
-                        checkedIcon={<Close color="error" />}
+                        onChange={(e) => {
+                          const newEvaluations = [...reviewData.memberEvaluations];
+                          newEvaluations[index] = { ...newEvaluations[index], honestyFlag: e.target.checked };
+                          setReviewData(prev => ({ ...prev, memberEvaluations: newEvaluations }));
+                        }}
+                        icon={<FlagOutlined />}
+                        checkedIcon={<Flag color="error" />}
                       />
                       <Typography variant="caption">
                         Flag as exaggerated contribution
@@ -548,7 +1298,11 @@ const ReviewProjectModal = ({ open, onClose, project, theme }) => {
                       multiline
                       rows={2}
                       value={evalItem.comment || ''}
-                      onChange={(e) => handleMemberScoreChange(index, 'comment', e.target.value)}
+                      onChange={(e) => {
+                        const newEvaluations = [...reviewData.memberEvaluations];
+                        newEvaluations[index] = { ...newEvaluations[index], comment: e.target.value };
+                        setReviewData(prev => ({ ...prev, memberEvaluations: newEvaluations }));
+                      }}
                       size="small"
                     />
                   </Grid>
@@ -606,12 +1360,12 @@ const TeamMembersPopover = ({ anchorEl, open, onClose, teamMembers }) => {
             <ListItem key={index}>
               <ListItemAvatar>
                 <Avatar sx={{ width: 32, height: 32, fontSize: 14 }}>
-                  {member.name?.charAt(0) || 'U'}
+                  {(member?.name || 'U').charAt(0)}
                 </Avatar>
               </ListItemAvatar>
               <ListItemText
-                primary={member.name || 'Unknown Member'}
-                secondary={member.email || ''}
+                primary={member?.name || 'Unknown Member'}
+                secondary={member?.email || ''}
               />
             </ListItem>
           ))}
@@ -621,46 +1375,6 @@ const TeamMembersPopover = ({ anchorEl, open, onClose, teamMembers }) => {
             </ListItem>
           )}
         </List>
-      </Box>
-    </Popover>
-  );
-};
-
-// Tags Popover
-const TagsPopover = ({ anchorEl, open, onClose, tags }) => {
-  return (
-    <Popover
-      open={open}
-      anchorEl={anchorEl}
-      onClose={onClose}
-      anchorOrigin={{
-        vertical: 'bottom',
-        horizontal: 'left',
-      }}
-      transformOrigin={{
-        vertical: 'top',
-        horizontal: 'left',
-      }}
-    >
-      <Box sx={{ p: 2, minWidth: 200 }}>
-        <Typography variant="subtitle2" gutterBottom fontWeight="medium">
-          Project Tags
-        </Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-          {tags?.map((tag, index) => (
-            <Chip
-              key={index}
-              label={tag}
-              size="small"
-              sx={{ m: 0.25 }}
-            />
-          ))}
-          {(!tags || tags.length === 0) && (
-            <Typography variant="body2" color="text.secondary">
-              No tags added
-            </Typography>
-          )}
-        </Box>
       </Box>
     </Popover>
   );
@@ -688,7 +1402,7 @@ const ProjectTableRow = ({
         day: 'numeric',
         year: 'numeric'
       });
-    } catch (err) {
+    } catch {
       return 'Invalid date';
     }
   };
@@ -742,7 +1456,7 @@ const ProjectTableRow = ({
     return theme.palette.error.main;
   };
 
-  const healthScore = project.metrics?.health?.healthScore || 0;
+  const healthScore = project.metrics?.healthScore || project.metrics?.health?.healthScore || 0;
 
   return (
     <>
@@ -758,7 +1472,6 @@ const ProjectTableRow = ({
           }
         }}
       >
-        {/* Checkbox */}
         <TableCell padding="checkbox">
           <Checkbox
             checked={isSelected}
@@ -766,14 +1479,12 @@ const ProjectTableRow = ({
           />
         </TableCell>
 
-        {/* Project Name */}
         <TableCell>
           <Typography variant="body2" fontWeight="medium">
             {project.projectName || 'Untitled Project'}
           </Typography>
         </TableCell>
 
-        {/* Actions */}
         <TableCell>
           <Stack direction="row" spacing={1}>
             <Tooltip title="Add Task">
@@ -800,7 +1511,6 @@ const ProjectTableRow = ({
           </Stack>
         </TableCell>
 
-        {/* Team Name */}
         <TableCell>
           <Tooltip title={project.teamName || 'No team'}>
             <Box
@@ -819,7 +1529,6 @@ const ProjectTableRow = ({
           </Tooltip>
         </TableCell>
 
-        {/* Status */}
         <TableCell>
           <Box display="flex" alignItems="center" gap={1}>
             {getStatusIcon(project.status)}
@@ -829,7 +1538,6 @@ const ProjectTableRow = ({
           </Box>
         </TableCell>
 
-        {/* Tags */}
         <TableCell>
           <Box
             display="flex"
@@ -843,11 +1551,11 @@ const ProjectTableRow = ({
             <Typography variant="body2">
               {project.tags?.slice(0, 2).map(tag => `#${tag}`).join(', ')}
               {project.tags && project.tags.length > 2 && '...'}
+              {(!project.tags || project.tags.length === 0) && 'No tags'}
             </Typography>
           </Box>
         </TableCell>
 
-        {/* Progress with Health Score */}
         <TableCell>
           <Box sx={{ width: '100%' }}>
             <Box display="flex" justifyContent="space-between" mb={0.5}>
@@ -887,7 +1595,6 @@ const ProjectTableRow = ({
         </TableCell>
       </TableRow>
 
-      {/* Popovers */}
       <TeamMembersPopover
         anchorEl={teamAnchorEl}
         open={Boolean(teamAnchorEl)}
@@ -895,14 +1602,41 @@ const ProjectTableRow = ({
         teamMembers={project.team}
       />
 
-      <TagsPopover
-        anchorEl={tagsAnchorEl}
+      <Popover
         open={Boolean(tagsAnchorEl)}
+        anchorEl={tagsAnchorEl}
         onClose={() => setTagsAnchorEl(null)}
-        tags={project.tags}
-      />
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
+        }}
+      >
+        <Box sx={{ p: 2, minWidth: 200 }}>
+          <Typography variant="subtitle2" gutterBottom fontWeight="medium">
+            Project Tags
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {project.tags?.map((tag, index) => (
+              <Chip
+                key={index}
+                label={tag}
+                size="small"
+                sx={{ m: 0.25 }}
+              />
+            ))}
+            {(!project.tags || project.tags.length === 0) && (
+              <Typography variant="body2" color="text.secondary">
+                No tags added
+              </Typography>
+            )}
+          </Box>
+        </Box>
+      </Popover>
 
-      {/* Due Date Tooltip (as popover) */}
       <Popover
         open={Boolean(dueAnchorEl)}
         anchorEl={dueAnchorEl}
@@ -935,8 +1669,6 @@ const ProjectTableRow = ({
     </>
   );
 };
-
-// Create Project Modal (keep your existing CreateProjectModal component as is)
 
 // Main Projects Page Component
 const Projects = () => {
@@ -1006,12 +1738,16 @@ const Projects = () => {
       }
 
       const token = getAuthToken();
+      console.log('Fetching projects...'); // Debug log
+
       const response = await axiosClient.get('/projects', {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
+      
+      console.log('Raw API response:', response.data); // Debug log
       
       let projectsData = [];
       
@@ -1021,7 +1757,23 @@ const Projects = () => {
         projectsData = response.data.projects;
       } else if (response.data && Array.isArray(response.data.data)) {
         projectsData = response.data.data;
+      } else if (response.data && response.data.success && Array.isArray(response.data.data)) {
+        projectsData = response.data.data;
       }
+      // Debug: Log each project's structure
+    console.log('Number of projects:', projectsData.length);
+    projectsData.forEach((project, index) => {
+      console.log(`Project ${index + 1}:`, {
+        id: project._id,
+        name: project.projectName,
+        team: project.team,
+        teamName: project.teamName,
+        teamType: typeof project.team,
+        teamLength: project.team?.length,
+        teamSample: project.team?.[0]
+      });
+    });
+      projectsData.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
       
       setProjects(projectsData || []);
       setFilteredProjects(projectsData || []);
@@ -1040,7 +1792,6 @@ const Projects = () => {
     }
   }, [checkAuth]);
 
-  // Load data on mount
   useEffect(() => {
     const loadAllData = async () => {
       await Promise.all([fetchProjects(), fetchTeams()]);
@@ -1049,7 +1800,6 @@ const Projects = () => {
     loadAllData();
   }, [fetchProjects, fetchTeams]);
 
-  // Filter projects based on search
   useEffect(() => {
     if (!searchQuery.trim()) {
       setFilteredProjects(projects);
@@ -1067,12 +1817,24 @@ const Projects = () => {
     setFilteredProjects(filtered);
   }, [searchQuery, projects]);
 
-  // Sort projects
   useEffect(() => {
-    const sorted = [...filteredProjects].sort((a, b) => {
+    let data = [...projects];
+  
+    if (searchQuery.trim()) {
+      data = data.filter(project =>
+        project.projectName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        project.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        project.teamName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        project.tags?.some(tag =>
+          tag.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      );
+    }
+  
+    data.sort((a, b) => {
       const dateA = new Date(a.updatedAt || a.createdAt || 0);
       const dateB = new Date(b.updatedAt || b.createdAt || 0);
-      
+  
       switch (sortBy) {
         case 'updatedAt':
           return dateB - dateA;
@@ -1081,14 +1843,17 @@ const Projects = () => {
         case 'name':
           return (a.projectName || '').localeCompare(b.projectName || '');
         case 'health':
-          return ((b.metrics?.health?.healthScore || 0) - (a.metrics?.health?.healthScore || 0));
+          const healthA = a.metrics?.healthScore || a.metrics?.health?.healthScore || 0;
+          const healthB = b.metrics?.healthScore || b.metrics?.health?.healthScore || 0;
+          return healthB - healthA;
         default:
           return 0;
       }
     });
-    setFilteredProjects(sorted);
-  }, [sortBy, projects]);
-
+  
+    setFilteredProjects(data);
+  }, [projects, searchQuery, sortBy]);
+  
   const handleSelectProject = (projectId, checked) => {
     const newSelected = new Set(selectedProjects);
     if (checked) {
@@ -1118,14 +1883,12 @@ const Projects = () => {
           return;
         }
 
-        // For each selected project, call delete API
         for (const projectId of selectedProjects) {
           await axiosClient.delete(`/projects/${projectId}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
         }
         
-        // Refresh projects list
         fetchProjects();
         setSelectedProjects(new Set());
       } catch (err) {
@@ -1146,21 +1909,9 @@ const Projects = () => {
   };
 
   const handleCreateProject = (newProject) => {
-    const projectWithId = {
-      ...newProject,
-      _id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      progress: 0,
-      status: 'not_started'
-    };
-    
-    setProjects(prev => [projectWithId, ...prev]);
-    setFilteredProjects(prev => [projectWithId, ...prev]);
-  };
-
-  const handleProjectClick = (project) => {
-    navigate(`/my-project/${project._id}`);
+    setProjects(prev => [newProject, ...prev]);
+    setFilteredProjects(prev => [newProject, ...prev]);
+    setSelectedProjects(new Set());
   };
 
   const navigateToTeams = () => {
@@ -1176,7 +1927,6 @@ const Projects = () => {
       p: { xs: 2, sm: 3 },
       backgroundColor: theme.palette.background.default,
     }}>
-      {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Box>
@@ -1196,13 +1946,16 @@ const Projects = () => {
             size="small"
             sx={{
               borderRadius: 1,
+              boxShadow: 'none',
+              '&:hover': {
+                boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+              }
             }}
           >
             New Project
           </Button>
         </Box>
 
-        {/* Search and Filter Bar */}
         {!authError && (
           <Paper
             sx={{
@@ -1271,7 +2024,6 @@ const Projects = () => {
         )}
       </Box>
 
-      {/* Stats Cards */}
       {!authError && projects.length > 0 && (
         <Grid container spacing={2} sx={{ mb: 4 }}>
           {[
@@ -1283,13 +2035,16 @@ const Projects = () => {
             },
             { 
               label: 'Active', 
-              value: projects.filter(p => p.status === 'active' || p.status === 'ongoing').length, 
+              value: projects.filter(p => p.status === 'ongoing' || p.status === 'active').length, 
               icon: <PlayCircle fontSize="small" />,
               color: theme.palette.success.main 
             },
             { 
               label: 'At Risk', 
-              value: projects.filter(p => (p.metrics?.health?.healthScore || 100) < 40).length, 
+              value: projects.filter(p => {
+                const healthScore = p.metrics?.healthScore || p.metrics?.health?.healthScore || 100;
+                return healthScore < 40;
+              }).length, 
               icon: <Assessment fontSize="small" />,
               color: theme.palette.warning.main 
             },
@@ -1337,7 +2092,6 @@ const Projects = () => {
         </Grid>
       )}
 
-      {/* Content */}
       {error && !authError ? (
         <Alert 
           severity="error"
@@ -1347,7 +2101,6 @@ const Projects = () => {
           {error}
         </Alert>
       ) : loading ? (
-        // Loading Skeletons
         <Box>
           {[...Array(5)].map((_, index) => (
             <Skeleton 
@@ -1363,7 +2116,6 @@ const Projects = () => {
           ))}
         </Box>
       ) : filteredProjects.length === 0 || authError ? (
-        // Empty State - keep your existing EmptyState component
         <Paper
           sx={{
             p: 6,
@@ -1388,7 +2140,7 @@ const Projects = () => {
               </Typography>
               <Button
                 variant="contained"
-                onClick={() => window.location.href = '/'}
+                onClick={() => navigate('/')}
               >
                 Go to Login
               </Button>
@@ -1436,7 +2188,6 @@ const Projects = () => {
           )}
         </Paper>
       ) : (
-        // Projects Table
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1509,7 +2260,6 @@ const Projects = () => {
             </Table>
           </TableContainer>
           
-          {/* Table Footer */}
           {selectedProjects.size > 0 && (
             <Paper
               sx={{
@@ -1539,8 +2289,13 @@ const Projects = () => {
         </motion.div>
       )}
 
-      {/* Modals */}
-      {/* Keep your existing CreateProjectModal */}
+      <CreateProjectModal
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        theme={theme}
+        onProjectCreated={handleCreateProject}
+      />
+      
       <CreateTaskModal
         open={createTaskModalOpen}
         onClose={() => setCreateTaskModalOpen(false)}

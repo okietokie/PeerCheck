@@ -549,7 +549,7 @@ const calculateTaskMetrics = (task) => {
 
 export const createProject = async (req, res) => {
   try {
-    const { projectName, description, startDate, endDate } = req.body;
+    const { projectName, description, startDate, endDate, teamName, tags, gradingCriteria } = req.body;
 
     // Basic validation
     if (!projectName || !description || !startDate || !endDate) {
@@ -558,8 +558,20 @@ export const createProject = async (req, res) => {
     
     // Create project with creator ID from authenticated user
     const projectData = {
-      ...req.body,
+      projectName,
+      description,
+      startDate,
+      endDate,
+      teamName: teamName || 'Unnamed Team', // Make sure teamName is included
+      tags: tags || [],
       createdBy: req.user.id,
+      team: req.body.team || [], // Team member IDs
+      gradingCriteria: gradingCriteria || {
+        taskCompletionWeight: 40,
+        peerReviewWeight: 30,
+        teacherReviewWeight: 30,
+        allowPeerReview: true
+      },
       metrics: {
         lastCalculated: new Date(),
         weightedProgress: 0,
@@ -571,7 +583,12 @@ export const createProject = async (req, res) => {
     const newProject = new Project(projectData);
     await newProject.save();
 
-    res.status(201).json(newProject);
+    // Populate the team field with user details before sending response
+    const populatedProject = await Project.findById(newProject._id)
+      .populate('team', 'name email')
+      .populate('createdBy', 'name email');
+
+    res.status(201).json(populatedProject);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -581,23 +598,29 @@ export const deleteProject = async (req, res) =>{
   try {
     const { projectId } = req.params;
         
-    const project = await Project.findById(projectId);
+    const deleteProject = await Project.findById(projectId);
     
-    // If project exists
-    if (!project) {
+    // If project deos not exists
+    if (!deleteProject) {
       return res.status(404).json({ error: "Project not found" });
     }
 
     //if user trying to delete is neither the project creator nor the admin
-    const isCreator = project.createdBy.toString() === req.user.id;
+    const isCreator = deleteProject.createdBy.toString() === req.user.id;
     const isAdmin = req.user.role === 'admin';
     
     if (!isCreator && !isAdmin) {
       return res.status(403).json({ error: "Not authorized to delete this project" });
     }
     
-    const newProject = new DeletedProjects(project);
-    await newProject.save();
+    const project = new DeletedProjects({
+      deletedProjectName: deleteProject.projectName,  
+      projectID: deleteProject._id,
+      memberList: deleteProject.team || [], 
+    });
+    
+    await project.save();
+    
 
     await Project.findByIdAndDelete(projectId);
     res.status(200).json({ message: "Project deleted successfully" });
@@ -658,7 +681,7 @@ export const getProjectById = async (req, res) => {
     const metrics = calculateAllProjectMetrics(tasks, project.team || []);
     
     // Update project metrics in DB (async)
-    updateProjectMetricsInDB(projectId);
+    await updateProjectMetricsInDB(projectId);
     
     res.json({
       ...project.toObject(),
@@ -751,7 +774,7 @@ export const getProjectMetrics = async (req, res) => {
     tasksWithMetrics.sort((a, b) => b.taskMetrics.risk.riskScore - a.taskMetrics.risk.riskScore);
     
     // Update project metrics in DB (async)
-    updateProjectMetricsInDB(projectId);
+    await updateProjectMetricsInDB(projectId);
     
     res.json({
       success: true,
