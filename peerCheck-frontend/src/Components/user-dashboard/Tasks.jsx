@@ -1231,78 +1231,178 @@ const Tasks = () => {
       }
 
       const token = getAuthToken();
-      let endpoint;
+      let response;
+      
       if (projectId) {
-        // For project-specific tasks
-        endpoint = `/user/tasks/project/${projectId}`;
+        // For project-specific tasks with metrics
+        response = await axiosClient.get(`/user/tasks/project/${projectId}`, {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
       } else {
         // For all tasks across projects
-        endpoint = `/user/tasks/all`;
-      }
-      const response = await axiosClient.get(endpoint, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      let tasksData = [];
-      let metricsData = null;
-            
-      // Handle response structure
-      if (response.data?.success) {
-        tasksData = response.data.tasks || [];
-        metricsData = response.data.metrics || null;
-      } else {
-        // Handle error or different response structure
-        setError('Invalid response from server');
-        return;
-      }
-
-      // Enrich tasks with mock metrics if not provided
-        const enrichedTasks = tasksData.map(task => ({
-          ...task,
-          metrics: task.metrics || {
-            efficiency: task.estimatedTime 
-              ? Math.round((task.totalFocusTime / task.estimatedTime) * 100) 
-              : 0,
-            riskScore: (task.flags?.paddedTime ? 2 : 0) + 
-                      (task.flags?.rushedCompletion ? 2 : 0) + 
-                      (task.flags?.noProof ? 1 : 0) + 
-                      (task.flags?.manualReviewRequired ? 3 : 0),
-            isOverdue: task.deadline 
-              ? new Date(task.deadline) < new Date() && task.status !== 'completed'
-              : false,
-            hasProof: task.proofUploads && task.proofUploads.length > 0,
-            proofCount: task.proofUploads?.length || 0,
-            statusWeightPercentage: task.status === 'completed' ? 100 : 
-                                  task.status === 'active' ? 50 : 
-                                  task.status === 'paused' ? 30 : 0,
-            daysUntilDeadline: task.deadline 
-              ? Math.ceil((new Date(task.deadline) - new Date()) / (1000 * 60 * 60 * 24))
-              : 0
+        response = await axiosClient.get(`/user/tasks/all`, {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
-        }));
+        });
+      }
+      
+      if (response.data?.success) {
+        let tasksData = response.data.tasks || [];
+        let metricsData = response.data.metrics || null;
+        console.log("tasks const/fetchTasks- tasksData: ", tasksData);
+        // Ensure each task has the required structure
+        const enrichedTasks = tasksData.map(task => {
+          // Calculate metrics if not provided by backend
+          const taskMetrics = task.taskMetrics || calculateTaskMetricsFromData(task);
+          
+          return {
+            ...task,
+            metrics: {
+              efficiency: taskMetrics.efficiency?.percentage || calculateEfficiency(task),
+              riskScore: taskMetrics.risk?.riskScore || calculateRiskScore(task),
+              isOverdue: taskMetrics.isOverdue || calculateIsOverdue(task),
+              hasProof: taskMetrics.hasProof || (task.proofUploads && task.proofUploads.length > 0),
+              proofCount: task.proofUploads?.length || 0,
+              statusWeightPercentage: calculateStatusWeight(task.status),
+              daysUntilDeadline: taskMetrics.daysUntilDeadline || calculateDaysUntilDeadline(task.deadline)
+            }
+          };
+        });
         
         setTasks(enrichedTasks);
         setFilteredTasks(enrichedTasks);
         setMetrics(metricsData);
         setAuthError(false);
-      } catch (err) {
-        console.error('Error fetching tasks:', err);
-        
-        if (err.response?.status === 401) {
-          setAuthError(true);
-          setError('Session expired. Please log in again.');
-        } else if (err.response?.status === 404) {
-          setError(projectId ? 'Project not found' : 'No tasks found');
-        } else {
-          setError('Failed to load tasks. Please try again.');
-        }
-      } finally {
-        setLoading(false);
+      } else {
+        // Fallback to direct API call
+        await fetchTasksFallback();
       }
-    }, [projectId, checkAuth]);
+    } catch (err) {
+      console.error('Error fetching tasks:', err);
+      handleFetchError(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, checkAuth]);
+
+// Helper functions for task metrics calculation
+const calculateTaskMetricsFromData = (task) => {
+  return {
+    efficiency: {
+      percentage: task.estimatedTime 
+        ? Math.round((task.totalFocusTime / task.estimatedTime) * 100 * 100) / 100 
+        : 0
+    },
+    risk: {
+      riskScore: calculateRiskScore(task)
+    },
+    isOverdue: calculateIsOverdue(task),
+    hasProof: task.proofUploads && task.proofUploads.length > 0,
+    daysUntilDeadline: calculateDaysUntilDeadline(task.deadline)
+  };
+};
+
+const calculateEfficiency = (task) => {
+  if (!task.estimatedTime || task.estimatedTime === 0) return 0;
+  return Math.round((task.totalFocusTime / task.estimatedTime) * 100 * 100) / 100;
+};
+
+const calculateRiskScore = (task) => {
+  const flags = task.flags || {};
+  return (
+    (flags.paddedTime ? 2 : 0) +
+    (flags.rushedCompletion ? 2 : 0) +
+    (flags.noProof ? 1 : 0) +
+    (flags.manualReviewRequired ? 3 : 0)
+  );
+};
+
+const calculateIsOverdue = (task) => {
+  if (!task.deadline) return false;
+  const deadline = new Date(task.deadline);
+  const now = new Date();
+  return deadline < now && task.status !== 'completed';
+};
+
+const calculateStatusWeight = (status) => {
+  const weights = {
+    'completed': 100,
+    'active': 50,
+    'paused': 30,
+    'not_started': 0
+  };
+  return weights[status] || 0;
+};
+
+const calculateDaysUntilDeadline = (deadline) => {
+  if (!deadline) return 0;
+  const deadlineDate = new Date(deadline);
+  const now = new Date();
+  const diffTime = deadlineDate - now;
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
+// Fallback function for direct API call
+const fetchTasksFallback = async () => {
+  try {
+    const token = getAuthToken();
+    const endpoint = projectId 
+      ? `/api/projects/${projectId}/metrics`
+      : `/api/user/projects`;
+    
+    const response = await axiosClient.get(endpoint, {
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.data?.success) {
+      if (projectId) {
+        // Project metrics response
+        const tasksData = response.data.tasks || [];
+        setTasks(tasksData);
+        setFilteredTasks(tasksData);
+        setMetrics(response.data.metrics);
+      } else {
+        // All projects response
+        const allProjects = response.data.projects || [];
+        const allTasks = [];
+        
+        // Extract tasks from all projects
+        allProjects.forEach(project => {
+          if (project.tasks && Array.isArray(project.tasks)) {
+            allTasks.push(...project.tasks);
+          }
+        });
+        
+        setTasks(allTasks);
+        setFilteredTasks(allTasks);
+        setMetrics(response.data.metrics);
+      }
+    }
+  } catch (err) {
+    console.error('Fallback fetch error:', err);
+  }
+};
+
+const handleFetchError = (err) => {
+  if (err.response?.status === 401) {
+    setAuthError(true);
+    setError('Session expired. Please log in again.');
+  } else if (err.response?.status === 404) {
+    setError(projectId ? 'Project not found' : 'No tasks found');
+  } else if (err.code === 'ERR_NETWORK') {
+    setError('Network error. Please check your connection.');
+  } else {
+    setError(err.response?.data?.error || 'Failed to load tasks. Please try again.');
+  }
+};
 
   // Load data on mount
   useEffect(() => {
@@ -1388,6 +1488,7 @@ const Tasks = () => {
     }
   };
 
+  // Tasks.jsx - Update handleStatusChange function
   const handleStatusChange = async (taskId, newStatus) => {
     try {
       const token = getAuthToken();
@@ -1395,9 +1496,9 @@ const Tasks = () => {
         setError('Authentication required');
         return;
       }
-  
+
       const response = await axiosClient.put(
-        `/user/task/${taskId}/status`,
+        `/api/user/task/${taskId}/status`,
         { status: newStatus },
         {
           headers: { 
@@ -1406,26 +1507,47 @@ const Tasks = () => {
           }
         }
       );
-  
+
       if (response.data?.success) {
-        // Update local state
+        // Update local state with the returned task data
+        const updatedTask = response.data.task;
+        
         setTasks(prev => prev.map(task =>
           task._id === taskId
-            ? { ...task, status: newStatus, ...response.data.task }
+            ? { 
+                ...task, 
+                status: newStatus,
+                lastEventTime: updatedTask.lastEventTime,
+                // Update metrics based on new status
+                metrics: {
+                  ...task.metrics,
+                  statusWeightPercentage: calculateStatusWeight(newStatus),
+                  isOverdue: calculateIsOverdue({ ...task, status: newStatus })
+                }
+              }
             : task
         ));
         
         // Show success message
         setError('');
+        
+        // Refresh task details if open
+        if (selectedTask && selectedTask._id === taskId) {
+          setSelectedTask(prev => ({
+            ...prev,
+            status: newStatus,
+            lastEventTime: updatedTask.lastEventTime
+          }));
+        }
       } else {
-        setError('Failed to update task status');
+        setError(response.data?.error || 'Failed to update task status');
       }
     } catch (err) {
       console.error('Failed to update status:', err);
-      setError(err.response?.data?.message || 'Failed to update task status');
+      setError(err.response?.data?.error || 'Failed to update task status');
     }
   };
-  
+    
 
   const handleLogTime = (task) => {
     setSelectedTask(task);

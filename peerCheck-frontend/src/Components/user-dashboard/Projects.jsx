@@ -704,14 +704,17 @@ const CreateTaskModal = ({ open, onClose, project, theme, teams }) => {
 
         teams.map(team => {
           if (project.teamId._id === team._id) {
-            const members = team.members?.map(
-              member => member.user?.username
-            ) || [];
+            const members = team.members?.map(member => ({
+              id: member.user?._id,
+              username: member.user?.username
+            })) || [];
         
             console.log("members:", members);
             console.log("project.teamId:", project.teamId);
         
             setTeamMembers(members);
+            console.log("teamMembers: ", teamMembers);
+
           }
         });
 
@@ -782,7 +785,7 @@ const CreateTaskModal = ({ open, onClose, project, theme, teams }) => {
         deadline: formData.deadline,
         estimatedTime: Math.round(estimatedSeconds)
       };
-
+console.log(taskData);
       const response = await axiosClient.post('/user/task/create', taskData, {
         headers: { 
           Authorization: `Bearer ${token}`,
@@ -803,14 +806,16 @@ const CreateTaskModal = ({ open, onClose, project, theme, teams }) => {
 
   const getMemberDisplay = (member) => {
     if (!member || typeof member !== 'object') {
+      console.log("getMemberdisplay unkonwn!");
       return { id: '', name: 'Unknown Member', email: '' };
+
     }
     
     return {
       id: member._id || member.id || '',
-      name: member.name || member.fullName || member.email || 'Unknown Member',
+      name: member.username || member.fullName || member.name || 'Unknown Member',
       email: member.email || '',
-      initial: (member.name || member.email || 'U').charAt(0).toUpperCase()
+      initial: (member.username || member.email || 'U').charAt(0).toUpperCase()
     };
   };
 
@@ -1347,6 +1352,7 @@ const TeamMembersPopover = ({ anchorEl, open, onClose, teamMembers }) => {
 // Project Table Row Component
 const ProjectTableRow = ({ 
   project, 
+  teams,
   isSelected, 
   onSelect, 
   theme,
@@ -1356,7 +1362,10 @@ const ProjectTableRow = ({
   const [teamAnchorEl, setTeamAnchorEl] = useState(null);
   const [tagsAnchorEl, setTagsAnchorEl] = useState(null);
   const [dueAnchorEl, setDueAnchorEl] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
   
+  
+
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     try {
@@ -1422,6 +1431,30 @@ const ProjectTableRow = ({
 
   const healthScore = project.metrics?.healthScore || project.metrics?.health?.healthScore || 0;
 
+   useEffect(() => {
+    const fetchTeamMembers = async () => {
+      if (!project) return;
+      try {
+        const token = getAuthToken();
+        if (!token) return;
+        teams.map(team => {
+          if (project.teamId._id === team._id) {
+            const members = team.members?.map(
+              member => member.user?.username
+            ) || [];
+                
+            setTeamMembers(members);
+          }
+        });
+
+        
+      } catch (err) {
+        console.error('Error fetching team members:', err);
+      }
+    };
+
+      fetchTeamMembers();
+  }, [project]);
   return (
     <>
       <TableRow
@@ -1558,12 +1591,11 @@ const ProjectTableRow = ({
           </Box>
         </TableCell>
       </TableRow>
-
       <TeamMembersPopover
         anchorEl={teamAnchorEl}
         open={Boolean(teamAnchorEl)}
         onClose={() => setTeamAnchorEl(null)}
-        teamMembers={project.team}
+        teamMembers={teamMembers}
       />
 
       <Popover
@@ -2196,6 +2228,7 @@ const Projects = () => {
                     isSelected={selectedProjects.has(project._id)}
                     onSelect={handleSelectProject}
                     theme={theme}
+                    teams={teams}
                     onCreateTask={() => handleCreateTask(project)}
                     onReviewProject={handleReviewProject}
                   />

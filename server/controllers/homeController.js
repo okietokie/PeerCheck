@@ -57,7 +57,6 @@ export const fetchBasicData = async (req, res) => {
       createdAt: { $gte: thirtyDaysAgo }
     });
 
-    console.log("[homeController.js] Data fetched successfully");
 
     res.status(200).json({
       success: true,

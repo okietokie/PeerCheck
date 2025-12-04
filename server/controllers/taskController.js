@@ -168,15 +168,7 @@ export const getTasks = async (req, res) => {
 // Create a new task
 export const createTask = async (req, res) => {
   try {
-    const { 
-      taskTitle, 
-      description, 
-      projectId, 
-      assignedTo, 
-      deadline, 
-      estimatedTime,
-      tags = []
-    } = req.body;
+    const { taskTitle, description, projectId, assignedTo, deadline, estimatedTime} = req.body;
     
     const userId = req.user.id;
 
@@ -206,14 +198,6 @@ export const createTask = async (req, res) => {
       });
     }
 
-    // Check if assigned user is in project team
-    if (!project.team.some(member => member.toString() === assignedTo) && 
-        project.createdBy.toString() !== assignedTo) {
-      return res.status(400).json({
-        success: false,
-        message: 'Assigned user must be a project team member'
-      });
-    }
 
     // Create the task
     const task = new Task({
@@ -224,7 +208,6 @@ export const createTask = async (req, res) => {
       deadline: new Date(deadline),
       estimatedTime, // in seconds
       status: 'not_started',
-      tags: tags || [],
       flags: {
         paddedTime: false,
         rushedCompletion: false,

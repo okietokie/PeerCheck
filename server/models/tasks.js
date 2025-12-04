@@ -5,7 +5,7 @@ const taskSchema = new mongoose.Schema(
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project", trim: true },
 
     taskTitle: { type: String, required: true, trim: true},
-
+    description: { type: String, default: "This was an auto generated description", trim: true},
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true},
 
     deadline: { type: Date, required: true},
