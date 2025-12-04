@@ -3,6 +3,8 @@ import Task from '../models/tasks.js';
 import Project from '../models/projects.js';
 import User from '../models/user.js';
 import TaskActivityEvent from '../models/taskActivityEvent.js';
+import { calculateTaskMetrics } from "./projectController.js";
+import { formatTimeAgo, getActionMessage, logActivity } from "./activityLogger.js";
 
 // Helper functions for derived metrics
 const getStatusWeight = (status) => {
@@ -13,6 +15,17 @@ const getStatusWeight = (status) => {
     default: return 0; // not_started
   }
 };
+
+const calculateStatusWeight = (status) => {
+  const weights = {
+    'completed': 100,
+    'active': 50,
+    'paused': 30,
+    'not_started': 0
+  };
+  return weights[status] || 0;
+};
+
 
 // Converts multiple behavioural flags into a single numerical risk score for a task
 const calculateTaskRisk = (task) => {
@@ -129,6 +142,7 @@ export const getTasks = async (req, res) => {
   try {
     const { projectId } = req.params;
     const userId = req.user.id;
+    console.log("getTasks - userId", userId)
     
     // Check if project exists and user has access
     const project = await Project.findById(projectId);
@@ -234,7 +248,7 @@ export const createTask = async (req, res) => {
     await TaskActivityEvent.create({
       taskId: task._id,
       userId,
-      eventType: 'created',
+      eventType: 'task_created',
       comment: `Task "${taskTitle}" created`
     });
 
@@ -249,300 +263,6 @@ export const createTask = async (req, res) => {
   }
 };
 
-// Update task status (FIXED: No major issues)
-export const updateTaskStatus = async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const { status } = req.body;
-    const userId = req.user.id;
-
-    // Validate status
-    const validStatuses = ['not_started', 'active', 'paused', 'completed'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ 
-        success: false,
-        message: "Invalid status" 
-      });
-    }
-
-    const task = await Task.findById(taskId);
-    if (!task) {
-      return res.status(404).json({ 
-        success: false,
-        message: "Task not found" 
-      });
-    }
-
-    // Check if user has access to task's project
-    const project = await Project.findById(task.projectId);
-    if (!project) {
-      return res.status(404).json({
-        success: false,
-        message: "Project not found"
-      });
-    }
-
-    // Check access: user must be creator, assigned to task, or team member
-    const hasAccess = 
-      project.createdBy.toString() === userId ||
-      task.assignedTo.toString() === userId ||
-      project.team.some(member => member.toString() === userId);
-
-    if (!hasAccess) {
-      return res.status(403).json({
-        success: false,
-        message: "Access denied"
-      });
-    }
-
-    // Update task
-    const previousStatus = task.status;
-    task.status = status;
-    task.lastEventTime = new Date();
-    
-    // If completing task, check for rushing flag
-    if (status === 'completed' && previousStatus !== 'completed') {
-      const totalLoggedTime = task.totalFocusTime || 0;
-      const estimatedTime = task.estimatedTime;
-      
-      // Flag if task completed in less than 20% of estimated time
-      if (totalLoggedTime < (estimatedTime * 0.2)) {
-        task.flags.rushedCompletion = true;
-        task.flags.manualReviewRequired = true;
-      }
-      
-      // Also check if no proof uploaded
-      if (!task.proofUploads || task.proofUploads.length === 0) {
-        task.flags.noProof = true;
-      }
-    }
-
-    await task.save();
-
-    // Log status change activity
-    await TaskActivityEvent.create({
-      taskId: task._id,
-      userId,
-      eventType: 'status_change',
-      comment: `Status changed from ${previousStatus} to ${status}`
-    });
-
-    const updatedTask = await Task.findById(taskId)
-      .populate('assignedTo', 'name email avatar')
-      .lean();
-
-    const enrichedTask = enrichTaskWithMetrics(updatedTask);
-
-    res.status(200).json({ 
-      success: true,
-      message: "Task status updated successfully", 
-      task: enrichedTask,
-      statusChange: {
-        from: previousStatus,
-        to: status,
-        weightChange: {
-          from: getStatusWeight(previousStatus),
-          to: getStatusWeight(status)
-        }
-      }
-    });
-  } catch (err) {
-    handleError(res, err, 'updating task status');
-  }
-};
-
-// Update task focus time
-export const updateTaskTime = async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const { duration } = req.body; // duration in seconds
-    const userId = req.user.id;
-
-    if (!duration || duration <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid duration is required"
-      });
-    }
-
-    const task = await Task.findById(taskId);
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        message: "Task not found"
-      });
-    }
-
-    // Check if user is assigned to task
-    if (task.assignedTo.toString() !== userId) {
-      return res.status(403).json({
-        success: false,
-        message: "Only assigned user can update task time"
-      });
-    }
-
-    // Update total focus time
-    task.totalFocusTime = (task.totalFocusTime || 0) + duration;
-    task.lastEventTime = new Date();
-    
-    // Check for time padding flag
-    const totalLoggedTime = task.totalFocusTime;
-    const estimatedTime = task.estimatedTime;
-    
-    if (totalLoggedTime > (estimatedTime * 2)) {
-      task.flags.paddedTime = true;
-      task.flags.manualReviewRequired = true;
-    }
-
-    await task.save();
-
-    // Log time update activity
-    await TaskActivityEvent.create({
-      taskId: task._id,
-      userId,
-      eventType: 'time_update',
-      duration,
-      comment: `Added ${duration} seconds of focus time`
-    });
-
-    const updatedTask = await Task.findById(taskId)
-      .populate('assignedTo', 'name email avatar')
-      .lean();
-
-    const enrichedTask = enrichTaskWithMetrics(updatedTask);
-
-    res.status(200).json({
-      success: true,
-      message: "Task time updated successfully",
-      totalFocusTime: task.totalFocusTime,
-      task: enrichedTask
-    });
-  } catch (err) {
-    handleError(res, err, 'updating task time');
-  }
-};
-
-// Upload proof for task (FIXED: No major issues)
-export const uploadProof = async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const { filename, fileUrl } = req.body;
-    const userId = req.user.id;
-
-    if (!filename || !fileUrl) {
-      return res.status(400).json({
-        success: false,
-        message: "Filename and file URL are required"
-      });
-    }
-
-    const task = await Task.findById(taskId);
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        message: "Task not found"
-      });
-    }
-
-    // Check if user is assigned to task
-    if (task.assignedTo.toString() !== userId) {
-      return res.status(403).json({
-        success: false,
-        message: "Only assigned user can upload proof"
-      });
-    }
-
-    // Add proof upload
-    task.proofUploads.push({
-      filename,
-      fileUrl,
-      uploadedAt: new Date()
-    });
-    
-    // Clear noProof flag if proof is uploaded
-    if (task.flags.noProof) {
-      task.flags.noProof = false;
-    }
-
-    await task.save();
-
-    // Log proof upload activity
-    await TaskActivityEvent.create({
-      taskId: task._id,
-      userId,
-      eventType: 'proof_upload',
-      comment: `Uploaded proof: ${filename}`
-    });
-
-    const updatedTask = await Task.findById(taskId)
-      .populate('assignedTo', 'name email avatar')
-      .lean();
-
-    const enrichedTask = enrichTaskWithMetrics(updatedTask);
-
-    res.status(200).json({
-      success: true,
-      message: "Proof uploaded successfully",
-      proofUploads: task.proofUploads,
-      task: enrichedTask
-    });
-  } catch (err) {
-    handleError(res, err, 'uploading proof');
-  }
-};
-
-// Update task flags (FIXED: No major issues)
-export const updateTaskFlags = async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const { flags } = req.body;
-    const userId = req.user.id;
-
-    const task = await Task.findById(taskId);
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        message: "Task not found"
-      });
-    }
-
-    // Check if user is teacher/admin
-    const user = await User.findById(userId);
-    if (user.role !== 'admin' && user.role !== 'teacher') {
-      return res.status(403).json({
-        success: false,
-        message: "Only teachers/admins can modify task flags"
-      });
-    }
-
-    // Update flags
-    task.flags = { ...task.flags, ...flags };
-    await task.save();
-
-    // Log flag update activity
-    await TaskActivityEvent.create({
-      taskId: task._id,
-      userId,
-      eventType: 'flag_update',
-      comment: `Updated task flags: ${JSON.stringify(flags)}`
-    });
-
-    const updatedTask = await Task.findById(taskId)
-      .populate('assignedTo', 'name email avatar')
-      .lean();
-
-    const enrichedTask = enrichTaskWithMetrics(updatedTask);
-
-    res.status(200).json({
-      success: true,
-      message: "Task flags updated successfully",
-      flags: task.flags,
-      task: enrichedTask
-    });
-  } catch (err) {
-    handleError(res, err, 'updating task flags');
-  }
-};
 
 // Delete task (FIXED: No major issues)
 export const deleteTask = async (req, res) => {
@@ -592,74 +312,136 @@ export const deleteTask = async (req, res) => {
   }
 };
 
-// Assign/reassign task (FIXED: User role check)
+
 export const assignTask = async (req, res) => {
   try {
     const { taskId } = req.params;
-    const { assignedTo } = req.body;
+    const { assignedTo, action = 'assign' } = req.body;
     const userId = req.user.id;
 
-    const task = await Task.findById(taskId);
+    // Find task with both old and new assignee populated
+    const task = await Task.findById(taskId)
+      .populate('assignedTo', 'name email')
+      .populate('projectId', 'teamId createdBy');
+    
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: "Task not found"
+        error: "Task not found"
       });
     }
 
-    // Check if new assigned user exists
-    const newAssignee = await User.findById(assignedTo);
-    if (!newAssignee) {
-      return res.status(404).json({
-        success: false,
-        message: "Assigned user not found"
-      });
-    }
-
-    // Check permissions: project creator, admin, or current assignee can reassign
-    const project = await Project.findById(task.projectId);
-    const user = await User.findById(userId);
-
-    const isProjectCreator = project.createdBy.toString() === userId;
-    const isAdmin = user.role === 'admin'; // FIXED: Get user from DB
-    const isCurrentAssignee = task.assignedTo.toString() === userId;
-
-    if (!isProjectCreator && !isAdmin && !isCurrentAssignee) {
+    // Check permissions
+    const project = task.projectId;
+    const isCreator = project.createdBy.toString() === userId;
+    const isTeacher = req.user.role === 'teacher';
+    const isAdmin = req.user.role === 'admin';
+    
+    if (!isCreator && !isTeacher && !isAdmin) {
       return res.status(403).json({
         success: false,
-        message: "Not authorized to reassign this task"
+        error: "Not authorized to assign/unassign tasks"
       });
     }
 
-    const previousAssignee = task.assignedTo;
-    task.assignedTo = assignedTo;
+    const oldAssignee = task.assignedTo;
+    const oldAssigneeId = task.assignedTo?._id?.toString();
+    let eventType = 'task_assigned';
+    let message = 'Task assigned successfully';
+
+    if (action === 'unassign' || !assignedTo) {
+      // Unassign task
+      task.assignedTo = null;
+      eventType = 'task_unassigned';
+      message = 'Task unassigned successfully';
+    } else {
+      // Assign task to someone
+      // Validate the new assignee exists
+      const newUser = await User.findById(assignedTo);
+      if (!newUser) {
+        return res.status(404).json({
+          success: false,
+          error: "User not found"
+        });
+      }
+
+      // Validate the new assignee is in the project team
+      const isTeamMember = project.teamId?.members.includes(assignedTo);
+      const isProjectCreator = project.createdBy.toString() === assignedTo;
+      
+      if (!isTeamMember && !isProjectCreator) {
+        return res.status(400).json({
+          success: false,
+          error: "Assignee must be a project team member or creator"
+        });
+      }
+      
+      // Check if trying to assign to current assignee
+      if (oldAssigneeId === assignedTo) {
+        return res.status(400).json({
+          success: false,
+          error: "Task is already assigned to this user"
+        });
+      }
+      
+      task.assignedTo = assignedTo;
+    }
+
     await task.save();
 
-    // Log assignment activity
-    await TaskActivityEvent.create({
-      taskId: task._id,
+    // Log activity
+    await logActivity({
+      taskId,
       userId,
-      eventType: 'reassigned',
-      comment: `Task reassigned from user ${previousAssignee} to user ${assignedTo}`
+      projectId: task.projectId._id,
+      eventType,
+      metadata: {
+        oldAssignee: oldAssigneeId,
+        oldAssigneeName: oldAssignee?.name,
+        newAssignee: task.assignedTo,
+        newAssigneeName: task.assignedTo ? (await User.findById(task.assignedTo)).name : null
+      }
     });
 
+    // Get updated task with populated fields
     const updatedTask = await Task.findById(taskId)
       .populate('assignedTo', 'name email avatar')
-      .lean();
+      .populate('projectId', 'projectName');
 
-    const enrichedTask = enrichTaskWithMetrics(updatedTask);
+    // 🔥 CRITICAL: Emit real-time updates if using WebSockets
+    if (process.env.ENABLE_WEBSOCKETS === 'true') {
+      // Notify old assignee if exists
+      if (oldAssigneeId) {
+        io.to(`user_${oldAssigneeId}`).emit('task_removed', {
+          taskId: task._id,
+          message: 'Task reassigned to another user'
+        });
+      }
+      
+      // Notify new assignee if assigned
+      if (task.assignedTo) {
+        io.to(`user_${task.assignedTo}`).emit('task_added', {
+          task: updatedTask,
+          message: 'New task assigned to you'
+        });
+      }
+    }
 
-    res.status(200).json({
+    res.json({
       success: true,
-      message: "Task assigned successfully",
-      task: enrichedTask
+      task: updatedTask,
+      message,
+      oldAssigneeId,
+      newAssigneeId: task.assignedTo
     });
-
-  } catch (err) {
-    handleError(res, err, 'assigning task');
+  } catch (error) {
+    console.error('Error assigning task:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 };
-
 // Get task details with activities AND METRICS (FIXED: Use helper functions)
 export const getTaskDetails = async (req, res) => {
   try {
@@ -733,256 +515,146 @@ export const getTaskDetails = async (req, res) => {
   }
 };
 
-// Update task grading metadata (FIXED: No major issues)
-export const updateTaskGrading = async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const { gradingMeta } = req.body;
-    const userId = req.user.id;
 
-    // Check if user is teacher/admin
-    const user = await User.findById(userId);
-    if (user.role !== 'admin' && user.role !== 'teacher') {
-      return res.status(403).json({
-        success: false,
-        message: "Only teachers can update task grading"
-      });
-    }
 
-    const task = await Task.findById(taskId);
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        message: "Task not found"
-      });
-    }
-
-    // Update grading metadata
-    task.gradingMeta = { ...task.gradingMeta, ...gradingMeta };
-    await task.save();
-
-    const updatedTask = await Task.findById(taskId)
-      .populate('assignedTo', 'name email avatar')
-      .lean();
-
-    const enrichedTask = enrichTaskWithMetrics(updatedTask);
-
-    res.status(200).json({
-      success: true,
-      message: "Task grading updated successfully",
-      gradingMeta: task.gradingMeta,
-      task: enrichedTask
-    });
-  } catch (err) {
-    handleError(res, err, 'updating task grading');
-  }
-};
-
-// Get tasks with advanced filtering and metrics for a project
+// Get tasks for a specific project with filters
 export const getTasksWithFilter = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const { 
-      status, 
-      riskLevel, 
-      hasProof, 
-      isOverdue,
-      assignedTo,
-      sortBy = 'deadline',
-      sortOrder = 'asc',
-      page = 1,
-      limit = 20
-    } = req.query;
+    const userId = req.user.id;
+    const { status, riskLevel, hasProof, search } = req.query;
     
+    // Check project access
     const project = await Project.findById(projectId);
     if (!project) {
       return res.status(404).json({
         success: false,
-        message: "Project not found"
+        error: "Project not found"
       });
     }
     
-    // Check access
-    const userId = req.user.id;
-    if (project.createdBy.toString() !== userId && 
-        !project.team.some(member => member.toString() === userId)) {
+    const hasAccess = 
+      project.createdBy.toString() === userId ||
+      project.teamId?.members.some(member => member.toString() === userId);
+    
+    if (!hasAccess) {
       return res.status(403).json({
         success: false,
-        message: "Access denied to project"
+        error: "Access denied"
       });
     }
     
     // Build query
-    const query = { projectId };
+    let query = { projectId };
     
     if (status && status !== 'all') {
       query.status = status;
     }
     
-    if (assignedTo && assignedTo !== 'all') {
-      query.assignedTo = assignedTo;
-    }
-    
-    // Get all tasks first to filter by computed metrics
-    let tasks = await Task.find(query)
-      .populate('assignedTo', 'name email avatar')
-      .lean();
-    
-    // Apply computed filters
-    if (riskLevel && riskLevel !== 'all') {
-      tasks = tasks.filter(task => {
-        const riskScore = calculateTaskRisk(task);
-        if (riskLevel === 'high') return riskScore >= 4;
-        if (riskLevel === 'medium') return riskScore >= 2 && riskScore < 4;
-        if (riskLevel === 'low') return riskScore < 2;
-        return true;
-      });
-    }
-    
-    if (hasProof === 'true') {
-      tasks = tasks.filter(task => task.proofUploads && task.proofUploads.length > 0);
-    } else if (hasProof === 'false') {
-      tasks = tasks.filter(task => !task.proofUploads || task.proofUploads.length === 0);
-    }
-    
-    if (isOverdue === 'true') {
-      tasks = tasks.filter(task => calculateIsOverdue(task));
-    }
-    
-    // Sort tasks
-    const sortFunctions = {
-      deadline: (a, b) => new Date(a.deadline) - new Date(b.deadline),
-      'deadline-desc': (a, b) => new Date(b.deadline) - new Date(a.deadline),
-      risk: (a, b) => calculateTaskRisk(b) - calculateTaskRisk(a),
-      'risk-desc': (a, b) => calculateTaskRisk(a) - calculateTaskRisk(b),
-      efficiency: (a, b) => calculateTaskEfficiency(a) - calculateTaskEfficiency(b),
-      'efficiency-desc': (a, b) => calculateTaskEfficiency(b) - calculateTaskEfficiency(a),
-      status: (a, b) => getStatusWeight(b.status) - getStatusWeight(a.status),
-      'status-desc': (a, b) => getStatusWeight(a.status) - getStatusWeight(b.status)
-    };
-    
-    const sortFunc = sortFunctions[`${sortBy}${sortOrder === 'desc' ? '-desc' : ''}`] || sortFunctions.deadline;
-    tasks.sort(sortFunc);
-    
-    // Pagination
-    const startIndex = (page - 1) * limit;
-    const endIndex = page * limit;
-    const paginatedTasks = tasks.slice(startIndex, endIndex);
-    
-    // Enrich tasks with metrics
-    const enrichedTasks = enrichTasksWithMetrics(paginatedTasks);
-    
-    // Calculate summary
-    const totalTasks = tasks.length;
-    const totalPages = Math.ceil(totalTasks / limit);
-    
-    res.status(200).json({
-      success: true,
-      tasks: enrichedTasks,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalTasks,
-        totalPages,
-        hasNextPage: endIndex < totalTasks,
-        hasPrevPage: startIndex > 0
-      },
-      filters: {
-        status,
-        riskLevel,
-        hasProof,
-        isOverdue,
-        assignedTo,
-        sortBy,
-        sortOrder
+    if (hasProof && hasProof !== 'all') {
+      if (hasProof === 'true') {
+        query['proofUploads.0'] = { $exists: true };
+      } else {
+        query['proofUploads.0'] = { $exists: false };
       }
-    });
-  } catch (err) {
-    handleError(res, err, 'fetching filtered tasks');
-  }
-};
-
-// Get user's tasks across all projects with metrics
-export const getUserTasks = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { 
-      status, 
-      projectId,
-      limit = 50,
-      page = 1 
-    } = req.query;
-    
-    // Build query
-    const query = { assignedTo: userId };
-    
-    if (status && status !== 'all') {
-      query.status = status;
     }
     
-    if (projectId && projectId !== 'all') {
-      query.projectId = projectId;
+    // Search
+    if (search) {
+      query.$or = [
+        { taskTitle: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
     }
     
     const tasks = await Task.find(query)
       .populate('assignedTo', 'name email avatar')
       .populate('projectId', 'projectName')
-      .sort({ deadline: 1 })
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit))
       .lean();
     
-    // Enrich tasks with metrics
-    const enrichedTasks = enrichTasksWithMetrics(tasks);
-    
-    // Get user statistics
-    const allUserTasks = await Task.find({ assignedTo: userId }).lean();
-    
-    const totalTasks = allUserTasks.length;
-    const completedTasks = allUserTasks.filter(t => t.status === 'completed').length;
-    const activeTasks = allUserTasks.filter(t => t.status === 'active').length;
-    
-    const totalRiskScore = allUserTasks.reduce((sum, task) => sum + calculateTaskRisk(task), 0);
-    const averageRiskScore = totalTasks > 0 ? totalRiskScore / totalTasks : 0;
-    
-    const totalEfficiency = allUserTasks.reduce((sum, task) => {
-      const efficiency = calculateTaskEfficiency(task);
-      return sum + (isNaN(efficiency) ? 0 : efficiency);
-    }, 0);
-    const averageEfficiency = totalTasks > 0 ? totalEfficiency / totalTasks : 0;
-    
-    const now = new Date();
-    const overdueTasks = allUserTasks.filter(t => calculateIsOverdue(t)).length;
-    
-    const tasksWithProof = allUserTasks.filter(t => t.proofUploads && t.proofUploads.length > 0).length;
-    
-    res.status(200).json({
-      success: true,
-      tasks: enrichedTasks,
-      userMetrics: {
-        totalTasks,
-        completedTasks,
-        activeTasks,
-        overdueTasks,
-        tasksWithProof,
-        completionRate: totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0,
-        averageRiskScore: Number(averageRiskScore.toFixed(2)),
-        averageEfficiency: Number(averageEfficiency.toFixed(2)),
-        riskDistribution: {
-          high: allUserTasks.filter(t => calculateTaskRisk(t) >= 4).length,
-          medium: allUserTasks.filter(t => calculateTaskRisk(t) >= 2 && calculateTaskRisk(t) < 4).length,
-          low: allUserTasks.filter(t => calculateTaskRisk(t) < 2).length
+    // Add metrics and filter by risk level
+    let tasksWithMetrics = tasks.map(task => {
+      const taskMetrics = calculateTaskMetrics(task);
+      return {
+        ...task,
+        taskMetrics,
+        metrics: {
+          efficiency: taskMetrics.efficiency.percentage,
+          riskScore: taskMetrics.risk.riskScore,
+          isOverdue: taskMetrics.isOverdue,
+          hasProof: taskMetrics.hasProof,
+          proofCount: taskMetrics.proofCount,
+          statusWeightPercentage: calculateStatusWeight(task.status),
+          daysUntilDeadline: taskMetrics.daysUntilDeadline
         }
-      },
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalTasks: allUserTasks.length,
-        totalPages: Math.ceil(allUserTasks.length / limit)
-      }
+      };
     });
-  } catch (err) {
-    handleError(res, err, 'fetching user tasks');
+    
+    // Filter by risk level
+    if (riskLevel && riskLevel !== 'all') {
+      tasksWithMetrics = tasksWithMetrics.filter(task => {
+        const score = task.metrics.riskScore;
+        if (riskLevel === 'high') return score >= 4;
+        if (riskLevel === 'medium') return score >= 2 && score < 4;
+        return score < 2;
+      });
+    }
+    
+    res.json({
+      success: true,
+      tasks: tasksWithMetrics,
+      total: tasksWithMetrics.length
+    });
+  } catch (error) {
+    console.error('Error getting filtered tasks:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+
+// Get user's assigned tasks
+export const getUserTasks = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const tasks = await Task.find({ assignedTo: userId })
+      .populate('projectId', 'projectName')
+      .populate('assignedTo', 'name email avatar')
+      .sort({ deadline: 1 })
+      .lean();
+    
+    const tasksWithMetrics = tasks.map(task => {
+      const taskMetrics = calculateTaskMetrics(task);
+      return {
+        ...task,
+        taskMetrics,
+        metrics: {
+          efficiency: taskMetrics.efficiency.percentage,
+          riskScore: taskMetrics.risk.riskScore,
+          isOverdue: taskMetrics.isOverdue,
+          hasProof: taskMetrics.hasProof,
+          proofCount: taskMetrics.proofCount,
+          statusWeightPercentage: calculateStatusWeight(task.status),
+          daysUntilDeadline: taskMetrics.daysUntilDeadline
+        }
+      };
+    });
+    
+    
+    res.json({
+      success: true,
+      tasks: tasksWithMetrics,
+      total: tasks.length
+    });
+  } catch (error) {
+    console.error('Error getting user tasks:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 };
 
@@ -991,118 +663,76 @@ export const getAllTasks = async (req, res) => {
   try {
     const userId = req.user.id;
     
-    // 1. Get all projects the user has access to
-    const userProjects = await Project.find({
+    // Find all projects where user is a member or creator
+    const projects = await Project.find({
       $or: [
         { createdBy: userId },
-        { team: { $in: [userId] } }
+        { 'teamId.members': userId }
       ]
     }).select('_id projectName');
-
-    if (!userProjects || userProjects.length === 0) {
-      return res.status(200).json({ 
-        success: true,
-        tasks: [],
-        metrics: {
-          totalTasks: 0,
-          completedTasks: 0,
-          activeTasks: 0,
-          averageRiskScore: 0,
-          weightedProgress: 0,
-          summary: {
-            highRiskTasks: 0,
-            mediumRiskTasks: 0,
-            lowRiskTasks: 0,
-            overdueTasks: 0,
-            tasksWithProof: 0
-          },
-          projectBreakdown: {}
-        }
-      });
-    }
-
-    const projectIds = userProjects.map(project => project._id);
     
-    // 2. Get all tasks from these projects
-    const tasks = await Task.find({ 
-      projectId: { $in: projectIds }
+    const projectIds = projects.map(p => p._id);
+
+    console.log(projectIds);
+
+    // Find all tasks from these projects
+    const tasks = await Task.find({
+      $or: [
+        { projectId: { $in: projectIds } }, // tasks in user's projects
+        { assignedTo: userId }              // tasks directly assigned to user
+      ]
     })
-    .populate('assignedTo', 'name email avatar')
     .populate('projectId', 'projectName')
-    .sort({ deadline: 1 })
+    .populate('assignedTo', 'name email avatar')
     .lean();
-
-    // 3. Enrich tasks with metrics
-    const enrichedTasks = enrichTasksWithMetrics(tasks);
-
-    // 4. Calculate summary statistics
-    const metrics = calculateSummaryMetrics(enrichedTasks);
-
-    // 5. Calculate project breakdown
-    const projectBreakdown = {};
-    userProjects.forEach(project => {
-      const projectTasks = enrichedTasks.filter(t => 
-        t.projectId && t.projectId._id.toString() === project._id.toString()
-      );
-      const projectCompleted = projectTasks.filter(t => t.status === 'completed').length;
-      
-      projectBreakdown[project._id] = {
-        projectName: project.projectName,
-        totalTasks: projectTasks.length,
-        completedTasks: projectCompleted,
-        completionRate: projectTasks.length > 0 ? (projectCompleted / projectTasks.length) * 100 : 0,
-        highRiskTasks: projectTasks.filter(t => t.metrics.riskScore >= 4).length,
-        overdueTasks: projectTasks.filter(t => t.metrics.isOverdue).length
+    
+    // Add metrics to each task
+    const tasksWithMetrics = tasks.map(task => {
+      const taskMetrics = calculateTaskMetrics(task);
+      return {
+        ...task,
+        taskMetrics,
+        metrics: {
+          efficiency: taskMetrics.efficiency.percentage,
+          riskScore: taskMetrics.risk.riskScore,
+          isOverdue: taskMetrics.isOverdue,
+          hasProof: taskMetrics.hasProof,
+          proofCount: taskMetrics.proofCount,
+          statusWeightPercentage: calculateStatusWeight(task.status),
+          daysUntilDeadline: taskMetrics.daysUntilDeadline
+        }
       };
     });
-
-    // 6. Calculate user-specific metrics
-    const userAssignedTasks = enrichedTasks.filter(t => 
-      t.assignedTo && t.assignedTo._id.toString() === userId
-    );
-    const userTasksCount = userAssignedTasks.length;
-    const userCompletedTasks = userAssignedTasks.filter(t => t.status === 'completed').length;
-    const userOverdueTasks = userAssignedTasks.filter(t => t.metrics.isOverdue).length;
     
-    // 7. Calculate efficiency distribution
-    const efficiencyDistribution = {
-      rushed: enrichedTasks.filter(t => t.metrics.efficiency < 50).length,
-      optimal: enrichedTasks.filter(t => t.metrics.efficiency >= 50 && t.metrics.efficiency <= 120).length,
-      overworked: enrichedTasks.filter(t => t.metrics.efficiency > 120).length
-    };
-
-    // Add additional metrics
-    const enhancedMetrics = {
-      ...metrics,
-      userSpecific: {
-        assignedTasks: userTasksCount,
-        completedTasks: userCompletedTasks,
-        completionRate: userTasksCount > 0 ? (userCompletedTasks / userTasksCount) * 100 : 0,
-        overdueTasks: userOverdueTasks,
-        efficiency: userTasksCount > 0 ? 
-          userAssignedTasks.reduce((sum, task) => sum + (task.metrics.efficiency || 0), 0) / userTasksCount : 0
-      },
-      summary: {
-        ...metrics.summary,
-        efficiencyDistribution
-      },
-      projectBreakdown,
-      accessInfo: {
-        totalProjects: userProjects.length,
-        projectNames: userProjects.map(p => p.projectName)
-      }
-    };
-
-    res.status(200).json({ 
+    // Calculate summary metrics
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter(t => t.status === 'completed').length;
+    const highRiskTasks = tasksWithMetrics.filter(t => t.metrics.riskScore >= 4).length;
+    const tasksWithoutProof = tasksWithMetrics.filter(t => !t.metrics.hasProof).length;
+    
+    res.json({
       success: true,
-      tasks: enrichedTasks,
-      metrics: enhancedMetrics
+      tasks: tasksWithMetrics,
+      metrics: {
+        totalTasks,
+        completedTasks,
+        highRiskTasks,
+        tasksWithoutProof,
+        summary: {
+          highRiskTasks,
+          completedTasks,
+          totalTasks
+        }
+      }
     });
-  } catch (err) {
-    handleError(res, err, 'fetching all tasks');
+  } catch (error) {
+    console.error('Error getting all tasks:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
   }
 };
-
 // Get all tasks with filtering options
 export const getAllTasksWithFilters = async (req, res) => {
   try {
@@ -1254,6 +884,746 @@ export const getAllTasksWithFilters = async (req, res) => {
   }
 };
 
+
+
+// Update task details (title, description, etc)
+export const updateTaskDetails = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const updates = req.body;
+    const userId = req.user.id;
+
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: "Task not found"
+      });
+    }
+
+    // Check permissions - only creator, assignee, or admin can edit
+    const project = await Project.findById(task.projectId);
+    const isCreator = project.createdBy.toString() === userId;
+    const isAssignee = task.assignedTo.toString() === userId;
+    const isAdmin = req.user.role === 'admin';
+    
+    if (!isCreator && !isAssignee && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: "Not authorized to edit this task"
+      });
+    }
+
+    const changes = [];
+    
+    // Track changes for activity log
+    if (updates.taskTitle && updates.taskTitle !== task.taskTitle) {
+      changes.push({
+        field: 'title',
+        oldValue: task.taskTitle,
+        newValue: updates.taskTitle
+      });
+      task.taskTitle = updates.taskTitle;
+    }
+    
+    if (updates.description && updates.description !== task.description) {
+      changes.push({
+        field: 'description',
+        oldValue: task.description,
+        newValue: updates.description
+      });
+      task.description = updates.description;
+    }
+    
+    if (updates.deadline) {
+      const newDeadline = new Date(updates.deadline);
+      if (newDeadline.getTime() !== task.deadline.getTime()) {
+        changes.push({
+          field: 'deadline',
+          oldValue: task.deadline,
+          newValue: newDeadline
+        });
+        task.deadline = newDeadline;
+      }
+    }
+    
+    if (updates.estimatedTime) {
+      const newEstimatedTime = parseInt(updates.estimatedTime) * 60;
+      if (newEstimatedTime !== task.estimatedTime) {
+        changes.push({
+          field: 'estimatedTime',
+          oldValue: task.estimatedTime,
+          newValue: newEstimatedTime
+        });
+        task.estimatedTime = newEstimatedTime;
+      }
+    }
+    
+    await task.save();
+
+    // Log each change as separate activity
+    for (const change of changes) {
+      await logActivity({
+        taskId,
+        userId,
+        projectId: task.projectId,
+        eventType: 'task_edited',
+        metadata: {
+          ...change,
+          description: `Changed ${change.field}`
+        }
+      });
+    }
+
+    const updatedTask = await Task.findById(taskId)
+      .populate('assignedTo', 'name email avatar')
+      .populate('projectId', 'projectName');
+
+    res.json({
+      success: true,
+      task: updatedTask,
+      message: "Task updated successfully",
+      changes: changes.length
+    });
+  } catch (error) {
+    console.error('Error updating task details:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// Get task activity logs
+export const getTaskActivityLogs = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const userId = req.user.id;
+
+    // Check task access
+    const task = await Task.findById(taskId)
+      .populate('projectId', 'teamId createdBy');
+    
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: "Task not found"
+      });
+    }
+
+    // Check permissions
+    const project = task.projectId;
+    const hasAccess = 
+      task.assignedTo.toString() === userId ||
+      project.createdBy.toString() === userId ||
+      project.teamId?.members.includes(userId);
+    
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied to task activity"
+      });
+    }
+
+    // Get activity logs
+    const logs = await TaskActivityEvent.find({ taskId })
+      .populate('userId', 'name email avatar')
+      .sort({ timestamp: -1 })
+      .limit(50)
+      .lean();
+
+    // Format for frontend
+    const formattedLogs = logs.map(log => {
+      const actionMessage = getActionMessage(log);
+      const user = log.userId || {};
+      
+      return {
+        id: log._id,
+        action: actionMessage,
+        user: {
+          name: user.name || log.userName || 'System',
+          email: user.email || log.userEmail,
+          avatar: user.avatar || log.userAvatar
+        },
+        time: formatTimeAgo(log.timestamp),
+        timestamp: log.timestamp,
+        eventType: log.eventType,
+        metadata: log.metadata,
+        isSystemEvent: !log.userId && !log.userName
+      };
+    });
+
+    res.json({
+      success: true,
+      logs: formattedLogs,
+      taskId,
+      total: formattedLogs.length
+    });
+  } catch (error) {
+    console.error('Error getting activity logs:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+// Update deadline
+export const updateTaskDeadline = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { deadline } = req.body;
+    const userId = req.user.id;
+
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: "Task not found"
+      });
+    }
+
+    // Check permissions
+    const project = await Project.findById(task.projectId);
+    const isCreator = project.createdBy.toString() === userId;
+    const isAssignee = task.assignedTo.toString() === userId;
+    const isAdmin = req.user.role === 'admin';
+    
+    if (!isCreator && !isAssignee && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: "Not authorized to update deadline"
+      });
+    }
+
+    const oldDeadline = task.deadline;
+    const newDeadline = new Date(deadline);
+    
+    if (newDeadline.getTime() === oldDeadline.getTime()) {
+      return res.status(400).json({
+        success: false,
+        error: "New deadline is the same as current deadline"
+      });
+    }
+
+    task.deadline = newDeadline;
+    await task.save();
+
+    // Log activity
+    await logActivity({
+      taskId,
+      userId,
+      projectId: task.projectId,
+      eventType: 'deadline_updated',
+      metadata: {
+        oldDeadline,
+        newDeadline
+      }
+    });
+
+    res.json({
+      success: true,
+      task,
+      message: "Deadline updated successfully"
+    });
+  } catch (error) {
+    console.error('Error updating deadline:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// Update grading
+export const updateTaskGrading = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { score, overrideType, comment } = req.body; // overrideType: 'teacher' or 'peer'
+    const userId = req.user.id;
+
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: "Task not found"
+      });
+    }
+
+    // Validate score
+    const numericScore = parseFloat(score);
+    if (isNaN(numericScore) || numericScore < 0 || numericScore > 10) {
+      return res.status(400).json({
+        success: false,
+        error: "Score must be between 0 and 10"
+      });
+    }
+
+    let eventType = 'grading_updated';
+    const oldScore = task.gradingMeta?.teacherOverrideScore || 
+                     task.gradingMeta?.qualityScore || 
+                     null;
+
+    // Check permissions based on override type
+    if (overrideType === 'teacher') {
+      // Only teacher or admin can do teacher override
+      const isTeacher = req.user.role === 'teacher';
+      const isAdmin = req.user.role === 'admin';
+      
+      if (!isTeacher && !isAdmin) {
+        return res.status(403).json({
+          success: false,
+          error: "Only teachers or admins can override grades"
+        });
+      }
+      
+      if (!task.gradingMeta) task.gradingMeta = {};
+      task.gradingMeta.teacherOverrideScore = numericScore;
+      eventType = 'grade_override';
+      
+    } else if (overrideType === 'peer') {
+      // Check if user is in the project team (for peer review)
+      const project = await Project.findById(task.projectId);
+      const isTeamMember = project.teamId?.members.includes(userId);
+      
+      if (!isTeamMember && userId !== task.assignedTo.toString()) {
+        return res.status(403).json({
+          success: false,
+          error: "Only team members can submit peer reviews"
+        });
+      }
+      
+      if (!task.gradingMeta) task.gradingMeta = {};
+      // Store peer reviews differently - you might want an array for multiple reviews
+      task.gradingMeta.lastPeerReviewScore = numericScore;
+      task.gradingMeta.lastPeerReviewBy = userId;
+      task.gradingMeta.lastPeerReviewAt = new Date();
+      
+    } else {
+      // Regular quality score update (by task assignee)
+      if (task.assignedTo.toString() !== userId) {
+        return res.status(403).json({
+          success: false,
+          error: "Only task assignee can update quality score"
+        });
+      }
+      
+      if (!task.gradingMeta) task.gradingMeta = {};
+      task.gradingMeta.qualityScore = numericScore;
+    }
+
+    await task.save();
+
+    // Log activity
+    await logActivity({
+      taskId,
+      userId,
+      projectId: task.projectId,
+      eventType,
+      metadata: {
+        oldScore,
+        newScore: numericScore,
+        overrideType,
+        comment
+      }
+    });
+
+    res.json({
+      success: true,
+      task,
+      message: "Grading updated successfully"
+    });
+  } catch (error) {
+    console.error('Error updating grading:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// Add comment
+export const addTaskComment = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { comment } = req.body;
+    const userId = req.user.id;
+
+    if (!comment || comment.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        error: "Comment cannot be empty"
+      });
+    }
+
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: "Task not found"
+      });
+    }
+
+    // Check if user has access to this task
+    const project = await Project.findById(task.projectId);
+    const hasAccess = 
+      task.assignedTo.toString() === userId ||
+      project.createdBy.toString() === userId ||
+      project.teamId?.members.includes(userId);
+    
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        error: "Not authorized to comment on this task"
+      });
+    }
+
+    // You might want to store comments in a separate collection
+    // For now, we'll just log the activity
+    
+    // Log activity
+    await logActivity({
+      taskId,
+      userId,
+      projectId: task.projectId,
+      eventType: 'comment_added',
+      metadata: {
+        comment: comment.trim(),
+        timestamp: new Date()
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "Comment added successfully",
+      comment: {
+        text: comment.trim(),
+        userId,
+        timestamp: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// Delete proof
+export const deleteProof = async (req, res) => {
+  try {
+    const { taskId, proofId } = req.params;
+    const userId = req.user.id;
+
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: "Task not found"
+      });
+    }
+
+    // Check permissions - only proof uploader, task assignee, or admin
+    const proofIndex = task.proofUploads.findIndex(
+      proof => proof._id.toString() === proofId
+    );
+    
+    if (proofIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        error: "Proof not found"
+      });
+    }
+
+    const proof = task.proofUploads[proofIndex];
+    const isProofUploader = proof.uploadedBy?.toString() === userId;
+    const isAssignee = task.assignedTo.toString() === userId;
+    const isAdmin = req.user.role === 'admin';
+    const project = await Project.findById(task.projectId);
+    const isCreator = project.createdBy.toString() === userId;
+    
+    if (!isProofUploader && !isAssignee && !isAdmin && !isCreator) {
+      return res.status(403).json({
+        success: false,
+        error: "Not authorized to delete this proof"
+      });
+    }
+
+    // Remove proof
+    const deletedProof = task.proofUploads.splice(proofIndex, 1)[0];
+    
+    // Update noProof flag if no proofs left
+    if (task.proofUploads.length === 0) {
+      task.flags.noProof = true;
+    }
+    
+    await task.save();
+
+    // Log activity
+    await logActivity({
+      taskId,
+      userId,
+      projectId: task.projectId,
+      eventType: 'proof_deleted',
+      metadata: {
+        filename: deletedProof.filename,
+        proofId: deletedProof._id
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "Proof deleted successfully",
+      proof: deletedProof
+    });
+  } catch (error) {
+    console.error('Error deleting proof:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// Update task flags
+export const updateTaskFlags = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { flags } = req.body; // { paddedTime: true, rushedCompletion: false, etc }
+    const userId = req.user.id;
+
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: "Task not found"
+      });
+    }
+
+    // Only teacher, admin, or system can update flags
+    const isTeacher = req.user.role === 'teacher';
+    const isAdmin = req.user.role === 'admin';
+    
+    if (!isTeacher && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        error: "Only teachers or admins can update flags"
+      });
+    }
+
+    const oldFlags = { ...task.flags };
+    let changes = [];
+
+    // Update each flag and track changes
+    Object.keys(flags).forEach(flagName => {
+      if (task.flags[flagName] !== undefined && task.flags[flagName] !== flags[flagName]) {
+        changes.push({
+          flagName,
+          oldValue: task.flags[flagName],
+          newValue: flags[flagName]
+        });
+        task.flags[flagName] = flags[flagName];
+      }
+    });
+
+    await task.save();
+
+    // Log each flag change
+    for (const change of changes) {
+      await logActivity({
+        taskId,
+        userId,
+        projectId: task.projectId,
+        eventType: 'flag_update',
+        metadata: {
+          flagName: change.flagName,
+          flagValue: change.newValue,
+          riskScore: calculateRiskScore(task) // Recalculate risk score
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      task,
+      message: "Flags updated successfully",
+      changes
+    });
+  } catch (error) {
+    console.error('Error updating flags:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// Helper to calculate risk score
+const calculateRiskScore = (task) => {
+  const flags = task.flags || {};
+  return (
+    (flags.paddedTime ? 2 : 0) +
+    (flags.rushedCompletion ? 2 : 0) +
+    (flags.noProof ? 1 : 0) +
+    (flags.manualReviewRequired ? 3 : 0)
+  );
+};
+// Update the existing updateTaskStatus function
+export const updateTaskStatus = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { status } = req.body;
+    const userId = req.user.id;
+
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: "Task not found"
+      });
+    }
+
+    const oldStatus = task.status;
+    task.status = status;
+    task.lastEventTime = new Date();
+    
+    await task.save();
+
+    // Log activity with status_changed event type
+    await logActivity({
+      taskId,
+      userId,
+      projectId: task.projectId,
+      eventType: 'status_changed',
+      metadata: {
+        oldStatus,
+        newStatus: status
+      }
+    });
+
+    const updatedTask = await Task.findById(taskId)
+      .populate('assignedTo', 'name email avatar')
+      .populate('projectId', 'projectName');
+
+    res.json({
+      success: true,
+      task: updatedTask,
+      message: "Task status updated successfully"
+    });
+  } catch (error) {
+    console.error('Error updating task status:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// Update the existing updateTaskTime function
+export const updateTaskTime = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { focusTime } = req.body;
+    const userId = req.user.id;
+
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: "Task not found"
+      });
+    }
+
+    const oldFocusTime = task.totalFocusTime || 0;
+    const newFocusTime = oldFocusTime + parseInt(focusTime);
+
+    task.totalFocusTime = newFocusTime;
+    await task.save();
+
+    // Log activity with time_logged event type
+    await logActivity({
+      taskId,
+      userId,
+      projectId: task.projectId,
+      eventType: 'time_logged',
+      metadata: {
+        duration: parseInt(focusTime),
+        totalFocusTime: newFocusTime
+      }
+    });
+
+    res.json({
+      success: true,
+      task,
+      message: "Time logged successfully"
+    });
+  } catch (error) {
+    console.error('Error updating task time:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// Update the existing uploadProof function
+export const uploadProof = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const userId = req.user.id;
+    const file = req.file;
+    const { description } = req.body || '';
+
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: "Task not found"
+      });
+    }
+
+    // Create proof object
+    const proof = {
+      filename: file.originalname,
+      fileUrl: `/uploads/${file.filename}`,
+      uploadedAt: new Date(),
+      description: description || '',
+      uploadedBy: userId
+    };
+
+    if (!task.proofUploads) task.proofUploads = [];
+    task.proofUploads.push(proof);
+    task.flags.noProof = false;
+    
+    await task.save();
+
+    // Log activity with proof_uploaded event type
+    await logActivity({
+      taskId,
+      userId,
+      projectId: task.projectId,
+      eventType: 'proof_uploaded',
+      metadata: {
+        filename: file.originalname,
+        description: description,
+        proofId: proof._id
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "Proof uploaded successfully",
+      proof: proof
+    });
+  } catch (error) {
+    console.error('Error uploading proof:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
 // Export all functions (FIXED: Add missing functions)
 export default {
   getTasks,

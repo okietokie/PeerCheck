@@ -15,6 +15,9 @@ const app = express();
 app.use(cors());  //allows your frontend (React) to access your backend. Without it, browsers block requests for security.
 app.use(express.json()); //allows Express to understand JSON data sent from the frontend (like { email: "...", password: "..." }).
 
+// Server uploaded files
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
 // Connect MongoDB
 mongoose
   .connect(process.env.MONGO_URI)  //connects to mongoDB db, processes the variables in .env file(like mongoDB link)
@@ -28,6 +31,7 @@ import adminRoutes from "./routes/adminRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import projectRoutes from "./routes/projectRoutes.js"; 
 import reviewRoutes from "./routes/reviewRoutes.js";
+
 
 
 app.use("/api/auth", authRoutes);

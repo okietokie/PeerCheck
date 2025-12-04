@@ -492,7 +492,7 @@ const updateProjectMetricsInDB = async (projectId) => {
 /**
  * Calculate task-specific metrics
  */
-const calculateTaskMetrics = (task) => {
+export const calculateTaskMetrics = (task) => {
   // Calculate efficiency
   const estimatedTime = task.estimatedTime || 1;
   const focusTime = task.totalFocusTime || 0;
@@ -631,6 +631,20 @@ export const deleteProject = async (req, res) => {
         $pull: { projects: deleteProject._id } 
       });
     }
+
+    //Removing project from all teams `projects` arrays
+    await Team.updateMany(
+      { projects: projectId },
+      { $pull: { projects: projectId } }
+    );
+
+    //Removing projectId from all tasks (delete tasks)
+    await Task.updateMany(
+      { projectId: projectId },
+      { $set: { projectId: null } } 
+    );
+
+
 
     // Delete the project
     await Project.findByIdAndDelete(projectId);

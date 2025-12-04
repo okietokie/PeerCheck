@@ -130,6 +130,15 @@ export default function App() {
               }
             />
             <Route
+              path="/projects/:projectId/tasks"
+              element={
+                <ProtectedRoute>
+                  <Tasks />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
               path="/projects"
               element={
                 <ProtectedRoute>

@@ -27,6 +27,6 @@ connectionSchema.index({ fromUser: 1, toUser: 1 }, { unique: true });
 connectionSchema.index({ fromUser: 1, status: 1 });
 connectionSchema.index({ toUser: 1, status: 1 });
 
-const Connection = mongoose.model("Connection", connectionSchema, "peerCheck_connections");
+const Connection = mongoose.model("Connection", connectionSchema);
 
 export default Connection;

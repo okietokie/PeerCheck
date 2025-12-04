@@ -50,10 +50,16 @@ import {
   assignTask,
   getTaskDetails,
   updateTaskGrading,
-  getTasksWithFilter      
+  getTasksWithFilter,      
+  updateTaskDetails,
+  updateTaskDeadline,
+  addTaskComment,
+  deleteProof,
+  getTaskActivityLogs
 } from '../controllers/taskController.js';
 
 import { fetchBasicData, getDashboardStats } from '../controllers/homeController.js'; 
+import upload from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
@@ -78,16 +84,30 @@ router.get("/tasks/all/filtered", authMiddleware, getAllTasksWithFilters);
 // Get user's tasks
 router.get("/tasks/user", authMiddleware, getUserTasks);
 
+
+
 // Single task operations (keep these separate from project routes)
 router.get("/task/:taskId", authMiddleware, getTaskDetails); 
 router.post("/task/create", authMiddleware, createTask); 
 router.put("/task/:taskId/status", authMiddleware, updateTaskStatus);
 router.put("/task/:taskId/time", authMiddleware, updateTaskTime);
 router.post("/task/:taskId/proof", authMiddleware, uploadProof);
-router.put("/task/:taskId/flags", authMiddleware, updateTaskFlags);
 router.delete("/task/:taskId", authMiddleware, deleteTask);
 router.put("/task/:taskId/assign", authMiddleware, assignTask);
+
+router.put("/task/:taskId/details", authMiddleware, updateTaskDetails);
+router.put("/task/:taskId/deadline", authMiddleware, updateTaskDeadline);
 router.put("/task/:taskId/grading", authMiddleware, updateTaskGrading);
+router.post("/task/:taskId/comment", authMiddleware, addTaskComment);
+router.delete("/task/:taskId/proof/:proofId", authMiddleware, deleteProof);
+router.put("/task/:taskId/flags", authMiddleware, updateTaskFlags);
+
+// Existing routes
+router.get("/task/:taskId/activity", authMiddleware, getTaskActivityLogs);
+router.post("/task/:taskId/proof", authMiddleware, upload.single('proofFile'), uploadProof)
+
+// Upload proof route with file upload middleware
+router.post("/task/:taskId/proof", authMiddleware, upload.single('proofFile'), uploadProof);
 
 // Connection routes
 router.get("/peerteam/", authMiddleware, getPeerTeam);
