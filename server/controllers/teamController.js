@@ -6,7 +6,7 @@ import User from "../models/user.js";
 // Get user's teams
 export const getUserTeams = async (req, res) => {
   try {
-    const userId = req.userId;
+    const userId = req.user.id;
 
     // Find groups where the user is a member
     const teams = await Group.find({
@@ -20,7 +20,7 @@ export const getUserTeams = async (req, res) => {
     // Format response to match frontend expectations
     const formattedTeams = teams.map(team => ({
       _id: team._id,
-      name: team.name,
+      teamName: team.name,
       description: team.description || `Team with ${team.members.length} members`,
       members: team.members.map(member => ({
         _id: member._id,

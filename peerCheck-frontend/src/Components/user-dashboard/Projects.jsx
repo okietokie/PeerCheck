@@ -65,6 +65,7 @@ import {
 import { motion } from 'framer-motion';
 import axiosClient from '@/api/axiosClient';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 // Helper to get auth token properly
 const getAuthToken = () => {
@@ -97,8 +98,10 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
     endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     tags: '',
     teamName: '',
+    teamId: '',
     allowPeerReview: true,
     taskCompletionWeight: 40,
+    
     peerReviewWeight: 30,
     teacherReviewWeight: 30
   });
@@ -123,16 +126,10 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
           }
         });
         
-        const teamsData = response.data?.teams || response.data?.data || response.data || [];
+        const teamsData = response.data?.teams || [];
         setTeams(Array.isArray(teamsData) ? teamsData : []);
         
-        // Auto-select first team if available
-        if (teamsData.length > 0) {
-          setFormData(prev => ({
-            ...prev,
-            teamId: teamsData[0]._id || teamsData[0].id
-          }));
-        }
+
       } catch (err) {
         console.error('Error fetching teams:', err);
       }
@@ -266,7 +263,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
         startDate: formData.startDate,
         endDate: formData.endDate,
         tags: tags,
-        team: formData.teamId ? [formData.teamId] : [],
+        teamId: formData.teamId ? [formData.teamId] : [],
         teamName: selectedTeam?.teamName || selectedTeam?.name || 'Unnamed Team', 
         gradingCriteria: {
           taskCompletionWeight: formData.taskCompletionWeight,
@@ -681,7 +678,8 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
 };
 
 // Create Task Modal
-const CreateTaskModal = ({ open, onClose, project, theme }) => {
+const CreateTaskModal = ({ open, onClose, project, theme, teams }) => {
+
   const [formData, setFormData] = useState({
     taskTitle: '',
     description: '',
@@ -694,53 +692,29 @@ const CreateTaskModal = ({ open, onClose, project, theme }) => {
   const [error, setError] = useState('');
   const [teamMembers, setTeamMembers] = useState([]);
   const [fetchingMembers, setFetchingMembers] = useState(false);
+  
 
   useEffect(() => {
     const fetchTeamMembers = async () => {
       if (!open || !project) return;
-      
       setFetchingMembers(true);
       try {
         const token = getAuthToken();
-        if (!token) return;
 
-        let members = [];
+
+        teams.map(team => {
+          if (project.teamId._id === team._id) {
+            const members = team.members?.map(
+              member => member.user?.username
+            ) || [];
         
-        // Check if project has team data
-        if (project.team && Array.isArray(project.team)) {
-          // Filter out invalid members and get populated ones
-          members = project.team.filter(member => 
-            member && typeof member === 'object' && (member._id || member.id)
-          );
-          
-          if (members.length === 0 && project.team.length > 0) {
-            // Team might contain just IDs - try to fetch user details
-            try {
-              const userIds = project.team.filter(id => typeof id === 'string');
-              if (userIds.length > 0) {
-                // You would need an API endpoint to fetch multiple users by IDs
-                // For now, we'll use the existing team structure
-              }
-            } catch (err) {
-              console.error('Error fetching member details:', err);
-            }
+            console.log("members:", members);
+            console.log("project.teamId:", project.teamId);
+        
+            setTeamMembers(members);
           }
-        }
-        
-        console.log('Team members for task creation:', members);
-        setTeamMembers(members);
-        
-        // Set default assignedTo if we have members
-        if (members.length > 0) {
-          const firstMember = members[0];
-          const memberId = firstMember._id || firstMember.id;
-          if (memberId) {
-            setFormData(prev => ({
-              ...prev,
-              assignedTo: memberId
-            }));
-          }
-        }
+        });
+
         
       } catch (err) {
         console.error('Error fetching team members:', err);
@@ -750,14 +724,6 @@ const CreateTaskModal = ({ open, onClose, project, theme }) => {
     };
 
     if (open && project) {
-      setFormData({
-        taskTitle: '',
-        description: '',
-        assignedTo: '',
-        deadline: new Date().toISOString().split('T')[0],
-        estimatedTime: '',
-        estimatedTimeUnit: 'hours'
-      });
       setError('');
       fetchTeamMembers();
     }
@@ -916,9 +882,7 @@ const CreateTaskModal = ({ open, onClose, project, theme }) => {
               disabled={loading}
               placeholder="Describe the task details..."
               size="small"
-              InputProps={{
-                sx: { borderRadius: 1 }
-              }}
+
             />
           </Box>
           
@@ -1488,7 +1452,7 @@ const ProjectTableRow = ({
         <TableCell>
           <Stack direction="row" spacing={1}>
             <Tooltip title="Add Task">
-              <IconButton size="small" onClick={() => onCreateTask(project)}>
+              <IconButton size="small" onClick={() => onCreateTask(project)} >
                 <AddTask fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -1682,7 +1646,7 @@ const Projects = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createTaskModalOpen, setCreateTaskModalOpen] = useState(false);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
-  const [selectedProject, setSelectedProject] = useState(null);
+  const [selectedProject, setSelectedProject] = useState([]);
   const [selectedProjects, setSelectedProjects] = useState(new Set());
   const [sortBy, setSortBy] = useState('updatedAt');
   const [teams, setTeams] = useState([]);
@@ -1713,9 +1677,14 @@ const Projects = () => {
           'Content-Type': 'application/json'
         }
       });
-      
-      const teamsData = response.data?.teams || response.data?.data || response.data || [];
-      setTeams(Array.isArray(teamsData) ? teamsData : []);
+      const teamsData = response.data?.teams || [];
+      setTeams(teamsData); 
+/* teams= [
+{_id: , teamName: , members: [{_id: , user: {_id: ,name: ,username: ,email: , avatar: , course: , bio: , institution: , skills:, year: , onlineStatus: } }]} , 
+{_id: , teamName: , members: [{_id: , user: {_id: ,name: ,username: ,email: , avatar: , course: , bio: , institution: , skills:, year: , onlineStatus: } }]}, 
+...
+{_id: , teamName: , members: [{_id: , user: {_id: ,name: ,username: ,email: , avatar: , course: , bio: , institution: , skills:, year: , onlineStatus: } }]}
+] */
       setAuthError(false);
     } catch (err) {
       console.error('Error fetching teams:', err);
@@ -1738,7 +1707,6 @@ const Projects = () => {
       }
 
       const token = getAuthToken();
-      console.log('Fetching projects...'); // Debug log
 
       const response = await axiosClient.get('/projects', {
         headers: { 
@@ -1747,7 +1715,6 @@ const Projects = () => {
         }
       });
       
-      console.log('Raw API response:', response.data); // Debug log
       
       let projectsData = [];
       
@@ -1760,19 +1727,7 @@ const Projects = () => {
       } else if (response.data && response.data.success && Array.isArray(response.data.data)) {
         projectsData = response.data.data;
       }
-      // Debug: Log each project's structure
-    console.log('Number of projects:', projectsData.length);
-    projectsData.forEach((project, index) => {
-      console.log(`Project ${index + 1}:`, {
-        id: project._id,
-        name: project.projectName,
-        team: project.team,
-        teamName: project.teamName,
-        teamType: typeof project.team,
-        teamLength: project.team?.length,
-        teamSample: project.team?.[0]
-      });
-    });
+
       projectsData.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
       
       setProjects(projectsData || []);
@@ -1801,51 +1756,37 @@ const Projects = () => {
   }, [fetchProjects, fetchTeams]);
 
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredProjects(projects);
-      return;
-    }
-
-    const filtered = projects.filter(project =>
-      project.projectName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      project.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      project.teamName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (project.tags && project.tags.some(tag =>
-        tag.toLowerCase().includes(searchQuery.toLowerCase())
-      ))
-    );
-    setFilteredProjects(filtered);
-  }, [searchQuery, projects]);
-
-  useEffect(() => {
+    // store a copy of all projects
     let data = [...projects];
   
+    // Filter by search query if present
     if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
       data = data.filter(project =>
-        project.projectName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        project.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        project.teamName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        project.tags?.some(tag =>
-          tag.toLowerCase().includes(searchQuery.toLowerCase())
-        )
+        project.projectName?.toLowerCase().includes(query) ||
+        project.description?.toLowerCase().includes(query) ||
+        project.teamName?.toLowerCase().includes(query) ||
+        project.tags?.some(tag => tag.toLowerCase().includes(query))
       );
     }
   
+    // Sort based on sortBy
     data.sort((a, b) => {
-      const dateA = new Date(a.updatedAt || a.createdAt || 0);
-      const dateB = new Date(b.updatedAt || b.createdAt || 0);
-  
       switch (sortBy) {
-        case 'updatedAt':
+        case 'updatedAt': {
+          const dateA = new Date(a.updatedAt || a.createdAt || 0);
+          const dateB = new Date(b.updatedAt || b.createdAt || 0);
           return dateB - dateA;
+        }
         case 'progress':
           return (b.progress || 0) - (a.progress || 0);
         case 'name':
           return (a.projectName || '').localeCompare(b.projectName || '');
-        case 'health':
+        case 'health': {
           const healthA = a.metrics?.healthScore || a.metrics?.health?.healthScore || 0;
           const healthB = b.metrics?.healthScore || b.metrics?.health?.healthScore || 0;
           return healthB - healthA;
+        }
         default:
           return 0;
       }
@@ -1853,6 +1794,7 @@ const Projects = () => {
   
     setFilteredProjects(data);
   }, [projects, searchQuery, sortBy]);
+  
   
   const handleSelectProject = (projectId, checked) => {
     const newSelected = new Set(selectedProjects);
@@ -1899,6 +1841,8 @@ const Projects = () => {
   };
 
   const handleCreateTask = (project) => {
+    console.log("Selected Project: ", project);
+
     setSelectedProject(project);
     setCreateTaskModalOpen(true);
   };
@@ -2252,7 +2196,7 @@ const Projects = () => {
                     isSelected={selectedProjects.has(project._id)}
                     onSelect={handleSelectProject}
                     theme={theme}
-                    onCreateTask={handleCreateTask}
+                    onCreateTask={() => handleCreateTask(project)}
                     onReviewProject={handleReviewProject}
                   />
                 ))}
@@ -2295,11 +2239,11 @@ const Projects = () => {
         theme={theme}
         onProjectCreated={handleCreateProject}
       />
-      
       <CreateTaskModal
         open={createTaskModalOpen}
         onClose={() => setCreateTaskModalOpen(false)}
         project={selectedProject}
+        teams={teams}
         theme={theme}
       />
 

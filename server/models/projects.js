@@ -9,10 +9,7 @@ const projectSchema = new mongoose.Schema(
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true} ,
     status: { type: String, enum: ['not_started', 'ongoing', 'completed', 'on_hold'], default: 'not_started'},
     tags: [ { type:String, trim: true } ],
-    team: [{ 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: 'User' 
-    }],
+    teamId: { type: mongoose.Schema.Types.ObjectId, ref: "Team", required: true},
     teamName:{ type: String, trim: true},
     milestones: [{ title: String }],
     progress: { 

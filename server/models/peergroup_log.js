@@ -1,11 +1,11 @@
-// Updated peergroup_log.js model
+// peergroup_log.js model
 import mongoose from 'mongoose';
 
 const peergroupSchema = new mongoose.Schema({
     name: {
         type: String,
         required: true,
-        trim: true
+        trim: true,
     },
     members: [
         {   
@@ -20,6 +20,6 @@ const peergroupSchema = new mongoose.Schema({
     deletedAt: { type: Date }
 }, { timestamps: true });
 
-const Group = mongoose.model("Group", peergroupSchema, "peerGroups_log");
+const Team = mongoose.model("Team", peergroupSchema);
 
-export default Group;
+export default Team;

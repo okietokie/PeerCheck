@@ -1,6 +1,7 @@
 import Project from "../models/projects.js";
 import DeletedProjects from "../models/deletedProjectInfo.js";
-import Task from "../models/tasks.js"; // Add this import
+import Task from "../models/tasks.js"; 
+import Team from "../models/peergroup_log.js";
 
 
 // Status weight mapping for weighted progress
@@ -543,29 +544,30 @@ const calculateTaskMetrics = (task) => {
   };
 };
 
-/**
- * ORIGINAL CONTROLLER FUNCTIONS (Updated)
- */
 
 export const createProject = async (req, res) => {
   try {
-    const { projectName, description, startDate, endDate, teamName, tags, gradingCriteria } = req.body;
+    const { projectName, description, startDate, endDate, teamId, teamName, tags, gradingCriteria } = req.body;
 
     // Basic validation
-    if (!projectName || !description || !startDate || !endDate) {
+    if (!projectName || !description || !startDate || !endDate || !teamId) {
       return res.status(400).json({ error: "Missing required fields" });
     }
-    
+
+    // Make sure the team exists
+    const team = await Team.findById(teamId);
+    if (!team) return res.status(404).json({ error: "Team not found" });
+
     // Create project with creator ID from authenticated user
     const projectData = {
       projectName,
       description,
       startDate,
       endDate,
-      teamName: teamName || 'Unnamed Team', // Make sure teamName is included
+      teamName: teamName || team.name || 'Unnamed Team',
       tags: tags || [],
+      teamId: team._id,
       createdBy: req.user.id,
-      team: req.body.team || [], // Team member IDs
       gradingCriteria: gradingCriteria || {
         taskCompletionWeight: 40,
         peerReviewWeight: 30,
@@ -579,90 +581,107 @@ export const createProject = async (req, res) => {
         healthLevel: 'healthy'
       }
     };
-    
+
     const newProject = new Project(projectData);
     await newProject.save();
 
-    // Populate the team field with user details before sending response
+    // Optionally, add project to team.projects array
+    team.projects.push(newProject._id);
+    await team.save();
+
+    // Populate teamId and createdBy before sending response
     const populatedProject = await Project.findById(newProject._id)
-      .populate('team', 'name email')
+      .populate('teamId', 'name members')
       .populate('createdBy', 'name email');
 
     res.status(201).json(populatedProject);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-}
+};
 
-export const deleteProject = async (req, res) =>{
+export const deleteProject = async (req, res) => {
   try {
     const { projectId } = req.params;
-        
-    const deleteProject = await Project.findById(projectId);
+
+    const deleteProject = await Project.findById(projectId).populate('teamId', 'members');
     
-    // If project deos not exists
     if (!deleteProject) {
       return res.status(404).json({ error: "Project not found" });
     }
 
-    //if user trying to delete is neither the project creator nor the admin
+    // Check permissions
     const isCreator = deleteProject.createdBy.toString() === req.user.id;
     const isAdmin = req.user.role === 'admin';
-    
     if (!isCreator && !isAdmin) {
       return res.status(403).json({ error: "Not authorized to delete this project" });
     }
-    
-    const project = new DeletedProjects({
-      deletedProjectName: deleteProject.projectName,  
-      projectID: deleteProject._id,
-      memberList: deleteProject.team || [], 
-    });
-    
-    await project.save();
-    
 
+    // Save deleted project info
+    const deletedRecord = new DeletedProjects({
+      deletedProjectName: deleteProject.projectName,
+      projectID: deleteProject._id,
+      memberList: deleteProject.teamId?.members.map(m => m.toString()) || [],
+    });
+    await deletedRecord.save();
+
+    // Remove project from the team projects array
+    if (deleteProject.teamId) {
+      await Team.findByIdAndUpdate(deleteProject.teamId._id, { 
+        $pull: { projects: deleteProject._id } 
+      });
+    }
+
+    // Delete the project
     await Project.findByIdAndDelete(projectId);
+
     res.status(200).json({ message: "Project deleted successfully" });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-}
-
+};
 export const getAllProjects = async (req, res) => {
   try {
-    const userId = req.userId;
-    const user = {
-      $or :[
-        { createdBy: userId},
-        { team : userId}
-      ]
-    };
-    
-    const projects = await Project.find(user)
-      .populate("team", 'name email')
+    const userId = req.user.id;
+
+    // Fetch projects created by the user
+    let projects = await Project.find({ createdBy: userId })
+      .populate("teamId", 'name members')
       .populate("createdBy", 'name email')
       .sort({ 'metrics.healthScore': -1, createdAt: -1 });
-    
-    // Add metrics to each project
+
+    // Include projects where user is in the team
+    const teamProjects = await Project.find({}) // fetch all and filter in code
+      .populate("teamId", 'name members')
+      .populate("createdBy", 'name email')
+      .sort({ 'metrics.healthScore': -1, createdAt: -1 });
+
+    projects = [
+      ...projects,
+      ...teamProjects.filter(p => p.teamId?.members.some(m => m.toString() === userId))
+    ];
+
+    // Remove duplicates if any
+    const uniqueProjects = Array.from(new Map(projects.map(p => [p._id.toString(), p])).values());
+
+    // Add metrics
     const projectsWithMetrics = await Promise.all(
-      projects.map(async (project) => {
+      uniqueProjects.map(async (project) => {
         const tasks = await Task.find({ projectId: project._id }).lean();
-        const metrics = calculateAllProjectMetrics(tasks, project.team || []);
-        
+        const metrics = calculateAllProjectMetrics(tasks, project.teamId?.members || []);
         return {
           ...project.toObject(),
           metrics
         };
       })
     );
-    
+
     res.json(projectsWithMetrics);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-}
+};
 
 export const getProjectById = async (req, res) => {
   try {
@@ -696,93 +715,83 @@ export const getProjectById = async (req, res) => {
 export const searchProjects = async (req, res) => {
   try {
     const { query } = req.query;
-    
+
     if (!query || query.trim() === '') {
       return res.status(400).json({ error: "Search query is required" });
     }
-    
+
     const projects = await Project.find({
-      $and: [
-        {
-          $or: [
-            { projectName: { $regex: query, $options: 'i' } },
-            { description: { $regex: query, $options: 'i' } },
-            { tags: { $regex: query, $options: 'i' } }
-          ]
-        }
+      $or: [
+        { projectName: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } },
+        { tags: { $regex: query, $options: 'i' } } // works for array of strings
       ]
     })
       .populate('createdBy', 'name email')
-      .populate('team', 'name email')
+      .populate('teamId', 'name members') // fixed populate
       .limit(20);
-    
+
     res.json(projects);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-}
+};
 
-/**
- * NEW METRICS-RELATED CONTROLLER FUNCTIONS
- */
 
 // Get detailed project metrics dashboard
 export const getProjectMetrics = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const userId = req.userId;
-    
-    // Check project access
+    const userId = req.user.id;
+
+    // Fetch project and populate creator & team members
     const project = await Project.findById(projectId)
       .populate('createdBy', 'name email')
-      .populate('team', 'name email');
-    
+      .populate('teamId', 'name members');
+
     if (!project) {
       return res.status(404).json({ 
         success: false,
         error: "Project not found" 
       });
     }
-    
-    // Check if user has access to project
+
+    // Check access
     const hasAccess = 
       project.createdBy._id.toString() === userId ||
-      project.team.some(member => member._id.toString() === userId);
-    
+      project.teamId?.members.some(member => member._id.toString() === userId);
+
     if (!hasAccess) {
       return res.status(403).json({ 
         success: false,
         error: "Access denied to project" 
       });
     }
-    
-    // Get all tasks with assigned user populated
+
+    // Get all tasks
     const tasks = await Task.find({ projectId })
       .populate('assignedTo', 'name email avatar')
       .lean();
-    
-    // Calculate all metrics
-    const metrics = calculateAllProjectMetrics(tasks, project.team || []);
-    
-    // Get individual task metrics
+
+    // Calculate metrics
+    const metrics = calculateAllProjectMetrics(tasks, project.teamId?.members || []);
+
     const tasksWithMetrics = tasks.map(task => ({
       ...task,
       taskMetrics: calculateTaskMetrics(task)
     }));
-    
-    // Sort tasks by risk (high risk first)
+
     tasksWithMetrics.sort((a, b) => b.taskMetrics.risk.riskScore - a.taskMetrics.risk.riskScore);
-    
-    // Update project metrics in DB (async)
-    await updateProjectMetricsInDB(projectId);
-    
+
+    await updateProjectMetricsInDB(projectId); // async update
+
     res.json({
       success: true,
       project: {
         _id: project._id,
         projectName: project.projectName,
         description: project.description,
-        team: project.team,
+        team: project.teamId,
         createdBy: project.createdBy,
         startDate: project.startDate,
         endDate: project.endDate,
@@ -795,12 +804,13 @@ export const getProjectMetrics = async (req, res) => {
         completedTasks: metrics.progress.completedTasks,
         highRiskTasks: metrics.projectRisk.highRiskTasks,
         overdueTasks: metrics.deadlineHealth.overdueTasks,
-        teamSize: project.team.length,
+        teamSize: project.teamId?.members.length || 0,
         totalEstimatedTime: metrics.timeEfficiency.totalEstimatedTime,
         totalFocusTime: metrics.timeEfficiency.totalFocusTime
       },
       calculatedAt: new Date()
     });
+
   } catch (error) {
     console.error('Error getting project metrics:', error);
     res.status(500).json({ 
@@ -808,49 +818,52 @@ export const getProjectMetrics = async (req, res) => {
       error: error.message 
     });
   }
-}
+};
 
 // Get task-specific metrics
 export const getTaskMetrics = async (req, res) => {
   try {
     const { taskId } = req.params;
-    const userId = req.userId;
-    
+    const userId = req.user.id;
+
     const task = await Task.findById(taskId)
       .populate('assignedTo', 'name email avatar')
-      .populate('projectId', 'projectName team');
-    
+      .populate('projectId', 'projectName teamId')
+      .lean();
+
     if (!task) {
       return res.status(404).json({
         success: false,
         error: "Task not found"
       });
     }
-    
-    // Check access through project
-    const project = await Project.findById(task.projectId);
+
+    // Populate project fully for access check
+    const project = await Project.findById(task.projectId._id)
+      .populate('createdBy', 'name email')
+      .populate('teamId', 'members');
+
     if (!project) {
       return res.status(404).json({
         success: false,
         error: "Project not found"
       });
     }
-    
-    const hasAccess = 
-      project.createdBy.toString() === userId ||
+
+    const hasAccess =
+      project.createdBy._id.toString() === userId ||
       task.assignedTo._id.toString() === userId ||
-      project.team.some(member => member.toString() === userId);
-    
+      project.teamId?.members.some(member => member.toString() === userId);
+
     if (!hasAccess) {
       return res.status(403).json({
         success: false,
         error: "Access denied to task"
       });
     }
-    
-    // Calculate task metrics
+
     const taskMetrics = calculateTaskMetrics(task);
-    
+
     res.json({
       success: true,
       task: {
@@ -862,16 +875,18 @@ export const getTaskMetrics = async (req, res) => {
         estimatedTime: task.estimatedTime,
         totalFocusTime: task.totalFocusTime,
         assignedTo: task.assignedTo,
-        projectId: task.projectId,
+        projectId: project._id,
         proofUploads: task.proofUploads,
         flags: task.flags
       },
       metrics: taskMetrics,
       project: {
         _id: project._id,
-        projectName: project.projectName
+        projectName: project.projectName,
+        team: project.teamId
       }
     });
+
   } catch (error) {
     console.error('Error getting task metrics:', error);
     res.status(500).json({
@@ -879,48 +894,46 @@ export const getTaskMetrics = async (req, res) => {
       error: error.message
     });
   }
-}
+};
+
 
 // Get contributor analytics for a project
 export const getContributorAnalytics = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const userId = req.userId;
-    
+    const userId = req.user.id;
+
     const project = await Project.findById(projectId)
-      .populate('team', 'name email avatar')
-      .populate('createdBy', 'name email');
-    
+      .populate('createdBy', 'name email')
+      .populate('teamId', 'members'); // populate members only
+
     if (!project) {
       return res.status(404).json({
         success: false,
         error: "Project not found"
       });
     }
-    
+
     // Check access
     const hasAccess = 
       project.createdBy._id.toString() === userId ||
-      project.team.some(member => member._id.toString() === userId);
-    
+      project.teamId?.members.some(member => member._id.toString() === userId);
+
     if (!hasAccess) {
       return res.status(403).json({
         success: false,
         error: "Access denied"
       });
     }
-    
+
     const tasks = await Task.find({ projectId })
       .populate('assignedTo', 'name email avatar')
       .lean();
-    
-    const metrics = calculateAllProjectMetrics(tasks, project.team || []);
-    
-    // Prepare contributor details
-    const contributors = [];
-    const teamMembers = project.team || [];
-    
-    teamMembers.forEach(member => {
+
+    const metrics = calculateAllProjectMetrics(tasks, project.teamId?.members || []);
+
+    // Prepare contributors
+    const contributors = (project.teamId?.members || []).map(member => {
       const memberId = member._id.toString();
       const memberStats = metrics.contributorFairness.contributors[memberId] || {
         assignedTasks: 0,
@@ -929,8 +942,7 @@ export const getContributorAnalytics = async (req, res) => {
         completedPercentage: 0,
         isFreeRider: false
       };
-      
-      contributors.push({
+      return {
         user: {
           _id: member._id,
           name: member.name,
@@ -939,12 +951,12 @@ export const getContributorAnalytics = async (req, res) => {
         },
         stats: memberStats,
         isCreator: project.createdBy._id.toString() === memberId
-      });
+      };
     });
-    
-    // Sort by contribution (highest first)
+
+    // Sort by contribution
     contributors.sort((a, b) => b.stats.completedTasks - a.stats.completedTasks);
-    
+
     res.json({
       success: true,
       project: {
@@ -953,12 +965,13 @@ export const getContributorAnalytics = async (req, res) => {
       },
       contributors,
       summary: {
-        totalTeamMembers: teamMembers.length,
+        totalTeamMembers: project.teamId?.members.length || 0,
         freeRiderRisk: metrics.contributorFairness.freeRiderRisk,
         totalTasks: tasks.length,
         completedTasks: metrics.progress.completedTasks
       }
     });
+
   } catch (error) {
     console.error('Error getting contributor analytics:', error);
     res.status(500).json({
@@ -966,13 +979,14 @@ export const getContributorAnalytics = async (req, res) => {
       error: error.message
     });
   }
-}
+};
+
 
 // Force refresh project metrics
 export const refreshProjectMetrics = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const userId = req.userId;
+    const userId = req.user.id;
     
     const project = await Project.findById(projectId);
     
