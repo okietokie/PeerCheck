@@ -7,6 +7,6 @@ const deletedProjectsSchema = new mongoose.Schema({
     deletedAt: {type: Date, default: Date.now}
 })
 
-const DeletedProjects = mongoose.model("DeletedProject",deletedProjectsSchema, "Deleted_Projects_Info" )
+const DeletedProjects = mongoose.model("DeletedProject",deletedProjectsSchema )
 
 export default DeletedProjects;

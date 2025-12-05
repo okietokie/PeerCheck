@@ -55,7 +55,11 @@ import {
   updateTaskDeadline,
   addTaskComment,
   deleteProof,
-  getTaskActivityLogs
+  getTaskActivityLogs,
+  startTask,
+  pauseTask,
+  resumeTask,
+  completeTask
 } from '../controllers/taskController.js';
 
 import { fetchBasicData, getDashboardStats } from '../controllers/homeController.js'; 
@@ -86,7 +90,7 @@ router.get("/tasks/user", authMiddleware, getUserTasks);
 
 
 
-// Single task operations (keep these separate from project routes)
+// Single task operations
 router.get("/task/:taskId", authMiddleware, getTaskDetails); 
 router.post("/task/create", authMiddleware, createTask); 
 router.put("/task/:taskId/status", authMiddleware, updateTaskStatus);
@@ -106,8 +110,11 @@ router.put("/task/:taskId/flags", authMiddleware, updateTaskFlags);
 router.get("/task/:taskId/activity", authMiddleware, getTaskActivityLogs);
 router.post("/task/:taskId/proof", authMiddleware, upload.single('proofFile'), uploadProof)
 
-// Upload proof route with file upload middleware
-router.post("/task/:taskId/proof", authMiddleware, upload.single('proofFile'), uploadProof);
+// userRoutes.js
+router.post("/task/:taskId/start", authMiddleware, startTask);
+router.post("/task/:taskId/pause", authMiddleware, pauseTask);
+router.post("/task/:taskId/resume", authMiddleware, resumeTask);
+router.post("/task/:taskId/complete", authMiddleware, completeTask);
 
 // Connection routes
 router.get("/peerteam/", authMiddleware, getPeerTeam);

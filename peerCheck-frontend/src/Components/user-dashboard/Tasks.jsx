@@ -503,7 +503,7 @@ const AssignTaskDialog = ({ open, onClose, task, projectTeam, onAssign, theme })
   );
 };
 // Task Details Modal - COMPLETE VERSION
-const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate }) => {
+const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, onLogTime }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -513,7 +513,7 @@ const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate }
   const [projectTeam, setProjectTeam] = useState([]);
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
 
-  console.log("Task: ", task)
+  console.log("taskdetailsmodal/Task: ", task);
 
   // Fetch activity logs
   const fetchActivityLogs = async () => {
@@ -555,14 +555,13 @@ const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate }
       const token = getAuthToken();
       if (!token) return;
 
-      // You need to create this endpoint or adjust based on your API
-      const response = await axiosClient.get(`/projects/${task.projectId._id}`, {
+      const response = await axiosClient.get(`/projects/${projectId._id}`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
-
+      console.log("fetchprojectteam/response.data?",response.data);
       if (response.data?.success) {
         // Adjust this based on your API response structure
         setProjectTeam(response.data.project?.team || []);
@@ -1268,14 +1267,7 @@ const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate }
                         <Button
                           variant="outlined"
                           startIcon={<Timer />}
-                          onClick={() => {
-                            // You'll need to trigger the LogTimeModal
-                            onClose();
-                            setTimeout(() => {
-                              // Call parent function to open log time modal
-                              window.dispatchEvent(new CustomEvent('openLogTimeModal', { detail: task }));
-                            }, 100);
-                          }}
+                          onClick={() => onLogTime(task)}
                           size="small"
                           sx={{ borderRadius: 1.5 }}
                         >
@@ -1799,7 +1791,7 @@ const TaskTableRow = ({
   isSelected, 
   onSelect, 
   theme,
-  userRole,
+  userRole,  //userRole.role, userRole.userId -- since it contains {role: , userId: }
   onLogTime,
   onUploadProof,
   onViewDetails,
@@ -2115,7 +2107,7 @@ const Tasks = () => {
     
     // Set user role from user data
     setUserRole({
-      role: user.role || 'student',
+      role: user.role || 'peer',
       userId: user.id || user._id
     });
     
@@ -2147,7 +2139,8 @@ const Tasks = () => {
         throw new Error('Failed to fetch tasks');
       }
 
-      const tasksData = response.data.tasks || [];
+      const tasksData = response.data?.tasks || [];
+      console.log("tasksData",response.data?.tasks)
 
       const enrichedTasks = tasksData.map(task => {
         const taskMetrics = calculateTaskMetricsFromData(task);
@@ -2167,6 +2160,7 @@ const Tasks = () => {
       });
 
       setTasks(enrichedTasks);
+      console.log("afterfetchTasks/-enrichedTasks(same as tasks-setTasks): ", enrichedTasks);
 
       setFilteredTasks(enrichedTasks);
       setMetrics(null);
@@ -2197,10 +2191,10 @@ const calculateTaskMetricsFromData = (task) => {
   };
 };
 
-const calculateEfficiency = (task) => {
-  if (!task.estimatedTime || task.estimatedTime === 0) return 0;
-  return Math.round((task.totalFocusTime / task.estimatedTime) * 100 * 100) / 100;
-};
+// const calculateEfficiency = (task) => {
+//   if (!task.estimatedTime || task.estimatedTime === 0) return 0;
+//   return Math.round((task.totalFocusTime / task.estimatedTime) * 100 * 100) / 100;
+// };
 
 const calculateRiskScore = (task) => {
   const flags = task.flags || {};
@@ -2331,7 +2325,7 @@ const handleFetchError = (err) => {
     }
   };
 
-  //
+  //handle status change like from not_started to actve to pause to completed
   const handleStatusChange = async (taskId, newStatus) => {
     try {
       const token = getAuthToken();
@@ -2339,9 +2333,21 @@ const handleFetchError = (err) => {
         setError('Authentication required');
         return;
       }
+          // Find task in state
+      const task = tasks.find(t => t._id === taskId);
+      if (!task) return;
+
+      const now = new Date();
+      let additionalTime = 0;
+
+      // Only log time if task was active before
+      if (task.status === 'active' && task.lastEventTime) {
+        additionalTime = Math.floor((now - new Date(task.lastEventTime)) / 1000); // seconds
+      }
+
 
       const response = await axiosClient.put(`/user/task/${taskId}/status`,
-        { status: newStatus },
+        { status: newStatus, additionalTime },
         {
           headers: { 
             Authorization: `Bearer ${token}`,
@@ -2352,17 +2358,24 @@ const handleFetchError = (err) => {
 
       if (response.data?.success) {
         // Update local state with the returned task data
-        const updatedTask = response.data.task;
+        const updatedTask = response.data?.task;
         
         setTasks(prev => prev.map(task =>
           task._id === taskId
             ? { 
                 ...task, 
                 status: newStatus,
-                lastEventTime: updatedTask.lastEventTime,
+                lastEventTime: task.lastEventTime,
+                totalFocusTime: (task.totalFocusTime || 0) + additionalTime,
                 // Updating metrics based on new status
                 metrics: {
                   ...task.metrics,
+                  efficiency: {
+                    ...task.metrics.efficiency,
+                    percentage: task.estimatedTime
+                      ? Math.round(((task.totalFocusTime || 0 + additionalTime) / task.estimatedTime) * 100 * 100) / 100
+                      : 0
+                  },
                   statusWeightPercentage: calculateStatusWeight(newStatus),
                   isOverdue: calculateIsOverdue({ ...task, status: newStatus })
                 }
@@ -2848,6 +2861,7 @@ const handleFetchError = (err) => {
         theme={theme}
         userRole={userRole}
         onTaskUpdate={handleTaskUpdate}
+        onLogTime = {handleLogTime}
       />
 
       <LogTimeModal

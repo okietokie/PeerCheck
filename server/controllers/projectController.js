@@ -703,7 +703,14 @@ export const getProjectById = async (req, res) => {
     
     const project = await Project.findById(projectId)
       .populate('createdBy', 'name email')
-      .populate('team', 'name email');
+      .populate({
+        path: "teamId",
+        select: "name",
+        populate: {
+          path: "members",
+          select: "name email avatar"
+        }
+      });
     
     if (!project) {
       return res.status(404).json({ error: "Project not found" });

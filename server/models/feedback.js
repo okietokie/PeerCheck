@@ -36,6 +36,6 @@ const peerFeedbackSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
-const PeerFeedback = mongoose.model("PeerFeedback", peerFeedbackSchema, "peerCheck_feedback");
+const PeerFeedback = mongoose.model("PeerFeedback", peerFeedbackSchema);
 
 export default PeerFeedback;

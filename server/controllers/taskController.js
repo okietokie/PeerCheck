@@ -6,6 +6,7 @@ import TaskActivityEvent from '../models/taskActivityEvent.js';
 import { calculateTaskMetrics } from "./projectController.js";
 import { formatTimeAgo, getActionMessage, logActivity } from "./activityLogger.js";
 
+
 // Helper functions for derived metrics
 const getStatusWeight = (status) => {
   switch (status) {
@@ -263,6 +264,186 @@ export const createTask = async (req, res) => {
   }
 };
 
+
+// Start a task 
+export const startTask = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const userId = req.user.id;
+
+
+    const task = await Task.findById(taskId); //fetches the full mongoose DB object not plain js object
+    if (!task) return res.status(404).json({ error: "Task not found" });
+    
+    // Check if user is assigned to this task
+    if (task.assignedTo.toString() !== userId.toString()) {
+      return res.status(403).json({ error: "Not authorized to start this task" });
+    }
+    
+    // Check if task can be started
+    if (task.status === 'completed') {
+      return res.status(400).json({ error: "Cannot start a completed task" });
+    }
+    const oldStatus = task.status;
+    task.status = "active";
+    task.lastEventTime = new Date();  //js Date object, represents the current date and time ("time right now in ISo format")
+    await task.save();
+    
+    // Log activity
+    await logActivity({
+      taskId: task._id,
+      userId,
+      projectId: task.projectId,
+      eventType: 'status_changed',
+      metadata: {
+        oldStatus: oldStatus,
+        newStatus: 'active'
+      }
+    });
+    
+    res.json({ success: true, task });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Pause a task - FIXED
+export const pauseTask = async (req, res) => {
+  const { taskId } = req.params;
+  const userId = req.user.id;
+  
+  try {
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ error: "Task not found" });
+    
+    if (task.assignedTo.toString() !== userId.toString()) {
+      return res.status(403).json({ error: "Not authorized to pause this task" });
+    }
+    
+    if (task.status !== "active") {
+      return res.status(400).json({ error: "Task is not active" });
+    }
+    
+    // Calculate elapsed time since last event
+    const now = new Date();
+    const lastEvent = task.lastEventTime || task.updatedAt || task.createdAt;
+    const elapsedSeconds = Math.floor((now - new Date(lastEvent)) / 1000);
+    
+    // Update focus time
+    task.totalFocusTime += Math.max(elapsedSeconds, 0);
+    task.status = "paused";
+    task.lastEventTime = now;
+    
+    await task.save();
+    
+    // Log activity
+    await logActivity({
+      taskId: task._id,
+      userId,
+      projectId: task.projectId,
+      eventType: 'status_changed',
+      metadata: {
+        oldStatus: 'active',
+        newStatus: 'paused',
+        elapsedTime: elapsedSeconds
+      }
+    });
+    
+    res.json({ 
+      success: true, 
+      totalFocusTime: task.totalFocusTime,
+      elapsedTime: elapsedSeconds
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Resume task - FIXED
+export const resumeTask = async (req, res) => {
+  const { taskId } = req.params;
+  const userId = req.user.id;
+  
+  try {
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ error: "Task not found" });
+    
+    if (task.assignedTo.toString() !== userId.toString()) {
+      return res.status(403).json({ error: "Not authorized to resume this task" });
+    }
+    
+    if (task.status !== 'paused') {
+      return res.status(400).json({ error: "Task is not paused" });
+    }
+    
+    task.status = "active";
+    task.lastEventTime = new Date();
+    await task.save();
+    
+    // Log activity
+    await logActivity({
+      taskId: task._id,
+      userId,
+      projectId: task.projectId,
+      eventType: 'status_changed',
+      metadata: {
+        oldStatus: 'paused',
+        newStatus: 'active'
+      }
+    });
+    
+    res.json({ success: true, task });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Complete task - FIXED
+export const completeTask = async (req, res) => {
+  const { taskId } = req.params;
+  const userId = req.user.id;
+  
+  try {
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ error: "Task not found" });
+    
+    if (task.assignedTo.toString() !== userId.toString()) {
+      return res.status(403).json({ error: "Not authorized to complete this task" });
+    }
+    
+    // If task was active, add remaining time
+    if (task.status === "active") {
+      const now = new Date();
+      const lastEvent = task.lastEventTime || task.updatedAt;
+      const elapsedSeconds = Math.floor((now - new Date(lastEvent)) / 1000);
+      task.totalFocusTime += Math.max(elapsedSeconds, 0);
+    }
+    
+    task.status = "completed";
+    task.lastEventTime = new Date();
+    await task.save();
+    
+    // Log activity
+    await logActivity({
+      taskId: task._id,
+      userId,
+      projectId: task.projectId,
+      eventType: 'status_changed',
+      metadata: {
+        oldStatus: task.status,
+        newStatus: 'completed'
+      }
+    });
+    
+    res.json({ 
+      success: true, 
+      totalFocusTime: task.totalFocusTime,
+      task
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
 
 // Delete task (FIXED: No major issues)
 export const deleteTask = async (req, res) => {
@@ -1473,7 +1654,7 @@ const calculateRiskScore = (task) => {
 export const updateTaskStatus = async (req, res) => {
   try {
     const { taskId } = req.params;
-    const { status } = req.body;
+    const { status, additionalTime } = req.body;
     const userId = req.user.id;
 
     const task = await Task.findById(taskId);
@@ -1484,9 +1665,19 @@ export const updateTaskStatus = async (req, res) => {
       });
     }
 
+    if (additionalTime) {
+      task.totalFocusTime = (task.totalFocusTime || 0) + additionalTime;
+    }
+
     const oldStatus = task.status;
     task.status = status;
-    task.lastEventTime = new Date();
+    task.lastEventTime = new Date(); //stores current time as lastEventTime update
+    
+    // Recalculate efficiency
+    if (task.estimatedTime) {
+      task.taskMetrics.efficiency.percentage =
+        Math.round((task.totalFocusTime / task.estimatedTime) * 100 * 100) / 100;
+    }
     
     await task.save();
 
@@ -1501,7 +1692,7 @@ export const updateTaskStatus = async (req, res) => {
         newStatus: status
       }
     });
-
+    
     const updatedTask = await Task.findById(taskId)
       .populate('assignedTo', 'name email avatar')
       .populate('projectId', 'projectName');
