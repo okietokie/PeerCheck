@@ -10,7 +10,7 @@ import crypto from "crypto";
 
 export const registerUser = async (req, res) => {
   try {
-    const { name, username, email, dob, password } = req.body;  //contains info sent from the user 
+    const { name, username, email, dob, password, role } = req.body;  //contains info sent from the user 
 
     // Check if user exists
     const existingUser = await User.findOne({ email });
@@ -24,7 +24,7 @@ export const registerUser = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     //saving the user
-    const user = new User({ name, username, email, dob, password: hashedPassword });
+    const user = new User({ name, username, email, dob, password: hashedPassword, role });
     await user.save();
 
     res.status(201).json({ message: "User registered successfully" });
@@ -71,14 +71,14 @@ export const loginUser = async (req, res) => {
     await userData.create({email, ipAddress})
 
     //save into login_logs
+    
+    const loginLog = new userData({email, ipAddress, status: "Success"});
+    await loginLog.save();
+    
 
+    const loggedInUser = await User.findById(user._id).select('-password')
 
-    res.json({ message: "Login successful", token, role: user.role, user: {
-      _id: user._id,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-    }});
+    res.json({ message: "Login successful", token, role: user.role, user: loggedInUser });
 
 
   } catch (error) {

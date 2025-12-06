@@ -3,6 +3,118 @@ import Group from "../models/peergroup_log.js";
 import Project from "../models/projects.js";
 import User from "../models/user.js";
 
+import fs from 'fs';
+import path from 'path';
+
+export const uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false,
+        message: "No file uploaded" 
+      });
+    }
+    
+    // Construct avatar URL
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+    
+    // Get previous avatar to delete later
+    const user = await User.findById(req.userId);
+    const oldAvatar = user.avatar;
+    
+    // Update user's avatar in database
+    const updatedUser = await User.findByIdAndUpdate(
+      req.userId, 
+      { avatar: avatarUrl },
+      { new: true, select: '-password' }
+    );
+    
+    // Delete old avatar file if it exists
+    if (oldAvatar && oldAvatar.startsWith('/uploads/avatars/')) {
+      const oldFilename = oldAvatar.split('/').pop();
+      const oldPath = path.join('uploads/avatars', oldFilename);
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+    }
+    
+    res.status(200).json({ 
+      success: true, 
+      avatarUrl,
+      user: {
+        name: updatedUser.name,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        bio: updatedUser.bio,
+        institution: updatedUser.institution,
+        course: updatedUser.course,
+        year: updatedUser.year,
+        skills: updatedUser.skills,
+        avatar: updatedUser.avatar
+      },
+      message: "Avatar uploaded successfully" 
+    });
+    
+  } catch (error) {
+    console.error('Upload avatar error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Error uploading avatar" 
+    });
+  }
+};
+
+export const updateProfile = async (req, res) => {
+  try {
+    const { name, username, email, bio, institution, course, year, skills } = req.body;
+    
+    const updateData = {
+      name,
+      username: username.toLowerCase(),
+      email: email.toLowerCase(),
+      bio,
+      institution,
+      course,
+      year
+    };
+    
+    // Parse skills if provided
+    if (skills) {
+      updateData.skills = typeof skills === 'string' 
+        ? skills.split(',').map(skill => skill.trim()).filter(skill => skill)
+        : skills;
+    }
+    
+    const updatedUser = await User.findByIdAndUpdate(
+      req.userId, 
+      updateData,
+      { new: true, select: '-password' }
+    );
+    
+    res.status(200).json({ 
+      success: true,
+      user: {
+        name: updatedUser.name,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        bio: updatedUser.bio,
+        institution: updatedUser.institution,
+        course: updatedUser.course,
+        year: updatedUser.year,
+        skills: updatedUser.skills,
+        avatar: updatedUser.avatar
+      },
+      message: "Profile updated successfully" 
+    });
+    
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: "Error updating profile" 
+    });
+  }
+};
 // In userController.js - update fetchUserDetails
 export const fetchUserDetails = async (req, res) => {
   try {
@@ -18,16 +130,7 @@ export const fetchUserDetails = async (req, res) => {
 
     res.status(200).json({
       username: req.username,
-      user: {
-        name: user.name,
-        username: user.username,
-        email: user.email,
-        bio: user.bio,
-        institution: user.institution,
-        course: user.course,
-        year: user.year,
-        skills: user.skills,
-      },
+      user: user,
       userProjects: projects
     });
   } catch (err) {

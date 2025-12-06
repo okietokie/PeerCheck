@@ -2,18 +2,20 @@ import mongoose from "mongoose";
 
 const taskSchema = new mongoose.Schema(
   {
-    projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project", trim: true },
+    taskTitle: { type: String, required: true, trim: true },
+    description: { type: String, default: "This was an auto generated description", trim: true },
 
-    taskTitle: { type: String, required: true, trim: true},
-    description: { type: String, default: "This was an auto generated description", trim: true},
-    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true},
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 
-    deadline: { type: Date, required: true},
-
-    estimatedTime: {
-      type: Number,     // seconds
-      required: true
+    projectId: {
+      _id: { type: mongoose.Schema.Types.ObjectId, ref: "Project" },
+      projectName: { type: String }
     },
+
+    deadline: { type: Date, required: true },
+    estimatedTime: { type: Number, required: true }, // in seconds
+    totalFocusTime: { type: Number, default: 0 },
 
     status: {
       type: String,
@@ -21,16 +23,6 @@ const taskSchema = new mongoose.Schema(
       default: "not_started"
     },
 
-    totalFocusTime: {
-      type: Number,     // seconds
-      default: 0
-    },
-
-    lastEventTime: { //exact time when the last task status change happened
-      type: Date
-    },
-
-    //WORK PROOF
     proofUploads: [
       {
         filename: String,
@@ -39,7 +31,7 @@ const taskSchema = new mongoose.Schema(
       }
     ],
 
-    //ANTI-FAKE FLAGS
+    // Flags for anti-fake/suspicious activity
     flags: {
       paddedTime: { type: Boolean, default: false },
       rushedCompletion: { type: Boolean, default: false },
@@ -47,20 +39,48 @@ const taskSchema = new mongoose.Schema(
       manualReviewRequired: { type: Boolean, default: false }
     },
 
-    //GRADING HOOKS
     gradingMeta: {
       allowPeerReview: { type: Boolean, default: true },
-      qualityScore: {
-        type: Number,
-        min: 0,
-        max: 10
+      qualityScore: { type: Number, min: 0, max: 10, default: 0 },
+      teacherOverrideScore: { type: Number, min: 0, max: 10, default: 0 }
+    },
+
+    // Calculated metrics - used in dashboard view
+    metrics: {
+      daysUntilDeadline: { type: Number, default: 0 },
+      efficiency: { type: Number, default: 0 },
+      hasProof: { type: Boolean, default: false },
+      isOverdue: { type: Boolean, default: false },
+      proofCount: { type: Number, default: 0 },
+      riskScore: { type: Number, default: 0 },
+      statusWeightPercentage: { type: Number, default: 0 }
+    },
+
+    // task-level metrics - when displaying a detailed view(per task view)
+    taskMetrics: {
+      daysUntilDeadline: { type: Number, default: 0 },
+      efficiency: { type: Number, default: 0 },
+      estimatedTime: { type: Number, default: 0 },
+      focusTime: { type: Number, default: 0 },
+      label: { type: String, default: "" },
+      percentage: { type: Number, default: 0 },
+      status: { type: String, default: "" }
+    },
+
+    // Risk assessment object
+    risk: {
+      flags: {
+        paddedTime: { type: Boolean, default: false },
+        rushedCompletion: { type: Boolean, default: false },
+        noProof: { type: Boolean, default: false },
+        manualReviewRequired: { type: Boolean, default: false }
       },
-      teacherOverrideScore: {
-        type: Number,
-        min: 0,
-        max: 10
-      }
-    }
+      riskLabel: { type: String, default: "Low Risk" },
+      riskLevel: { type: String, default: "low" },
+      riskScore: { type: Number, default: 0 }
+    },
+
+    lastEventTime: { type: Date }
   },
   { timestamps: true }
 );

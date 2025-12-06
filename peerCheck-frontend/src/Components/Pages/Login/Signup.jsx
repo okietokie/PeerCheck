@@ -12,6 +12,11 @@ import {
   Box,
   useTheme,
   alpha,
+  Radio,
+  RadioGroup,
+  FormControl,
+  FormLabel,
+  FormControlLabel,
 } from "@mui/material";
 import { motion } from "framer-motion";
 import Navbar from "./Navbar";
@@ -25,6 +30,7 @@ export default function Signup() {
     email: "",
     dob: "",
     password: "",
+    role: "",
   });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -211,9 +217,36 @@ export default function Signup() {
                           color: theme.palette.text.secondary,
                         }
                       }}
-                    />
+                    />                    
                   </motion.div>
                 ))}
+                                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.8, duration: 0.5 }}
+                    >
+                      <FormControl component="fieldset" sx={{ mt: 2 }}>
+                        <FormLabel component="legend">Account Type</FormLabel>
+                        <RadioGroup
+                          row
+                          name="role"
+                          value={formData.role}
+                          onChange={handleChange}
+                          sx={{ mt: 1 }}
+                        >
+                          <FormControlLabel
+                            value="student"
+                            control={<Radio />}
+                            label="Student"
+                          />
+                          <FormControlLabel
+                            value="teacher"
+                            control={<Radio />}
+                            label="Teacher"
+                          />
+                        </RadioGroup>
+                      </FormControl>
+                    </motion.div>
 
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}

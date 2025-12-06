@@ -1,5 +1,5 @@
 // Tasks.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, use, act } from 'react';
 import {
   Box,
   Typography,
@@ -44,7 +44,9 @@ import {
   ListItemAvatar,
   Divider,
   Switch,
-  FormControlLabel
+  FormControlLabel,
+  Tab,
+  Tabs
 } from '@mui/material';
 import {
   Search,
@@ -98,12 +100,50 @@ const getUserData = () => {
   try {
     const userStr = localStorage.getItem('user');
     if (!userStr) return null;
-    return JSON.parse(userStr);
+    const user = JSON.parse(userStr);
+    return user;
   } catch (err) {
     console.error('Error parsing user data:', err);
     return null;
   }
 };
+
+
+const TaskTabs = ({ activeTab, setActiveTab, tasks, userId, setFilteredTasks }) => {
+  // Map tab values to indices for MUI Tabs
+  const tabIndex = { all: 0, my: 1, managed: 2 };
+  const indexToTab = ["all", "my", "managed"];
+
+  const handleChange = (event, newValue) => {
+    setActiveTab(indexToTab[newValue]);
+  };
+    useEffect(() => {
+    const filtered = tasks.filter(task => {
+      if (activeTab === "all") return true;
+      if (activeTab === "my") return task.assignedTo?._id === userId;
+      if (activeTab === "managed") return task.assignedTo?._id !== userId;
+      return false;
+    });
+    setFilteredTasks(filtered);
+  }, [activeTab, tasks, userId, setFilteredTasks]);
+
+  return (
+    <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
+      <Tabs
+        value={tabIndex[activeTab]}
+        onChange={handleChange}
+        textColor="primary"
+        indicatorColor="primary"
+        aria-label="task tabs"
+      >
+        <Tab label="All Tasks" />
+        <Tab label="My Tasks" />
+        <Tab label="Tasks Managed by Me" />
+      </Tabs>
+    </Box>
+  );
+};
+
 
 // Helper to format time
 const formatTime = (seconds) => {
@@ -554,17 +594,20 @@ const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, 
     try {
       const token = getAuthToken();
       if (!token) return;
-
-      const response = await axiosClient.get(`/projects/${projectId._id}`, {
+      const projectId = task?.projectId._id;
+      console.log("projectId = task?.projectId._id: ", projectId)
+      const response = await axiosClient.get(`/projects/${projectId}`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
-      console.log("fetchprojectteam/response.data?",response.data);
+
+      const teamMembers = response.data.teamId.members.map(member => member.name);
+      
       if (response.data?.success) {
         // Adjust this based on your API response structure
-        setProjectTeam(response.data.project?.team || []);
+        setProjectTeam( teamMembers|| []);
       }
     } catch (err) {
       console.error('Error fetching project team:', err);
@@ -1000,7 +1043,7 @@ const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, 
                     </Box>
                     
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                      {task.metrics?.efficiency?.toFixed(1)}% efficiency
+                      {task.taskMetrics?.efficiency?.percentage.toFixed(1)}% efficiency
                     </Typography>
                   </Box>
                 </Paper>
@@ -1363,15 +1406,15 @@ const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, 
                 <Typography 
                   variant="h3" 
                   fontWeight="600"
-                  color={getEfficiencyColor(task.metrics?.efficiency)}
+                  color={getEfficiencyColor(task.taskMetrics?.efficiency?.percentage)}
                   sx={{ mb: 1 }}
                 >
-                  {task.metrics?.efficiency?.toFixed(1)}%
+                  {task.taskMetrics?.efficiency?.percentage.toFixed(1)}%
                 </Typography>
                 <LinearProgress 
                   variant="determinate" 
-                  value={Math.min(task.metrics?.efficiency || 0, 100)}
-                  color={getEfficiencyColor(task.metrics?.efficiency)}
+                  value={Math.min(task.taskMetrics?.efficiency?.percentage || 0, 100)}
+                  color={getEfficiencyColor(task.taskMetrics?.efficiency?.percentage)}
                   sx={{ height: 8, borderRadius: 4, mb: 1 }}
                 />
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1492,6 +1535,7 @@ const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, 
             )}
           </Box>
         )}
+        
 
         {/* Activity Tab */}
         {activeTab === 'activity' && (
@@ -1808,6 +1852,7 @@ const TaskTableRow = ({
     }
   };
 
+  console.log("tasktablerow/task",task);
   const getStatusIcon = (status) => {
     switch (status) {
       case 'completed': return <CheckCircle fontSize="small" />;
@@ -1937,9 +1982,9 @@ const TaskTableRow = ({
           <Typography 
             variant="body2" 
             fontWeight="medium"
-            color={getEfficiencyColor(task.metrics?.efficiency)}
+            color={getEfficiencyColor(task.taskMetrics?.efficiency?.percentage)}
           >
-            {task.metrics?.efficiency?.toFixed(1)}%
+            {task.taskMetrics?.efficiency?.percentage.toFixed(1)}%
           </Typography>
         </Box>
       </TableCell>
@@ -2074,6 +2119,7 @@ const Tasks = () => {
   const { projectId } = useParams();
   const isProjectView = Boolean(projectId);
   const [tasks, setTasks] = useState([]);
+  const [activeTab, setActiveTab] = useState("all"); //"all" "my" "managed"
   const [filteredTasks, setFilteredTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -2084,6 +2130,7 @@ const Tasks = () => {
   const [logTimeOpen, setLogTimeOpen] = useState(false);
   const [uploadProofOpen, setUploadProofOpen] = useState(false);
   const [sortBy, setSortBy] = useState('deadline');
+  const [user, setUser] = useState(null);
   const [filters, setFilters] = useState({
     status: 'all',
     riskLevel: 'all',
@@ -2093,12 +2140,15 @@ const Tasks = () => {
   const [metrics, setMetrics] = useState(null);
   const [authError, setAuthError] = useState(false);
   const [userRole, setUserRole] = useState(null);
+  const [userId, setUserId] = useState(null);
   console.log("projectId: ",projectId);
+  
   // Check authentication and get user role
   const checkAuth = useCallback(() => {
     const token = getAuthToken();
     const user = getUserData();
     
+    setUser(user);
     if (!token || !user) {
       setAuthError(true);
       setError('Please log in to view tasks.');
@@ -2110,7 +2160,6 @@ const Tasks = () => {
       role: user.role || 'peer',
       userId: user.id || user._id
     });
-    
     return true;
   }, []);
 
@@ -2134,7 +2183,8 @@ const Tasks = () => {
         }
       });
       console.log("response.data",response.data)
-
+      setUserId(response.data?.user?._id);
+      console.log("user from fetchTasks:",userId);
       if (!response.data?.success) {
         throw new Error('Failed to fetch tasks');
       }
@@ -2148,7 +2198,7 @@ const Tasks = () => {
         return {
           ...task,
           metrics: {
-            efficiency: taskMetrics.efficiency.percentage,
+            efficiency: Number(taskMetrics.efficiency.percentage ?? 0),
             riskScore: taskMetrics.risk.riskScore,
             isOverdue: taskMetrics.isOverdue,
             hasProof: taskMetrics.hasProof,
@@ -2158,11 +2208,15 @@ const Tasks = () => {
           }
         };
       });
-
+      
       setTasks(enrichedTasks);
-      console.log("afterfetchTasks/-enrichedTasks(same as tasks-setTasks): ", enrichedTasks);
+ ;
 
       setFilteredTasks(enrichedTasks);
+
+
+      console.log("afterfetchTasks/-enrichedTasks(same as tasks-setTasks): ", enrichedTasks);
+
       setMetrics(null);
       setAuthError(false);
 
@@ -2173,6 +2227,7 @@ const Tasks = () => {
       setLoading(false);
     }
   }, [checkAuth]);
+
 
 // Helper functions for task metrics calculation
 const calculateTaskMetricsFromData = (task) => {
@@ -2245,6 +2300,8 @@ const handleFetchError = (err) => {
 };
 
 
+  
+
 
   // Filter and sort tasks
   useEffect(() => {
@@ -2286,6 +2343,8 @@ const handleFetchError = (err) => {
         task.assignedTo?.name?.toLowerCase().includes(query)
       );
     }
+
+    console.log("Tasks/useeffect - result", result);
     
     // Apply sorting
     result.sort((a, b) => {
@@ -2325,6 +2384,7 @@ const handleFetchError = (err) => {
     }
   };
 
+  
   //handle status change like from not_started to actve to pause to completed
   const handleStatusChange = async (taskId, newStatus) => {
     try {
@@ -2356,6 +2416,8 @@ const handleFetchError = (err) => {
         }
       );
 
+
+      console.log("handlestatuschange/response.data", response.data);
       if (response.data?.success) {
         // Update local state with the returned task data
         const updatedTask = response.data?.task;
@@ -2373,7 +2435,7 @@ const handleFetchError = (err) => {
                   efficiency: {
                     ...task.metrics.efficiency,
                     percentage: task.estimatedTime
-                      ? Math.round(((task.totalFocusTime || 0 + additionalTime) / task.estimatedTime) * 100 * 100) / 100
+                      ? Math.round((((task.totalFocusTime || 0) + additionalTime) / task.estimatedTime) * 100 * 100) / 100
                       : 0
                   },
                   statusWeightPercentage: calculateStatusWeight(newStatus),
@@ -2433,16 +2495,21 @@ const handleFetchError = (err) => {
     }
   };
 
+
   const allSelected = filteredTasks.length > 0 && selectedTasks.size === filteredTasks.length;
   const hasTasks = filteredTasks.length > 0;
+
+  console.log("filteredTasks", filteredTasks)
   // Load data on mount
   useEffect(() => {
     console.log("useeffect/fetchtasks() performing")
     fetchTasks();
     console.log("useeffect/fetchtasks() done")
 
-
   }, [fetchTasks]);
+
+
+
   return (
     <Box sx={{ 
       minHeight: '100vh', 
@@ -2562,6 +2629,7 @@ const handleFetchError = (err) => {
         )}
       </Box>
 
+
       {/* Stats Cards */}
       {!authError && tasks.length > 0 && (
         <Grid container spacing={2} sx={{ mb: 4 }}>
@@ -2627,6 +2695,16 @@ const handleFetchError = (err) => {
           ))}
         </Grid>
       )}
+
+      <TaskTabs 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        tasks={tasks}
+        setFilteredTasks={setFilteredTasks}
+        userId={userId}
+
+      />
+
 
       {/* Content */}
       {error && !authError ? (

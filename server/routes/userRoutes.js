@@ -4,7 +4,9 @@ import {
   fetchUserDetails, 
   createProject, 
   deleteProject, 
-  updateProject
+  updateProject,
+  uploadAvatar,
+  updateProfile
 } from '../controllers/userController.js';
 
 // Import FIXED connection controllers
@@ -67,8 +69,53 @@ import upload from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+
+// Create avatar upload directory
+const avatarDir = 'uploads/avatars';
+if (!fs.existsSync(avatarDir)) {
+  fs.mkdirSync(avatarDir, { recursive: true });
+}
+
+// Configure multer for avatar upload
+const avatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, avatarDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, `avatar-${req.userId}-${uniqueSuffix}${ext}`);
+  }
+});
+
+const avatarUpload = multer({
+  storage: avatarStorage,
+  limits: { 
+    fileSize: 2 * 1024 * 1024 // 2MB max
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed (JPEG, PNG, GIF, WebP)'), false);
+    }
+  }
+});
+
+
 router.get("/basic-data", fetchBasicData);
 router.get("/dashboard-stats", authMiddleware, getDashboardStats);
+
+// avatar upload and profile update routes
+router.post("/upload-avatar", authMiddleware, upload.single('avatar'), uploadAvatar);
+router.put("/update-profile", authMiddleware, updateProfile);
+
+router.post("/upload-avatar", authMiddleware, avatarUpload.single('avatar'), uploadAvatar);
+router.put("/update-profile", authMiddleware, updateProfile);
 
 // Existing routes
 router.get("/me", authMiddleware, fetchUserDetails);

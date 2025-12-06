@@ -220,6 +220,7 @@ export const createTask = async (req, res) => {
       taskTitle: taskTitle.trim(),
       description: description || '',
       assignedTo,
+      assignedBy: userId,
       deadline: new Date(deadline),
       estimatedTime, // in seconds
       status: 'not_started',
@@ -860,12 +861,16 @@ export const getAllTasks = async (req, res) => {
     const tasks = await Task.find({
       $or: [
         { projectId: { $in: projectIds } }, // tasks in user's projects
-        { assignedTo: userId }              // tasks directly assigned to user
+        { assignedTo: userId },              // tasks directly assigned to user
+        { assignedBy: userId }
       ]
     })
     .populate('projectId', 'projectName')
     .populate('assignedTo', 'name email avatar')
+    .populate('assignedBy', 'name email avatar')
     .lean();
+
+    const user = await User.findById(userId).select('name email avatar');
     
     // Add metrics to each task
     const tasksWithMetrics = tasks.map(task => {
@@ -893,6 +898,7 @@ export const getAllTasks = async (req, res) => {
     
     res.json({
       success: true,
+      user: user,
       tasks: tasksWithMetrics,
       metrics: {
         totalTasks,
@@ -1664,21 +1670,23 @@ export const updateTaskStatus = async (req, res) => {
         error: "Task not found"
       });
     }
+    console.log("task", task);
+
 
     if (additionalTime) {
       task.totalFocusTime = (task.totalFocusTime || 0) + additionalTime;
     }
-
+    console.log("totalFocusTime", task.totalFocusTime);
     const oldStatus = task.status;
     task.status = status;
     task.lastEventTime = new Date(); //stores current time as lastEventTime update
-    
+    console.log("task.estimatedTime", task.estimatedTime);
     // Recalculate efficiency
     if (task.estimatedTime) {
-      task.taskMetrics.efficiency.percentage =
+      task.taskMetrics.efficiency =
         Math.round((task.totalFocusTime / task.estimatedTime) * 100 * 100) / 100;
     }
-    
+    console.log("efficiency", task.taskMetrics.efficiency);
     await task.save();
 
     // Log activity with status_changed event type
