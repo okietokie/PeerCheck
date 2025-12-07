@@ -108,7 +108,11 @@ const getUserData = () => {
   }
 };
 
+const isTeacher = (userRole) => {
+  if (!userRole) return false;
+  return userRole?.role === 'teacher';
 
+};
 const TaskTabs = ({ activeTab, setActiveTab, tasks, userId, setFilteredTasks }) => {
   // Map tab values to indices for MUI Tabs
   const tabIndex = { all: 0, my: 1, managed: 2 };
@@ -422,7 +426,7 @@ const UploadProofModal = ({ open, onClose, task, theme, onSuccess }) => {
     </Dialog>
   );
 };
-// Add this component to your Tasks.jsx file
+
 const AssignTaskDialog = ({ open, onClose, task, projectTeam, onAssign, theme }) => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -542,8 +546,8 @@ const AssignTaskDialog = ({ open, onClose, task, projectTeam, onAssign, theme })
     </Dialog>
   );
 };
-// Task Details Modal - COMPLETE VERSION
-const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, onLogTime }) => {
+// Task Details Modal 
+const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, onLogTime, userTeacher, getLiveEfficiency }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -552,8 +556,15 @@ const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, 
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [projectTeam, setProjectTeam] = useState([]);
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
+  const [liveEfficiency, setLiveEfficiency] = useState(0);
 
   console.log("taskdetailsmodal/Task: ", task);
+
+  useEffect(() => {
+    if (task) {
+      setLiveEfficiency(getLiveEfficiency(task));
+    }
+  }, [task, getLiveEfficiency]); 
 
   // Fetch activity logs
   const fetchActivityLogs = async () => {
@@ -669,9 +680,16 @@ const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, 
         return;
       }
 
+      const now = new Date();
+      let additionalTime = 0;
+
+      // Only log time if task was active before
+      if (task.status === 'active' && task.lastEventTime) {
+        additionalTime = Math.floor((now - new Date(task.lastEventTime)) / 1000); // seconds
+      }
       const response = await axiosClient.put(
         `/user/task/${task._id}/status`,
-        { status: newStatus },
+        { status: newStatus, additionalTime },
         {
           headers: { 
             Authorization: `Bearer ${token}`,
@@ -1409,7 +1427,7 @@ const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, 
                   color={getEfficiencyColor(task.taskMetrics?.efficiency?.percentage)}
                   sx={{ mb: 1 }}
                 >
-                  {task.taskMetrics?.efficiency?.percentage.toFixed(1)}%
+                  {getLiveEfficiency(task).toFixed(1)}%
                 </Typography>
                 <LinearProgress 
                   variant="determinate" 
@@ -1666,7 +1684,24 @@ const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, 
                               variant="outlined"
                             />
                           )}
-                          
+                          {log.metadata?.duration && (
+                          <Chip
+                            label={formatTime(log.metadata.duration)}
+                            size="small"
+                            icon={<Timer />}
+                            variant="outlined"
+                          />
+                        )}
+
+                        {log.eventType === 'efficiency_update' && (
+                          <Chip
+                            label={`${log.metadata.efficiency}% (${log.metadata.label})`}
+                            size="small"
+                            color="info"
+                            variant="outlined"
+                          />
+                        )}
+
                           {log.eventType === 'proof_upload' && (
                             <Chip
                               label="Proof"
@@ -1839,9 +1874,12 @@ const TaskTableRow = ({
   onLogTime,
   onUploadProof,
   onViewDetails,
-  onStatusChange
+  onStatusChange,
+  userTeacher,
+  getLiveEfficiency
 }) => {
   const [actionsAnchorEl, setActionsAnchorEl] = useState(null);
+
   
   const getStatusColor = (status) => {
     switch (status) {
@@ -1895,6 +1933,10 @@ const TaskTableRow = ({
   const isAssignedUser = task.assignedTo?._id === userRole?.userId;
   const canEdit = isAssignedUser || userRole?.role === 'teacher' || userRole?.role === 'admin';
 
+
+
+
+  
   return (
     <TableRow
       hover
@@ -1984,7 +2026,7 @@ const TaskTableRow = ({
             fontWeight="medium"
             color={getEfficiencyColor(task.taskMetrics?.efficiency?.percentage)}
           >
-            {task.taskMetrics?.efficiency?.percentage.toFixed(1)}%
+            {getLiveEfficiency(task).toFixed(1)}%
           </Typography>
         </Box>
       </TableCell>
@@ -2088,7 +2130,7 @@ const TaskTableRow = ({
             </>
           )}
           
-          {(userRole?.role === 'teacher' || userRole?.role === 'admin') && (
+          {userTeacher && (
             <Tooltip title="Review Task">
               <IconButton 
                 size="small"
@@ -2100,12 +2142,13 @@ const TaskTableRow = ({
             </Tooltip>
           )}
           
-          <IconButton 
+          {userTeacher && (
+            <IconButton 
             size="small"
             onClick={(e) => setActionsAnchorEl(e.currentTarget)}
           >
             <MoreHoriz fontSize="small" />
-          </IconButton>
+          </IconButton>)}
         </Stack>
       </TableCell>
     </TableRow>
@@ -2141,6 +2184,15 @@ const Tasks = () => {
   const [authError, setAuthError] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [userId, setUserId] = useState(null);
+  const [userTeacher, setUserTeacher] = useState(false);
+  const [liveTimers, setLiveTimers] = useState({});
+
+  
+
+  if (isTeacher(userRole)) {
+    console.log("User is a teacher");
+    setUserTeacher(true);
+  }
   console.log("projectId: ",projectId);
   
   // Check authentication and get user role
@@ -2162,6 +2214,15 @@ const Tasks = () => {
     });
     return true;
   }, []);
+  const getLiveEfficiency = (task) => {
+    const baseFocus = task.totalFocusTime || 0;
+    const liveAdd = liveTimers[task._id] || 0;
+    const est = task.estimatedTime || 0;
+
+    if (!est) return 0;
+    return ((baseFocus + liveAdd) / est) * 100;
+  };
+
 
   // Fetch tasks
   const fetchTasks = useCallback(async () => {
@@ -2198,7 +2259,7 @@ const Tasks = () => {
         return {
           ...task,
           metrics: {
-            efficiency: Number(taskMetrics.efficiency.percentage ?? 0),
+            efficiency: Number(taskMetrics.efficiency ?? 0),
             riskScore: taskMetrics.risk.riskScore,
             isOverdue: taskMetrics.isOverdue,
             hasProof: taskMetrics.hasProof,
@@ -2228,6 +2289,24 @@ const Tasks = () => {
     }
   }, [checkAuth]);
 
+ // Live timer effect
+useEffect(() => {
+  const interval = setInterval(() => {
+    setLiveTimers(prev => {
+      const updated = { ...prev };
+
+      tasks.forEach(task => {
+        if (task.status === 'active') {
+          updated[task._id] = (updated[task._id] || 0) + 6; // Increment by 8000 ms (8 seconds)
+        }
+      })
+
+      return updated;
+    });
+  }, 1000);
+
+  return () => clearInterval(interval);
+}, [tasks]);
 
 // Helper functions for task metrics calculation
 const calculateTaskMetricsFromData = (task) => {
@@ -2300,7 +2379,6 @@ const handleFetchError = (err) => {
 };
 
 
-  
 
 
   // Filter and sort tasks
@@ -2365,6 +2443,26 @@ const handleFetchError = (err) => {
     
     setFilteredTasks(result);
   }, [tasks, searchQuery, sortBy, filters]);
+
+  const deleteTask = async (taskId) => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        setError('Authentication required');
+        return;
+      } 
+      const response = await axiosClient.delete(`/user/task/${taskId}`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+    } catch (err) {
+      console.error('Failed to delete task:', err);
+      setError(err.response?.data?.error || 'Failed to delete task');
+    }
+  };
+
 
   const handleSelectTask = (taskId, checked) => {
     const newSelected = new Set(selectedTasks);
@@ -2485,15 +2583,35 @@ const handleFetchError = (err) => {
     fetchTasks();
   };
 
-  const handleDeleteSelected = () => {
-    if (selectedTasks.size === 0) return;
-    
-    if (window.confirm(`Delete ${selectedTasks.size} selected task(s)?`)) {
-      // Simulate deletion
-      setTasks(prev => prev.filter(task => !selectedTasks.has(task._id)));
-      setSelectedTasks(new Set());
-    }
-  };
+const handleDeleteSelected = async () => {
+  if (selectedTasks.size === 0) return;
+
+  if (!window.confirm(`Delete ${selectedTasks.size} selected task(s)?`)) return;
+
+  const token = getAuthToken();
+  if (!token) {
+    setError("Authentication required");
+    return;
+  }
+
+  try {
+    const ids = Array.from(selectedTasks);
+
+    // delete each task one by one
+    await Promise.all(
+      ids.map(id => deleteTask(id))
+    );
+
+    // update UI after deletion
+    setTasks(prev => prev.filter(task => !selectedTasks.has(task._id)));
+    setFilteredTasks(prev => prev.filter(task => !selectedTasks.has(task._id)));
+    setSelectedTasks(new Set());
+
+  } catch (err) {
+    console.error("Failed bulk delete:", err);
+  }
+};
+
 
 
   const allSelected = filteredTasks.length > 0 && selectedTasks.size === filteredTasks.length;
@@ -2895,6 +3013,9 @@ const handleFetchError = (err) => {
                     onUploadProof={handleUploadProof}
                     onViewDetails={handleViewDetails}
                     onStatusChange={handleStatusChange}
+                    userTeacher={userTeacher}
+                    getLiveEfficiency={getLiveEfficiency}
+
                   />
                 ))}
               </TableBody>
@@ -2922,7 +3043,7 @@ const handleFetchError = (err) => {
                 startIcon={<Delete />}
                 color="error"
                 size="small"
-                onClick={handleDeleteSelected}
+                onClick={() => handleDeleteSelected(Array.from(selectedTasks))}
               >
                 Delete Selected
               </Button>
@@ -2939,7 +3060,10 @@ const handleFetchError = (err) => {
         theme={theme}
         userRole={userRole}
         onTaskUpdate={handleTaskUpdate}
-        onLogTime = {handleLogTime}
+        onLogTime={handleLogTime}
+        userTeacher={userTeacher}
+        getLiveEfficiency={getLiveEfficiency}
+
       />
 
       <LogTimeModal

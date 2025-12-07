@@ -8,11 +8,7 @@ const taskSchema = new mongoose.Schema(
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 
-    projectId: {
-      _id: { type: mongoose.Schema.Types.ObjectId, ref: "Project" },
-      projectName: { type: String }
-    },
-
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project", required: true },
     deadline: { type: Date, required: true },
     estimatedTime: { type: Number, required: true }, // in seconds
     totalFocusTime: { type: Number, default: 0 },
@@ -60,7 +56,6 @@ const taskSchema = new mongoose.Schema(
     taskMetrics: {
       daysUntilDeadline: { type: Number, default: 0 },
       efficiency: { type: Number, default: 0 },
-      estimatedTime: { type: Number, default: 0 },
       focusTime: { type: Number, default: 0 },
       label: { type: String, default: "" },
       percentage: { type: Number, default: 0 },

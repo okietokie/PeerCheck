@@ -5,6 +5,8 @@ import User from '../models/user.js';
 import TaskActivityEvent from '../models/taskActivityEvent.js';
 import { calculateTaskMetrics } from "./projectController.js";
 import { formatTimeAgo, getActionMessage, logActivity } from "./activityLogger.js";
+import DeletedProjects from '../models/deletedProjectInfo.js';
+import DeletedTaskInfo from '../models/deletedTaskInfo.js';
 
 
 // Helper functions for derived metrics
@@ -29,6 +31,7 @@ const calculateStatusWeight = (status) => {
 
 
 // Converts multiple behavioural flags into a single numerical risk score for a task
+
 const calculateTaskRisk = (task) => {
   let risk = 0;
   
@@ -49,6 +52,7 @@ const calculateTaskRisk = (task) => {
 };
 
 // Helper to calculate task efficiency
+// Returns 0 if estimatedTime is 0 or less
 const calculateTaskEfficiency = (task) => {
   const estimatedTime = task.estimatedTime || 0;
   const totalFocusTime = task.totalFocusTime || 0;
@@ -59,12 +63,14 @@ const calculateTaskEfficiency = (task) => {
 };
 
 // Helper to calculate if task is overdue
+// Returns false if no deadline
 const calculateIsOverdue = (task) => {
   if (!task.deadline) return false;
   return new Date(task.deadline) < new Date() && task.status !== 'completed';
 };
 
 // Helper to calculate days until deadline
+// Returns 0 if overdue or no deadline
 const calculateDaysUntilDeadline = (task) => {
   if (!task.deadline) return 0;
   const days = Math.ceil((new Date(task.deadline) - new Date()) / (1000 * 60 * 60 * 24));
@@ -72,6 +78,7 @@ const calculateDaysUntilDeadline = (task) => {
 };
 
 // Helper to enrich a single task with metrics
+//explanation: what enrichtaskwithmetrics does function: This function takes a task object as input and calculates various performance metrics for that task, such as efficiency, risk score, status weight, and whether the task is overdue. It then returns a new task object that includes these calculated metrics in a structured format under a "metrics" property.
 const enrichTaskWithMetrics = (task) => {
   if (!task) return null;
   
@@ -213,6 +220,9 @@ export const createTask = async (req, res) => {
       });
     }
 
+    const selectedDate = new Date(deadline); // e.g., "2025-12-07"
+    selectedDate.setHours(23, 59, 59, 999); // set to 11:59:59.999 PM
+
 
     // Create the task
     const task = new Task({
@@ -221,7 +231,8 @@ export const createTask = async (req, res) => {
       description: description || '',
       assignedTo,
       assignedBy: userId,
-      deadline: new Date(deadline),
+      projectId: projectId,
+      deadline: selectedDate,
       estimatedTime, // in seconds
       status: 'not_started',
       flags: {
@@ -446,7 +457,7 @@ export const completeTask = async (req, res) => {
   }
 };
 
-// Delete task (FIXED: No major issues)
+// Delete task 
 export const deleteTask = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -459,8 +470,9 @@ export const deleteTask = async (req, res) => {
         message: "Task not found" 
       });
     }
+    console.log("to be deleteTask", task);
 
-    const project = await Project.findById(task.projectId);
+    const project = await Project.findById(task.projectId._id);
     if (!project) {
       return res.status(404).json({
         success: false,
@@ -474,10 +486,19 @@ export const deleteTask = async (req, res) => {
       if (user.role !== 'admin') {
         return res.status(403).json({
           success: false,
-          message: "Only project creator can delete tasks"
+          message: "Notice: Only project creator can delete tasks"
         });
       }
     }
+    
+
+    // Save deleted task info
+    await DeletedTaskInfo.create({
+      deletedTaskName: task.taskTitle,
+      taskID: task._id,
+      projectID: task.projectId,
+      assignedTo: task.assignedTo
+    });
 
     // Delete the task
     await Task.findByIdAndDelete(taskId);
@@ -697,8 +718,6 @@ export const getTaskDetails = async (req, res) => {
   }
 };
 
-
-
 // Get tasks for a specific project with filters
 export const getTasksWithFilter = async (req, res) => {
   try {
@@ -761,7 +780,7 @@ export const getTasksWithFilter = async (req, res) => {
         ...task,
         taskMetrics,
         metrics: {
-          efficiency: taskMetrics.efficiency.percentage,
+          efficiency: taskMetrics.efficiency,
           riskScore: taskMetrics.risk.riskScore,
           isOverdue: taskMetrics.isOverdue,
           hasProof: taskMetrics.hasProof,
@@ -814,7 +833,7 @@ export const getUserTasks = async (req, res) => {
         ...task,
         taskMetrics,
         metrics: {
-          efficiency: taskMetrics.efficiency.percentage,
+          efficiency: taskMetrics.efficiency,
           riskScore: taskMetrics.risk.riskScore,
           isOverdue: taskMetrics.isOverdue,
           hasProof: taskMetrics.hasProof,
@@ -879,7 +898,7 @@ export const getAllTasks = async (req, res) => {
         ...task,
         taskMetrics,
         metrics: {
-          efficiency: taskMetrics.efficiency.percentage,
+          efficiency: taskMetrics.efficiency,
           riskScore: taskMetrics.risk.riskScore,
           isOverdue: taskMetrics.isOverdue,
           hasProof: taskMetrics.hasProof,
@@ -1070,8 +1089,6 @@ export const getAllTasksWithFilters = async (req, res) => {
     handleError(res, err, 'fetching all tasks with filters');
   }
 };
-
-
 
 // Update task details (title, description, etc)
 export const updateTaskDetails = async (req, res) => {
@@ -1679,7 +1696,15 @@ export const updateTaskStatus = async (req, res) => {
     console.log("totalFocusTime", task.totalFocusTime);
     const oldStatus = task.status;
     task.status = status;
+
+    const metrics = calculateTaskMetrics(task);
+    task.taskMetrics.efficiency = Math.round(metrics.efficiency * 100) / 100;
+    task.taskMetrics.label = metrics.efficiency.label;
+    task.taskMetrics.status = metrics.efficiency.status;
+
     task.lastEventTime = new Date(); //stores current time as lastEventTime update
+    task.flags = metrics.flags; //update flags based on current task state
+    console.log("task.flags", task.flags);
     console.log("task.estimatedTime", task.estimatedTime);
     // Recalculate efficiency
     if (task.estimatedTime) {
@@ -1699,6 +1724,19 @@ export const updateTaskStatus = async (req, res) => {
         oldStatus,
         newStatus: status
       }
+    });
+
+    //logging efficiency update as separate event
+    await logActivity({
+      taskId,
+      userId,
+      projectId: task.projectId,
+      eventType: 'efficiency_update',
+      metadata: {
+        efficiency: task.taskMetrics.efficiency,
+        label: task.taskMetrics.label,
+        status: task.taskMetrics.status
+    }
     });
     
     const updatedTask = await Task.findById(taskId)

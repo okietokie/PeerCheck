@@ -69,6 +69,9 @@ export const getActionMessage = (activity) => {
     case 'status_changed':
       return `Status changed from ${formatStatus(metadata.oldStatus)} to ${formatStatus(metadata.newStatus)}`;
     
+    case 'efficiency_update':
+      return `${user} updated task efficiency to ${metadata.efficiency}% (${metadata.label})`;
+
     case 'time_logged':
       const duration = metadata.duration || 0;
       const hours = Math.floor(duration / 3600);

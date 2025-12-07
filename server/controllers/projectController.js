@@ -454,9 +454,7 @@ const calculateAllProjectMetrics = (tasks, teamMembers) => {
   };
 };
 
-/**
- * Helper to update project metrics in database
- */
+
 const updateProjectMetricsInDB = async (projectId) => {
   try {
     const tasks = await Task.find({ projectId }).lean();
@@ -489,9 +487,7 @@ const updateProjectMetricsInDB = async (projectId) => {
   }
 };
 
-/**
- * Calculate task-specific metrics
- */
+
 export const calculateTaskMetrics = (task) => {
   // Calculate efficiency
   const estimatedTime = task.estimatedTime || 1;
@@ -501,13 +497,14 @@ export const calculateTaskMetrics = (task) => {
   let efficiencyStatus = 'normal';
   let efficiencyLabel = 'Ideal';
 
-  if (efficiency < 50) {
+
+  if (efficiency < 35) {
     efficiencyStatus = 'low';
     efficiencyLabel = 'Rushed / Suspicious';
-  } else if (efficiency >= 50 && efficiency < 80) {
+  } else if (efficiency >= 35 && efficiency < 75) {
     efficiencyStatus = 'warning';
     efficiencyLabel = 'Below Ideal';
-  } else if (efficiency >= 80 && efficiency <= 120) {
+  } else if (efficiency >= 75 && efficiency <= 120) {
     efficiencyStatus = 'good';
     efficiencyLabel = 'Ideal';
   } else if (efficiency > 120 && efficiency <= 200) {
@@ -527,6 +524,11 @@ export const calculateTaskMetrics = (task) => {
   const isOverdue = deadline < now && task.status !== 'completed';
   const daysUntilDeadline = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
 
+  const paddedTime = efficiency > 200;           // Worked >2x estimated
+  const rushedCompletion = task.status === 'completed' && efficiency < 35;
+  const noProof = !task.proofUploads || task.proofUploads.length === 0;
+  const manualReviewRequired = paddedTime || rushedCompletion || noProof;
+
   return {
     efficiency: {
       percentage: Math.round(efficiency * 100) / 100,
@@ -534,6 +536,12 @@ export const calculateTaskMetrics = (task) => {
       label: efficiencyLabel,
       focusTime,
       estimatedTime
+    },
+    flags: {
+      paddedTime,
+      rushedCompletion,
+      noProof,
+      manualReviewRequired
     },
     risk,
     isOverdue,

@@ -59,7 +59,7 @@ const taskActivityEventSchema = new mongoose.Schema(
         
         // flags
         "flag_update",
-        
+        "efficiency_update",
         // admin/reviews
         "manual_review",
         "peer_review",
@@ -112,7 +112,11 @@ const taskActivityEventSchema = new mongoose.Schema(
       
       // General
       description: String,
-      taskTitle: String
+      taskTitle: String,
+      
+      efficiency: String,
+      label: String,
+      status: String
     },
 
     timestamp: { 
