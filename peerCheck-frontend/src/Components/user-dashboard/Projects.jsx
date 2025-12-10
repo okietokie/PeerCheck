@@ -40,7 +40,8 @@ import {
   ListItemAvatar,
   Divider,
   FormControlLabel,
-  Checkbox as MuiCheckbox
+  Checkbox as MuiCheckbox,
+  Card
 } from '@mui/material';
 import {
   Search,
@@ -60,7 +61,10 @@ import {
   PauseCircle,
   PlayCircle,
   FlagOutlined,
-  Flag
+  Flag,
+  ViewModule,
+  ArrowDropDown,
+  TrendingUp
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import axiosClient from '@/api/axiosClient';
@@ -87,7 +91,7 @@ const getUserData = () => {
     console.error('Error parsing user data:', err);
     return null;
   }
-};
+}; 
 
 // Create Project Modal Component
 const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
@@ -1666,7 +1670,6 @@ const ProjectTableRow = ({
   );
 };
 
-// Main Projects Page Component
 const Projects = () => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -1683,6 +1686,7 @@ const Projects = () => {
   const [sortBy, setSortBy] = useState('updatedAt');
   const [teams, setTeams] = useState([]);
   const [authError, setAuthError] = useState(false);
+  const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
 
   // Check authentication
   const checkAuth = useCallback(() => {
@@ -1711,12 +1715,6 @@ const Projects = () => {
       });
       const teamsData = response.data?.teams || [];
       setTeams(teamsData); 
-/* teams= [
-{_id: , teamName: , members: [{_id: , user: {_id: ,name: ,username: ,email: , avatar: , course: , bio: , institution: , skills:, year: , onlineStatus: } }]} , 
-{_id: , teamName: , members: [{_id: , user: {_id: ,name: ,username: ,email: , avatar: , course: , bio: , institution: , skills:, year: , onlineStatus: } }]}, 
-...
-{_id: , teamName: , members: [{_id: , user: {_id: ,name: ,username: ,email: , avatar: , course: , bio: , institution: , skills:, year: , onlineStatus: } }]}
-] */
       setAuthError(false);
     } catch (err) {
       console.error('Error fetching teams:', err);
@@ -1746,7 +1744,6 @@ const Projects = () => {
           'Content-Type': 'application/json'
         }
       });
-      
       
       let projectsData = [];
       
@@ -1827,7 +1824,6 @@ const Projects = () => {
     setFilteredProjects(data);
   }, [projects, searchQuery, sortBy]);
   
-  
   const handleSelectProject = (projectId, checked) => {
     const newSelected = new Set(selectedProjects);
     if (checked) {
@@ -1874,7 +1870,6 @@ const Projects = () => {
 
   const handleCreateTask = (project) => {
     console.log("Selected Project: ", project);
-
     setSelectedProject(project);
     setCreateTaskModalOpen(true);
   };
@@ -1897,375 +1892,696 @@ const Projects = () => {
   const hasTeams = teams.length > 0;
   const allSelected = filteredProjects.length > 0 && selectedProjects.size === filteredProjects.length;
 
+  // Stats calculation
+  const activeProjects = projects.filter(p => p.status === 'ongoing' || p.status === 'active').length;
+  const atRiskProjects = projects.filter(p => {
+    const healthScore = p.metrics?.healthScore || p.metrics?.health?.healthScore || 100;
+    return healthScore < 40;
+  }).length;
+  const totalProgress = projects.reduce((acc, p) => acc + (p.progress || 0), 0) / (projects.length || 1);
+
   return (
     <Box sx={{ 
       minHeight: '100vh', 
-      p: { xs: 2, sm: 3 },
+      p: { xs: 3, sm: 4, md: 5 },
       backgroundColor: theme.palette.background.default,
+      background: `linear-gradient(135deg, ${alpha(theme.palette.background.default, 1)} 0%, ${alpha(theme.palette.primary.light, 0.03)} 100%)`,
     }}>
-      <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      {/* Header Section */}
+      <Box sx={{ mb: 6 }}>
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          mb: 4,
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: 3
+        }}>
           <Box>
-            <Typography variant="h5" fontWeight="600" gutterBottom sx={{ color: theme.palette.text.primary }}>
-              Projects
+            <Typography variant="h3" fontWeight="700" gutterBottom sx={{ 
+              color: theme.palette.text.primary,
+              background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              mb: 1
+            }}>
+              Projects Dashboard
             </Typography>
-            <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-              Manage and track all your team projects
+            <Typography variant="h6" sx={{ 
+              color: theme.palette.text.secondary,
+              fontWeight: 400,
+              maxWidth: 600
+            }}>
+              Manage, track, and collaborate on all your team projects in one place
             </Typography>
           </Box>
           
-          <Button
-            variant="contained"
-            onClick={() => setCreateModalOpen(true)}
-            startIcon={<Add />}
-            disabled={!hasTeams || authError}
-            size="small"
-            sx={{
-              borderRadius: 1,
-              boxShadow: 'none',
-              '&:hover': {
-                boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
-              }
-            }}
-          >
-            New Project
-          </Button>
+          <Box sx={{ 
+            display: 'flex', 
+            gap: 2,
+            alignItems: 'center',
+            flexWrap: 'wrap'
+          }}>
+            <Button
+              variant="outlined"
+              onClick={() => setViewMode(viewMode === 'table' ? 'grid' : 'table')}
+              startIcon={viewMode === 'table' ? <ViewModule /> : <ViewList />}
+              sx={{
+                borderRadius: 2,
+                px: 3,
+                borderColor: alpha(theme.palette.primary.main, 0.3),
+                '&:hover': {
+                  borderColor: theme.palette.primary.main,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.04),
+                }
+              }}
+            >
+              {viewMode === 'table' ? 'Grid View' : 'Table View'}
+            </Button>
+            
+            <Button
+              variant="contained"
+              onClick={() => setCreateModalOpen(true)}
+              startIcon={<Add />}
+              disabled={!hasTeams || authError}
+              sx={{
+                borderRadius: 2,
+                px: 4,
+                py: 1.2,
+                fontWeight: 600,
+                background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
+                boxShadow: `0 4px 20px ${alpha(theme.palette.primary.main, 0.3)}`,
+                '&:hover': {
+                  boxShadow: `0 6px 25px ${alpha(theme.palette.primary.main, 0.4)}`,
+                  transform: 'translateY(-2px)',
+                },
+                transition: 'all 0.3s ease',
+              }}
+            >
+              New Project
+            </Button>
+          </Box>
         </Box>
 
+        {/* Stats Cards */}
+        {!authError && projects.length > 0 && (
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: 3,
+            mb: 5
+          }}>
+            {[
+              { 
+                label: 'Total Projects', 
+                value: projects.length, 
+                icon: <Group />,
+                color: theme.palette.primary.main,
+                bgColor: alpha(theme.palette.primary.main, 0.1),
+                trend: '+12%'
+              },
+              { 
+                label: 'Active Projects', 
+                value: activeProjects, 
+                icon: <PlayCircle />,
+                color: theme.palette.success.main,
+                bgColor: alpha(theme.palette.success.main, 0.1),
+                trend: '+8%'
+              },
+              { 
+                label: 'At Risk', 
+                value: atRiskProjects, 
+                icon: <Assessment />,
+                color: theme.palette.warning.main,
+                bgColor: alpha(theme.palette.warning.main, 0.1),
+                trend: atRiskProjects > 0 ? 'Needs attention' : 'All good'
+              },
+              { 
+                label: 'Avg Progress', 
+                value: `${Math.round(totalProgress)}%`, 
+                icon: <TrendingUp />,
+                color: theme.palette.info.main,
+                bgColor: alpha(theme.palette.info.main, 0.1),
+                trend: '+5%'
+              }
+            ].map((stat, index) => (
+              <Card
+                key={stat.label}
+                sx={{
+                  flex: 1,
+                  minWidth: { xs: '100%', sm: 200 },
+                  p: 3,
+                  borderRadius: 3,
+                  backgroundColor: stat.bgColor,
+                  border: `1px solid ${alpha(stat.color, 0.2)}`,
+                  position: 'relative',
+                  overflow: 'hidden',
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: `0 12px 40px ${alpha(stat.color, 0.15)}`,
+                  }
+                }}
+              >
+                <Box sx={{ 
+                  position: 'absolute', 
+                  top: -20, 
+                  right: -20,
+                  opacity: 0.1
+                }}>
+                  <Box sx={{ 
+                    fontSize: 60,
+                    color: stat.color,
+                    transform: 'rotate(15deg)'
+                  }}>
+                    {stat.icon}
+                  </Box>
+                </Box>
+                
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2, position: 'relative' }}>
+                  <Box sx={{ 
+                    p: 1.5, 
+                    borderRadius: 2,
+                    backgroundColor: alpha(stat.color, 0.2),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <Box sx={{ color: stat.color }}>
+                      {stat.icon}
+                    </Box>
+                  </Box>
+                  
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="h3" fontWeight="800" sx={{ color: stat.color, lineHeight: 1 }}>
+                      {stat.value}
+                    </Typography>
+                    <Typography variant="body2" sx={{ 
+                      color: theme.palette.text.secondary,
+                      fontWeight: 500,
+                      mt: 0.5
+                    }}>
+                      {stat.label}
+                    </Typography>
+                  </Box>
+                </Box>
+                
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  mt: 2,
+                  pt: 2,
+                  borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+                }}>
+                  <Typography variant="caption" sx={{ 
+                    color: theme.palette.text.secondary,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.5
+                  }}>
+                    <TrendingUp fontSize="small" />
+                    {stat.trend}
+                  </Typography>
+                </Box>
+              </Card>
+            ))}
+          </Box>
+        )}
+
+        {/* Search and Filter Bar */}
         {!authError && (
           <Paper
             sx={{
-              p: 2,
-              borderRadius: 1,
+              p: 3,
+              borderRadius: 3,
               backgroundColor: theme.palette.background.paper,
               border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-              mb: 3
+              mb: 4,
+              boxShadow: `0 4px 20px ${alpha(theme.palette.common.black, 0.05)}`,
             }}
           >
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={6}>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', md: 'row' },
+              gap: 3,
+              alignItems: { md: 'center' }
+            }}>
+              <Box sx={{ flex: 1 }}>
                 <TextField
                   fullWidth
-                  placeholder="Search projects..."
+                  placeholder="Search projects by name, description, team, or tags..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  size="small"
+                  size="medium"
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <Search sx={{ color: theme.palette.text.secondary }} />
+                        <Search sx={{ 
+                          color: theme.palette.primary.main,
+                          fontSize: 24 
+                        }} />
                       </InputAdornment>
                     ),
+                    sx: {
+                      borderRadius: 2,
+                      backgroundColor: alpha(theme.palette.background.default, 0.8),
+                      '&:hover': {
+                        backgroundColor: alpha(theme.palette.background.default, 0.9),
+                      }
+                    }
+                  }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      '&.Mui-focused fieldset': {
+                        borderColor: theme.palette.primary.main,
+                        borderWidth: 2,
+                      }
+                    }
                   }}
                 />
-              </Grid>
+              </Box>
               
-              <Grid item xs={12} md={6}>
-                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', alignItems: 'center' }}>
-                  {selectedProjects.size > 0 && (
-                    <Tooltip title={`Delete ${selectedProjects.size} selected`}>
-                      <IconButton 
-                        color="error" 
-                        size="small"
-                        onClick={handleDeleteSelected}
-                      >
-                        <Delete />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-                  
-                  <FormControl size="small" sx={{ minWidth: 140 }}>
-                    <InputLabel>Sort By</InputLabel>
-                    <Select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      label="Sort By"
-                    >
-                      <MenuItem value="updatedAt">Last Updated</MenuItem>
-                      <MenuItem value="progress">Progress</MenuItem>
-                      <MenuItem value="name">Name</MenuItem>
-                      <MenuItem value="health">Health Score</MenuItem>
-                    </Select>
-                  </FormControl>
-                  
-                  <Tooltip title="Filters">
-                    <IconButton size="small">
-                      <FilterList />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              </Grid>
-            </Grid>
+              <Box sx={{ 
+                display: 'flex', 
+                gap: 2,
+                alignItems: 'center',
+                flexWrap: 'wrap'
+              }}>
+                {selectedProjects.size > 0 && (
+                  <Chip
+                    label={`${selectedProjects.size} selected`}
+                    color="primary"
+                    onDelete={() => setSelectedProjects(new Set())}
+                    deleteIcon={<Close />}
+                    sx={{
+                      fontWeight: 600,
+                      px: 1,
+                      py: 2,
+                      borderRadius: 2,
+                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                      '& .MuiChip-deleteIcon': {
+                        color: theme.palette.primary.main,
+                        '&:hover': {
+                          color: theme.palette.primary.dark,
+                        }
+                      }
+                    }}
+                  />
+                )}
+                
+                <FormControl size="medium" sx={{ minWidth: 160 }}>
+                  <Select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    displayEmpty
+                    IconComponent={ArrowDropDown}
+                    sx={{
+                      borderRadius: 2,
+                      backgroundColor: alpha(theme.palette.background.default, 0.8),
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: alpha(theme.palette.divider, 0.3),
+                      },
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        borderColor: theme.palette.primary.main,
+                      }
+                    }}
+                  >
+                    <MenuItem value="updatedAt">Last Updated</MenuItem>
+                    <MenuItem value="progress">Progress</MenuItem>
+                    <MenuItem value="name">Name (A-Z)</MenuItem>
+                    <MenuItem value="health">Health Score</MenuItem>
+                  </Select>
+                </FormControl>
+                
+                <Tooltip title="More Filters">
+                  <IconButton 
+                    size="large"
+                    sx={{
+                      borderRadius: 2,
+                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                      color: theme.palette.primary.main,
+                      '&:hover': {
+                        backgroundColor: alpha(theme.palette.primary.main, 0.2),
+                      }
+                    }}
+                  >
+                    <FilterList />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Box>
           </Paper>
         )}
       </Box>
 
-      {!authError && projects.length > 0 && (
-        <Grid container spacing={2} sx={{ mb: 4 }}>
-          {[
-            { 
-              label: 'Total Projects', 
-              value: projects.length, 
-              icon: <Group fontSize="small" />,
-              color: theme.palette.primary.main 
-            },
-            { 
-              label: 'Active', 
-              value: projects.filter(p => p.status === 'ongoing' || p.status === 'active').length, 
-              icon: <PlayCircle fontSize="small" />,
-              color: theme.palette.success.main 
-            },
-            { 
-              label: 'At Risk', 
-              value: projects.filter(p => {
-                const healthScore = p.metrics?.healthScore || p.metrics?.health?.healthScore || 100;
-                return healthScore < 40;
-              }).length, 
-              icon: <Assessment fontSize="small" />,
-              color: theme.palette.warning.main 
-            },
-            { 
-              label: 'Selected', 
-              value: selectedProjects.size, 
-              icon: <CheckCircle fontSize="small" />,
-              color: theme.palette.info.main 
-            }
-          ].map((stat, index) => (
-            <Grid item xs={6} sm={3} key={stat.label}>
-              <Paper
-                sx={{
-                  p: 2,
-                  borderRadius: 1,
-                  backgroundColor: theme.palette.background.paper,
-                  border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                  position: 'relative',
-                  overflow: 'hidden',
-                  '&::before': {
-                    content: '""',
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: 3,
-                    backgroundColor: stat.color,
-                  }
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <Box sx={{ color: stat.color }}>
-                    {stat.icon}
-                  </Box>
-                  <Typography variant="h6" fontWeight="600">
-                    {stat.value}
-                  </Typography>
-                </Box>
-                <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                  {stat.label}
-                </Typography>
-              </Paper>
-            </Grid>
-          ))}
-        </Grid>
-      )}
-
+      {/* Error Handling */}
       {error && !authError ? (
-        <Alert 
-          severity="error"
-          sx={{ mb: 3 }}
-          onClose={() => setError('')}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
         >
-          {error}
-        </Alert>
+          <Alert 
+            severity="error"
+            sx={{ 
+              mb: 4, 
+              borderRadius: 2,
+              border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`,
+              backgroundColor: alpha(theme.palette.error.main, 0.05)
+            }}
+            onClose={() => setError('')}
+          >
+            <Typography fontWeight="600">
+              {error}
+            </Typography>
+          </Alert>
+        </motion.div>
       ) : loading ? (
         <Box>
-          {[...Array(5)].map((_, index) => (
+          {[...Array(3)].map((_, index) => (
             <Skeleton 
               key={index} 
               variant="rectangular" 
-              height={60} 
+              height={70} 
               sx={{ 
-                borderRadius: 1, 
-                mb: 1,
-                backgroundColor: theme.palette.action.hover
+                borderRadius: 2, 
+                mb: 2,
+                backgroundColor: alpha(theme.palette.primary.main, 0.1)
               }} 
             />
           ))}
         </Box>
       ) : filteredProjects.length === 0 || authError ? (
-        <Paper
-          sx={{
-            p: 6,
-            textAlign: 'center',
-            borderRadius: 2,
-            backgroundColor: theme.palette.background.paper,
-            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-          }}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
         >
-          {authError ? (
-            <Box>
-              <Typography variant="h6" fontWeight="600" gutterBottom sx={{ color: theme.palette.error.main, mb: 1 }}>
-                Authentication Required
-              </Typography>
-              <Typography variant="body2" sx={{ 
-                color: theme.palette.text.secondary, 
-                mb: 4, 
-                maxWidth: 400, 
-                mx: 'auto' 
-              }}>
-                Please log in to view your projects.
-              </Typography>
-              <Button
-                variant="contained"
-                onClick={() => navigate('/')}
-              >
-                Go to Login
-              </Button>
-            </Box>
-          ) : (
-            <Box>
-              <Group sx={{ 
-                fontSize: 60, 
-                color: theme.palette.text.disabled, 
-                mb: 3,
-              }} />
-              <Typography variant="h6" fontWeight="600" gutterBottom sx={{ color: theme.palette.text.primary, mb: 1 }}>
-                No Projects Found
-              </Typography>
-              <Typography variant="body2" sx={{ 
-                color: theme.palette.text.secondary, 
-                mb: 4, 
-                maxWidth: 400, 
-                mx: 'auto' 
-              }}>
-                {hasTeams 
-                  ? 'Get started by creating your first project'
-                  : 'Create a team first to start managing projects'}
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-                {!hasTeams ? (
-                  <Button
-                    variant="outlined"
-                    onClick={navigateToTeams}
-                    startIcon={<Group />}
-                  >
-                    Go to Teams
-                  </Button>
-                ) : (
-                  <Button
-                    variant="contained"
-                    onClick={() => setCreateModalOpen(true)}
-                    startIcon={<Add />}
-                  >
-                    Create First Project
-                  </Button>
-                )}
+          <Card
+            sx={{
+              p: { xs: 4, sm: 8 },
+              textAlign: 'center',
+              borderRadius: 3,
+              backgroundColor: theme.palette.background.paper,
+              border: `2px dashed ${alpha(theme.palette.divider, 0.3)}`,
+              boxShadow: 'none',
+              maxWidth: 600,
+              mx: 'auto',
+            }}
+          >
+            {authError ? (
+              <Box>
+                <Box sx={{ 
+                  fontSize: 80,
+                  color: theme.palette.error.main,
+                  mb: 3,
+                  opacity: 0.8
+                }}>
+                  🔒
+                </Box>
+                <Typography variant="h5" fontWeight="700" gutterBottom sx={{ 
+                  color: theme.palette.error.main,
+                  mb: 2
+                }}>
+                  Authentication Required
+                </Typography>
+                <Typography variant="body1" sx={{ 
+                  color: theme.palette.text.secondary, 
+                  mb: 5,
+                  lineHeight: 1.6
+                }}>
+                  Please log in to access your projects dashboard.
+                </Typography>
+                <Button
+                  variant="contained"
+                  onClick={() => navigate('/')}
+                  size="large"
+                  sx={{
+                    borderRadius: 2,
+                    px: 5,
+                    py: 1.5,
+                    fontWeight: 600,
+                    background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
+                  }}
+                >
+                  Go to Login
+                </Button>
               </Box>
-            </Box>
-          )}
-        </Paper>
+            ) : (
+              <Box>
+                <Box sx={{ 
+                  fontSize: 80,
+                  color: alpha(theme.palette.text.disabled, 0.5),
+                  mb: 3
+                }}>
+                  📁
+                </Box>
+                <Typography variant="h4" fontWeight="700" gutterBottom sx={{ 
+                  color: theme.palette.text.primary,
+                  mb: 2
+                }}>
+                  No Projects Found
+                </Typography>
+                <Typography variant="body1" sx={{ 
+                  color: theme.palette.text.secondary, 
+                  mb: 5,
+                  maxWidth: 400, 
+                  mx: 'auto',
+                  lineHeight: 1.6
+                }}>
+                  {hasTeams 
+                    ? 'Start your journey by creating your first project. Organize tasks, collaborate with teams, and track progress effortlessly.'
+                    : 'Create a team first to start managing collaborative projects effectively.'}
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  {!hasTeams ? (
+                    <Button
+                      variant="outlined"
+                      onClick={navigateToTeams}
+                      startIcon={<Group />}
+                      size="large"
+                      sx={{
+                        borderRadius: 2,
+                        px: 4,
+                        py: 1.5,
+                        borderWidth: 2,
+                        '&:hover': {
+                          borderWidth: 2,
+                        }
+                      }}
+                    >
+                      Go to Teams
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="contained"
+                      onClick={() => setCreateModalOpen(true)}
+                      startIcon={<Add />}
+                      size="large"
+                      sx={{
+                        borderRadius: 2,
+                        px: 5,
+                        py: 1.5,
+                        fontWeight: 600,
+                        background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
+                      }}
+                    >
+                      Create First Project
+                    </Button>
+                  )}
+                </Box>
+              </Box>
+            )}
+          </Card>
+        </motion.div>
       ) : (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <TableContainer 
-            component={Paper}
+          {/* Table Container */}
+          <Card
             sx={{
-              borderRadius: 1,
+              borderRadius: 3,
               backgroundColor: theme.palette.background.paper,
               border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-              overflow: 'auto'
+              overflow: 'hidden',
+              boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.08)}`,
+              position: 'relative'
             }}
           >
-            <Table sx={{ minWidth: 800 }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell padding="checkbox">
-                    <Checkbox
-                      checked={allSelected}
-                      indeterminate={selectedProjects.size > 0 && !allSelected}
-                      onChange={(e) => handleSelectAll(e.target.checked)}
+            {/* Table Header */}
+            <Box sx={{
+              p: 3,
+              borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+              backgroundColor: alpha(theme.palette.primary.main, 0.02),
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 2
+            }}>
+              <Typography variant="h6" fontWeight="600" sx={{ color: theme.palette.text.primary }}>
+                Projects ({filteredProjects.length})
+              </Typography>
+              
+              {selectedProjects.size > 0 && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Typography variant="body2" sx={{ 
+                    color: theme.palette.primary.main,
+                    fontWeight: 500
+                  }}>
+                    {selectedProjects.size} project(s) selected
+                  </Typography>
+                  <Button
+                    startIcon={<Delete />}
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    onClick={handleDeleteSelected}
+                    sx={{
+                      borderRadius: 2,
+                      px: 3,
+                      borderColor: alpha(theme.palette.error.main, 0.3),
+                      '&:hover': {
+                        borderColor: theme.palette.error.main,
+                        backgroundColor: alpha(theme.palette.error.main, 0.04),
+                      }
+                    }}
+                  >
+                    Delete Selected
+                  </Button>
+                </Box>
+              )}
+            </Box>
+
+            <TableContainer sx={{ maxHeight: 'calc(100vh - 400px)' }}>
+              <Table sx={{ minWidth: 900 }}>
+                <TableHead>
+                  <TableRow sx={{ 
+                    backgroundColor: alpha(theme.palette.primary.main, 0.03),
+                    '& th': {
+                      borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                      py: 2.5,
+                    }
+                  }}>
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        checked={allSelected}
+                        indeterminate={selectedProjects.size > 0 && !allSelected}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        sx={{
+                          '&.Mui-checked': {
+                            color: theme.palette.primary.main,
+                          }
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="subtitle2" fontWeight="700" sx={{ 
+                        color: theme.palette.text.primary,
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5
+                      }}>
+                        Project Name
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="subtitle2" fontWeight="700" sx={{ 
+                        color: theme.palette.text.primary,
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5
+                      }}>
+                        Actions
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="subtitle2" fontWeight="700" sx={{ 
+                        color: theme.palette.text.primary,
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5
+                      }}>
+                        Team
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="subtitle2" fontWeight="700" sx={{ 
+                        color: theme.palette.text.primary,
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5
+                      }}>
+                        Status
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="subtitle2" fontWeight="700" sx={{ 
+                        color: theme.palette.text.primary,
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5
+                      }}>
+                        Tags
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="subtitle2" fontWeight="700" sx={{ 
+                        color: theme.palette.text.primary,
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5
+                      }}>
+                        Progress & Health
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredProjects.map((project) => (
+                    <ProjectTableRow
+                      key={project._id}
+                      project={project}
+                      isSelected={selectedProjects.has(project._id)}
+                      onSelect={handleSelectProject}
+                      theme={theme}
+                      teams={teams}
+                      onCreateTask={() => handleCreateTask(project)}
+                      onReviewProject={handleReviewProject}
                     />
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="subtitle2" fontWeight="600">
-                      PROJECT NAME
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="subtitle2" fontWeight="600">
-                      ACTIONS
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="subtitle2" fontWeight="600">
-                      TEAM NAME
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="subtitle2" fontWeight="600">
-                      STATUS
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="subtitle2" fontWeight="600">
-                      TAGS
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="subtitle2" fontWeight="600">
-                      PROGRESS
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredProjects.map((project) => (
-                  <ProjectTableRow
-                    key={project._id}
-                    project={project}
-                    isSelected={selectedProjects.has(project._id)}
-                    onSelect={handleSelectProject}
-                    theme={theme}
-                    teams={teams}
-                    onCreateTask={() => handleCreateTask(project)}
-                    onReviewProject={handleReviewProject}
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          
-          {selectedProjects.size > 0 && (
-            <Paper
-              sx={{
-                mt: 2,
-                p: 2,
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            {/* Table Footer */}
+            {filteredProjects.length > 5 && (
+              <Box sx={{
+                p: 2.5,
+                borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                backgroundColor: alpha(theme.palette.background.default, 0.5),
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                borderRadius: 1,
-                backgroundColor: alpha(theme.palette.primary.main, 0.05),
-                border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-              }}
-            >
-              <Typography variant="body2" color="primary">
-                {selectedProjects.size} project(s) selected
-              </Typography>
-              <Button
-                startIcon={<Delete />}
-                color="error"
-                size="small"
-                onClick={handleDeleteSelected}
-              >
-                Delete Selected
-              </Button>
-            </Paper>
-          )}
+                flexWrap: 'wrap',
+                gap: 2
+              }}>
+                <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                  Showing {Math.min(filteredProjects.length, 10)} of {filteredProjects.length} projects
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Button size="small" variant="outlined" disabled>
+                    Previous
+                  </Button>
+                  <Button size="small" variant="outlined">
+                    Next
+                  </Button>
+                </Box>
+              </Box>
+            )}
+          </Card>
         </motion.div>
       )}
 
+      {/* Modals */}
       <CreateProjectModal
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
@@ -2279,14 +2595,13 @@ const Projects = () => {
         teams={teams}
         theme={theme}
       />
-
       <ReviewProjectModal
         open={reviewModalOpen}
         onClose={() => setReviewModalOpen(false)}
         project={selectedProject}
         theme={theme}
       />
-    </Box>
+    </Box> 
   );
 };
 

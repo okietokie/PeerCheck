@@ -21,6 +21,8 @@ import LinkedInIcon from '@mui/icons-material/LinkedIn';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import LanguageIcon from '@mui/icons-material/Language';
 import VerifiedIcon from '@mui/icons-material/Verified';
+import SearchIcon from '@mui/icons-material/Search';
+
 
 export default function Profile() {
   const theme = useTheme();
@@ -32,7 +34,12 @@ export default function Profile() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [activeTab, setActiveTab] = useState(0);
-  
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState('');
+    
   // Edit Profile States
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editUserData, setEditUserData] = useState({});
@@ -169,6 +176,60 @@ export default function Profile() {
     }
   };
 
+  const handleSearchUsers = async (query) => {
+  try {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    
+    setSearchLoading(true);
+    setSearchError('');
+    
+    const token = localStorage.getItem("token");
+    const res = await axiosClient.get(`/user/search-users?q=${encodeURIComponent(query)}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    // Mark connection status for search results
+    const resultsWithStatus = await Promise.all(
+      res.data.users.map(async (user) => {
+        try {
+          // Check if there's an existing connection
+          const connectionRes = await axiosClient.get(`/user/user-profile/${user._id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          return {
+            ...user,
+            connectionStatus: connectionRes.data.user?.connectionStatus || 'none'
+          };
+        } catch (error) {
+          return { ...user, connectionStatus: 'none' };
+        }
+      })
+    );
+    
+    setSearchResults(resultsWithStatus);
+  } catch (error) {
+    console.log(`Error searching users: ${error}`);
+    setSearchError('Failed to search users');
+  } finally {
+    setSearchLoading(false);
+  }
+};
+
+// Debounce search input  - Wait for the user to stop typing for some time before running a function.
+useEffect(() => {
+  const delayDebounceFn = setTimeout(() => {
+    if (searchQuery.trim()) {
+      handleSearchUsers(searchQuery);
+    } else {
+      setSearchResults([]);
+    }
+  }, 500); // 500ms delay
+
+  return () => clearTimeout(delayDebounceFn);
+}, [searchQuery]);
   // Edit Profile Functions
   const handleEditClick = () => {
     setEditUserData({
@@ -851,127 +912,287 @@ const AvatarUploadProgress = ({ uploading }) => {
 
               {/* Tab Content */}
               <Box sx={{ p: 3 }}>
-                {activeTab === 0 ? (
-                  /* FIND PEERS TAB */
-                  <>
-                    <Typography variant="h6" sx={{ mb: 3, fontWeight: 700 }}>
-                      Suggested Peers
-                    </Typography>
-                    
-                    {suggestedUsers.length === 0 ? (
-                      <Box sx={{ 
-                        textAlign: 'center', 
-                        py: 8,
-                        bgcolor: alpha(theme.palette.primary.main, 0.02),
-                        borderRadius: 3
-                      }}>
-                        <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
-                          No suggested peers found
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Try exploring more users or check back later!
-                        </Typography>
-                      </Box>
-                    ) : (
-                      <Box sx={{ 
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 2
-                      }}>
-                        {suggestedUsers.map((user) => (
-                          <Card
-                            key={user._id}
-                            variant="outlined"
-                            sx={{
-                              p: 2.5,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              borderRadius: 3,
-                              bgcolor: 'background.paper',
-                              transition: 'all 0.2s ease',
-                              '&:hover': {
-                                transform: 'translateY(-2px)',
-                                boxShadow: theme.shadows[2],
-                                borderColor: alpha(theme.palette.primary.main, 0.3)
-                              }
-                            }}
-                          >
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flex: 1 }}>
-                              <Avatar
-                                src={user.avatar}
-                                sx={{
-                                  bgcolor: 'primary.main',
-                                  width: 56,
-                                  height: 56,
-                                  fontSize: '1.25rem',
-                                  fontWeight: 'bold'
-                                }}
-                              >
-                                {user.name?.[0] || user.username?.[0] || "U"}
-                              </Avatar>
-                              
-                              <Box sx={{ flex: 1 }}>
-                                <Typography sx={{ 
-                                  fontWeight: 700, 
-                                  fontSize: '1.1rem', 
-                                  mb: 0.5,
-                                  color: 'text.primary'
-                                }}>
-                                  {user.name || user.username}
-                                  {user.role === 'admin' && (
-                                    <VerifiedIcon 
-                                      fontSize="small" 
-                                      color="primary" 
-                                      sx={{ ml: 1, verticalAlign: 'middle' }} 
-                                    />
-                                  )}
-                                </Typography>
+              {activeTab === 0 ? (
+                /* FIND PEERS TAB */
+                <>
+                  <Typography variant="h6" sx={{ mb: 3, fontWeight: 700 }}>
+                    Find Peers
+                  </Typography>
+                  
+                  {/* Search Bar */}
+                  <Card sx={{ 
+                    mb: 3, 
+                    p: 2, 
+                    borderRadius: 3,
+                    border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                    bgcolor: alpha(theme.palette.primary.main, 0.02)
+                  }}>
+                    <TextField
+                      fullWidth
+                      placeholder="Search users by name, username, or email..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      variant="outlined"
+                      size="small"
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon color="action" />
+                          </InputAdornment>
+                        ),
+                        endAdornment: searchLoading ? (
+                          <InputAdornment position="end">
+                            <CircularProgress size={20} />
+                          </InputAdornment>
+                        ) : null,
+                      }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 2,
+                          bgcolor: 'background.paper'
+                        }
+                      }}
+                    />
+                    {searchError && (
+                      <Alert severity="error" sx={{ mt: 1, borderRadius: 2 }}>
+                        {searchError}
+                      </Alert>
+                    )}
+                  </Card>
+                  
+                  {/* Search Results or Suggested Users */}
+                  {searchQuery.trim() ? (
+                    <>
+                      <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, color: 'text.primary' }}>
+                        Search Results ({searchResults.length})
+                      </Typography>
+                      
+                      {searchResults.length === 0 ? (
+                        <Box sx={{ 
+                          textAlign: 'center', 
+                          py: 8,
+                          bgcolor: alpha(theme.palette.primary.main, 0.02),
+                          borderRadius: 3
+                        }}>
+                          <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
+                            No users found for "{searchQuery}"
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Try a different search term
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Box sx={{ 
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 2
+                        }}>
+                          {searchResults.map((user) => (
+                            <Card
+                              key={user._id}
+                              variant="outlined"
+                              sx={{
+                                p: 2.5,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                borderRadius: 3,
+                                bgcolor: 'background.paper',
+                                transition: 'all 0.2s ease',
+                                '&:hover': {
+                                  transform: 'translateY(-2px)',
+                                  boxShadow: theme.shadows[2],
+                                  borderColor: alpha(theme.palette.primary.main, 0.3)
+                                }
+                              }}
+                            >
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flex: 1 }}>
+                                <Avatar
+                                  src={user.avatar}
+                                  sx={{
+                                    bgcolor: 'primary.main',
+                                    width: 56,
+                                    height: 56,
+                                    fontSize: '1.25rem',
+                                    fontWeight: 'bold'
+                                  }}
+                                >
+                                  {user.name?.[0] || user.username?.[0] || "U"}
+                                </Avatar>
                                 
-                                <Typography variant="body2" sx={{ 
-                                  color: 'text.secondary',
-                                  mb: 0.5
-                                }}>
-                                  {user.course || "Student"} • {user.institution || "University"}
-                                </Typography>
-                                
-                                {user.bio && (
+                                <Box sx={{ flex: 1 }}>
+                                  <Typography sx={{ 
+                                    fontWeight: 700, 
+                                    fontSize: '1.1rem', 
+                                    mb: 0.5,
+                                    color: 'text.primary'
+                                  }}>
+                                    {user.name || user.username}
+                                    {user.role === 'admin' && (
+                                      <VerifiedIcon 
+                                        fontSize="small" 
+                                        color="primary" 
+                                        sx={{ ml: 1, verticalAlign: 'middle' }} 
+                                      />
+                                    )}
+                                  </Typography>
+                                  
                                   <Typography variant="body2" sx={{ 
                                     color: 'text.secondary',
-                                    fontStyle: 'italic',
-                                    lineHeight: 1.4
+                                    mb: 0.5
                                   }}>
-                                    {user.bio.length > 100 ? `${user.bio.substring(0, 100)}...` : user.bio}
+                                    @{user.username}
                                   </Typography>
-                                )}
-                                
-                                {user.skills && user.skills.length > 0 && (
-                                  <Box sx={{ display: 'flex', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
-                                    {user.skills.slice(0, 3).map((skill, index) => (
-                                      <Chip
-                                        key={index}
-                                        label={skill}
-                                        size="small"
-                                        sx={{
-                                          height: 20,
-                                          fontSize: '0.7rem',
-                                          bgcolor: alpha(theme.palette.secondary.main, 0.1),
-                                          color: theme.palette.secondary.main
-                                        }}
-                                      />
-                                    ))}
-                                  </Box>
-                                )}
+                                  
+                                  {user.course && (
+                                    <Typography variant="body2" sx={{ 
+                                      color: 'text.secondary',
+                                      mb: 0.5
+                                    }}>
+                                      {user.course} • {user.institution || "University"}
+                                    </Typography>
+                                  )}
+                                  
+                                  {user.bio && (
+                                    <Typography variant="body2" sx={{ 
+                                      color: 'text.secondary',
+                                      fontStyle: 'italic',
+                                      lineHeight: 1.4
+                                    }}>
+                                      {user.bio.length > 100 ? `${user.bio.substring(0, 100)}...` : user.bio}
+                                    </Typography>
+                                  )}
+                                </Box>
                               </Box>
-                            </Box>
 
-                            <ConnectionButton user={user} />
-                          </Card>
-                        ))}
-                      </Box>
-                    )}
-                  </>
-                ) : (
+                              <ConnectionButton user={user} />
+                            </Card>
+                          ))}
+                        </Box>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600, color: 'text.primary' }}>
+                        Suggested Peers ({suggestedUsers.length})
+                      </Typography>
+                      
+                      {suggestedUsers.length === 0 ? (
+                        <Box sx={{ 
+                          textAlign: 'center', 
+                          py: 8,
+                          bgcolor: alpha(theme.palette.primary.main, 0.02),
+                          borderRadius: 3
+                        }}>
+                          <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
+                            No suggested peers found
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Try exploring more users or check back later!
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Box sx={{ 
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 2
+                        }}>
+                          {suggestedUsers.map((user) => (
+                            <Card
+                              key={user._id}
+                              variant="outlined"
+                              sx={{
+                                p: 2.5,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                borderRadius: 3,
+                                bgcolor: 'background.paper',
+                                transition: 'all 0.2s ease',
+                                '&:hover': {
+                                  transform: 'translateY(-2px)',
+                                  boxShadow: theme.shadows[2],
+                                  borderColor: alpha(theme.palette.primary.main, 0.3)
+                                }
+                              }}
+                            >
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flex: 1 }}>
+                                <Avatar
+                                  src={user.avatar}
+                                  sx={{
+                                    bgcolor: 'primary.main',
+                                    width: 56,
+                                    height: 56,
+                                    fontSize: '1.25rem',
+                                    fontWeight: 'bold'
+                                  }}
+                                >
+                                  {user.name?.[0] || user.username?.[0] || "U"}
+                                </Avatar>
+                                
+                                <Box sx={{ flex: 1 }}>
+                                  <Typography sx={{ 
+                                    fontWeight: 700, 
+                                    fontSize: '1.1rem', 
+                                    mb: 0.5,
+                                    color: 'text.primary'
+                                  }}>
+                                    {user.name || user.username}
+                                    {user.role === 'admin' && (
+                                      <VerifiedIcon 
+                                        fontSize="small" 
+                                        color="primary" 
+                                        sx={{ ml: 1, verticalAlign: 'middle' }} 
+                                      />
+                                    )}
+                                  </Typography>
+                                  
+                                  <Typography variant="body2" sx={{ 
+                                    color: 'text.secondary',
+                                    mb: 0.5
+                                  }}>
+                                    {user.course || "Student"} • {user.institution || "University"}
+                                  </Typography>
+                                  
+                                  {user.bio && (
+                                    <Typography variant="body2" sx={{ 
+                                      color: 'text.secondary',
+                                      fontStyle: 'italic',
+                                      lineHeight: 1.4
+                                    }}>
+                                      {user.bio.length > 100 ? `${user.bio.substring(0, 100)}...` : user.bio}
+                                    </Typography>
+                                  )}
+                                  
+                                  {user.skills && user.skills.length > 0 && (
+                                    <Box sx={{ display: 'flex', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
+                                      {user.skills.slice(0, 3).map((skill, index) => (
+                                        <Chip
+                                          key={index}
+                                          label={skill}
+                                          size="small"
+                                          sx={{
+                                            height: 20,
+                                            fontSize: '0.7rem',
+                                            bgcolor: alpha(theme.palette.secondary.main, 0.1),
+                                            color: theme.palette.secondary.main
+                                          }}
+                                        />
+                                      ))}
+                                    </Box>
+                                  )}
+                                </Box>
+                              </Box>
+
+                              <ConnectionButton user={user} />
+                            </Card>
+                          ))}
+                        </Box>
+                      )}
+                    </>
+                  )}
+                </>
+              ) : (
                   /* REQUESTS TAB */
                   <Box sx={{ display: 'flex', gap: 4 }}>
                     {/* Incoming Requests */}

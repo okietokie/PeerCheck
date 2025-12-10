@@ -64,12 +64,6 @@ const taskSchema = new mongoose.Schema(
 
     // Risk assessment object
     risk: {
-      flags: {
-        paddedTime: { type: Boolean, default: false },
-        rushedCompletion: { type: Boolean, default: false },
-        noProof: { type: Boolean, default: false },
-        manualReviewRequired: { type: Boolean, default: false }
-      },
       riskLabel: { type: String, default: "Low Risk" },
       riskLevel: { type: String, default: "low" },
       riskScore: { type: Number, default: 0 }

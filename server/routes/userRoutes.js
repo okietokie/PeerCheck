@@ -6,7 +6,9 @@ import {
   deleteProject, 
   updateProject,
   uploadAvatar,
-  updateProfile
+  updateProfile,
+  getDashboardStats,
+  getRecentActivities
 } from '../controllers/userController.js';
 
 // Import FIXED connection controllers
@@ -64,7 +66,7 @@ import {
   completeTask
 } from '../controllers/taskController.js';
 
-import { fetchBasicData, getDashboardStats } from '../controllers/homeController.js'; 
+import { fetchBasicData } from '../controllers/homeController.js'; 
 import upload from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
@@ -74,6 +76,7 @@ import path from 'path';
 import fs from 'fs';
 
 // Create avatar upload directory
+//code working explanation: checks if the directory for storing uploaded avatars exists. If it doesn't, the code creates the directory using fs.mkdirSync with the recursive option set to true, ensuring that any necessary parent directories are also created.
 const avatarDir = 'uploads/avatars';
 if (!fs.existsSync(avatarDir)) {
   fs.mkdirSync(avatarDir, { recursive: true });
@@ -90,8 +93,10 @@ const avatarStorage = multer.diskStorage({
     cb(null, `avatar-${req.userId}-${uniqueSuffix}${ext}`);
   }
 });
-
-const avatarUpload = multer({
+// File filter to accept only image files
+// Set file size limit to 2MB
+// Allowed file types: JPEG, PNG, GIF, WebP
+export const avatarUpload = multer({ 
   storage: avatarStorage,
   limits: { 
     fileSize: 2 * 1024 * 1024 // 2MB max
@@ -138,51 +143,52 @@ router.get("/tasks/user", authMiddleware, getUserTasks);
 
 
 // Single task operations
-router.get("/task/:taskId", authMiddleware, getTaskDetails); 
-router.post("/task/create", authMiddleware, createTask); 
-router.put("/task/:taskId/status", authMiddleware, updateTaskStatus);
-router.put("/task/:taskId/time", authMiddleware, updateTaskTime);
-router.post("/task/:taskId/proof", authMiddleware, uploadProof);
-router.delete("/task/:taskId", authMiddleware, deleteTask);
-router.put("/task/:taskId/assign", authMiddleware, assignTask);
+router.get("/task/:taskId", authMiddleware, getTaskDetails);  // get task details
+router.post("/task/create", authMiddleware, createTask);  // create new task
+router.put("/task/:taskId/status", authMiddleware, updateTaskStatus); // update task status
+router.put("/task/:taskId/time", authMiddleware, updateTaskTime); // update task time tracking
+router.delete("/task/:taskId", authMiddleware, deleteTask); // delete task
+router.put("/task/:taskId/assign", authMiddleware, assignTask); // assign task to user
 
-router.put("/task/:taskId/details", authMiddleware, updateTaskDetails);
-router.put("/task/:taskId/deadline", authMiddleware, updateTaskDeadline);
-router.put("/task/:taskId/grading", authMiddleware, updateTaskGrading);
-router.post("/task/:taskId/comment", authMiddleware, addTaskComment);
-router.delete("/task/:taskId/proof/:proofId", authMiddleware, deleteProof);
-router.put("/task/:taskId/flags", authMiddleware, updateTaskFlags);
+// Recent activities route
+router.get("/task/activity/recent", authMiddleware, getRecentActivities); // route for recent activities
+
+router.put("/task/:taskId/details", authMiddleware, updateTaskDetails); // update task details
+router.put("/task/:taskId/deadline", authMiddleware, updateTaskDeadline); // update task deadline
+router.put("/task/:taskId/grading", authMiddleware, updateTaskGrading); // update task grading
+router.post("/task/:taskId/comment", authMiddleware, addTaskComment); // add comment to task
+router.delete("/task/:taskId/proof/:proofId", authMiddleware, deleteProof); // delete proof from task
+router.put("/task/:taskId/flags", authMiddleware, updateTaskFlags); // update task flags
 
 // Existing routes
-router.get("/task/:taskId/activity", authMiddleware, getTaskActivityLogs);
-router.post("/task/:taskId/proof", authMiddleware, upload.single('proofFile'), uploadProof)
+router.get("/task/:taskId/activity", authMiddleware, getTaskActivityLogs); // get task activity logs
+router.post("/task/:taskId/proof", authMiddleware, upload.single('proofFile'), uploadProof) ; // upload proof for task
 
 // userRoutes.js
-router.post("/task/:taskId/start", authMiddleware, startTask);
-router.post("/task/:taskId/pause", authMiddleware, pauseTask);
-router.post("/task/:taskId/resume", authMiddleware, resumeTask);
-router.post("/task/:taskId/complete", authMiddleware, completeTask);
+router.post("/task/:taskId/start", authMiddleware, startTask); // start task
+router.post("/task/:taskId/pause", authMiddleware, pauseTask); // pause task
+router.post("/task/:taskId/resume", authMiddleware, resumeTask); // resume task
+router.post("/task/:taskId/complete", authMiddleware, completeTask); // complete task
 
 // Connection routes
-router.get("/peerteam/", authMiddleware, getPeerTeam);
-router.get("/peer-requests", authMiddleware, getIncomingRequests);
-router.get("/sent-requests", authMiddleware, getSentRequests);
-router.post("/send-request", authMiddleware, sendConnectionRequest);
-router.put("/accept-request/:connectionId", authMiddleware, acceptRequest);
-router.put("/decline-request/:connectionId", authMiddleware, rejectRequest);
-router.delete("/remove-connection/:connectionId", authMiddleware, removeConnection);
-
+router.get("/peerteam/", authMiddleware, getPeerTeam); // get user's peer team
+router.get("/peer-requests", authMiddleware, getIncomingRequests); // get incoming connection requests
+router.get("/sent-requests", authMiddleware, getSentRequests); // get sent connection requests
+router.post("/send-request", authMiddleware, sendConnectionRequest); // send connection request
+router.put("/accept-request/:connectionId", authMiddleware, acceptRequest); // accept connection request
+router.put("/decline-request/:connectionId", authMiddleware, rejectRequest); // decline connection request
+router.delete("/remove-connection/:connectionId", authMiddleware, removeConnection); // remove connection
 // Team routes
-router.get('/teams', authMiddleware, getUserTeams);
-router.post('/create-team', authMiddleware, createTeam);
-router.delete('/leave-team/:teamId', authMiddleware, leaveTeam);
-router.put('/update-team/:teamId', authMiddleware, updateTeam);
-router.post('/invite-to-team/:teamId', authMiddleware, inviteToTeam);
-router.get('/team-suggestions', authMiddleware, getTeamSuggestions);
+router.get('/teams', authMiddleware, getUserTeams); // get user's teams
+router.post('/create-team', authMiddleware, createTeam);  // create new team
+router.delete('/leave-team/:teamId', authMiddleware, leaveTeam);  // leave team
+router.put('/update-team/:teamId', authMiddleware, updateTeam); // update team details
+//router.post('/invite-to-team/:teamId', authMiddleware, inviteToTeam); 
+router.get('/team-suggestions', authMiddleware, getTeamSuggestions); // get team suggestions
 
 // User discovery routes
-router.get("/suggested-users", authMiddleware, getSuggestedUsers);
-router.get("/search-users", authMiddleware, searchUsers);
-router.get("/user-profile/:userId", authMiddleware, getUserProfile);
+router.get("/suggested-users", authMiddleware, getSuggestedUsers); // get suggested users for connections
+router.get("/search-users", authMiddleware, searchUsers); // search users by name or email
+router.get("/user-profile/:userId", authMiddleware, getUserProfile);  // get user profile by ID
 
 export default router;
