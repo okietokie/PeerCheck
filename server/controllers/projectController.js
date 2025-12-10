@@ -2,6 +2,7 @@ import Project from "../models/projects.js";
 import DeletedProjects from "../models/deletedProjectInfo.js";
 import Task from "../models/tasks.js"; 
 import Team from "../models/peergroup_log.js";
+import MentorProjectAssignment from "../models/mentorProjectAssignment.js";
 
 
 // Status weight mapping for weighted progress
@@ -555,7 +556,7 @@ export const calculateTaskMetrics = (task) => {
 
 export const createProject = async (req, res) => {
   try {
-    const { projectName, description, startDate, endDate, teamId, teamName, tags, gradingCriteria } = req.body;
+    const { projectName, description, startDate, endDate, teamId, teamName, tags, gradingCriteria, mentorID } = req.body;
 
     // Basic validation
     if (!projectName || !description || !startDate || !endDate || !teamId) {
@@ -597,10 +598,16 @@ export const createProject = async (req, res) => {
     team.projects.push(newProject._id);
     await team.save();
 
+    await MentorProjectAssignment.create({
+      mentor: mentorID,
+      project: newProject._id
+    });
+
     // Populate teamId and createdBy before sending response
     const populatedProject = await Project.findById(newProject._id)
       .populate('teamId', 'name members')
       .populate('createdBy', 'name email');
+
 
     res.status(201).json(populatedProject);
   } catch (error) {
@@ -652,6 +659,8 @@ export const deleteProject = async (req, res) => {
       { $set: { projectId: null } } 
     );
 
+    //Delete all tasks associated with the project
+    await Task.deleteMany({ projectId: projectId });
 
 
     // Delete the project

@@ -1,5 +1,6 @@
 // Tasks.jsx
 import React, { useState, useEffect, useCallback, use, act } from 'react';
+import HistoryIcon from "@mui/icons-material/History";
 import {
   Box,
   Typography,
@@ -79,21 +80,24 @@ import {
   ArrowBack,
   Close,
   Folder,
-  Info
+  Info,
+  ViewList,
+  CheckCircleOutline,
+  Dashboard,
+  Description,
+  Email,
+  TrendingUp,
+  PlayCircleOutline,
+  Comment,
+  Attachment,
+  
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import axiosClient from '@/api/axiosClient';
 import { useNavigate, useParams  } from 'react-router-dom';
+import { getAuthToken } from './utils/auth';
 
-// Helper to get auth token properly
-const getAuthToken = () => {
-  const token = localStorage.getItem("token");
-  if (!token) {
-    console.warn('No token found in localStorage');
-    return null;
-  }
-  return token;
-};
+
 
 // Helper to get user data
 const getUserData = () => {
@@ -278,6 +282,7 @@ const LogTimeModal = ({ open, onClose, task, theme, onSuccess }) => {
   );
 };
 
+
 // Upload Proof Modal
 const UploadProofModal = ({ open, onClose, task, theme, onSuccess }) => {
   const [file, setFile] = useState(null);
@@ -343,6 +348,7 @@ const UploadProofModal = ({ open, onClose, task, theme, onSuccess }) => {
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to upload proof');
+      console.error('Upload proof error:', err);
     } finally {
       setLoading(false);
     }
@@ -547,7 +553,7 @@ const AssignTaskDialog = ({ open, onClose, task, projectTeam, onAssign, theme })
   );
 };
 // Task Details Modal 
-const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, onLogTime, userTeacher, getLiveEfficiency }) => {
+const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, onLogTime, userTeacher, onUploadProof }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -556,15 +562,11 @@ const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, 
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [projectTeam, setProjectTeam] = useState([]);
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
-  const [liveEfficiency, setLiveEfficiency] = useState(0);
+  const [uploadProofModalOpen, setUploadProofModalOpen] = useState(false);
+const [selectedTaskForProof, setSelectedTaskForProof] = useState(null);
 
   console.log("taskdetailsmodal/Task: ", task);
 
-  useEffect(() => {
-    if (task) {
-      setLiveEfficiency(getLiveEfficiency(task));
-    }
-  }, [task, getLiveEfficiency]); 
 
   // Fetch activity logs
   const fetchActivityLogs = async () => {
@@ -798,1071 +800,1645 @@ const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, 
     alert('Grade override functionality to be implemented');
   };
 
-  const handleEditTask = () => {
-    // Implement edit task dialog
-    alert('Edit task functionality to be implemented');
-  };
 
   if (!task) return null;
 
   return (
-    <Dialog 
-      open={open} 
-      onClose={!loading ? onClose : undefined}
-      maxWidth="md" 
-      fullWidth
-      PaperProps={{
-        sx: {
-          maxHeight: '90vh',
-          borderRadius: 2
-        }
-      }}
-    >
-      {/* Dialog Title */}
-      <DialogTitle sx={{ pb: 1 }}>
+  <Dialog 
+    open={open} 
+    onClose={!loading ? onClose : undefined}
+    maxWidth="md" 
+    fullWidth
+    PaperProps={{
+      sx: {
+        borderRadius: 4,
+        backgroundColor: theme.palette.background.paper,
+        border: `2px solid ${alpha(theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[200], 0.5)}`,
+        overflow: 'hidden',
+        maxHeight: '92vh',
+        boxShadow: `0 25px 60px ${alpha(theme.palette.mode === 'dark' ? '#000' : theme.palette.primary.main, 0.15)}`,
+        backgroundImage: theme.palette.mode === 'dark' 
+          ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.95)} 0%, ${alpha(theme.palette.primary.main, 0.05)} 100%)`
+          : `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.95)} 0%, ${alpha(theme.palette.primary.light, 0.03)} 100%)`,
+      }
+    }}
+  >
+    {/* Header with gradient accent */}
+    <Box sx={{ 
+      position: 'relative',
+      '&::before': {
+        content: '""',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 4,
+        background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+      }
+    }}>
+      <DialogTitle sx={{ 
+        pb: 2.5,
+        pt: 3.5,
+        px: 4,
+      }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <Box>
-            <Typography variant="h5" fontWeight="600" gutterBottom>
+          <Box sx={{ maxWidth: 'calc(100% - 48px)' }}>
+            <Typography variant="h4" fontWeight="800" gutterBottom sx={{ 
+              fontFamily: '"Alkatra", cursive',
+              color: theme.palette.text.primary,
+              lineHeight: 1.2,
+              wordBreak: 'break-word',
+            }}>
               {task.taskTitle}
             </Typography>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mt: 1 }}>
               <Chip
                 label={task.status.replace('_', ' ').toUpperCase()}
                 color={getStatusColor(task.status)}
-                size="small"
+                size="medium"
+                sx={{
+                  fontWeight: 700,
+                  borderRadius: 1.5,
+                  height: 28,
+                  fontSize: '0.75rem',
+                  boxShadow: `0 2px 8px ${alpha(getStatusColor(task.status) === 'primary' ? theme.palette.primary.main : 
+                                          getStatusColor(task.status) === 'success' ? theme.palette.success.main : 
+                                          getStatusColor(task.status) === 'warning' ? theme.palette.warning.main : 
+                                          theme.palette.error.main, 0.2)}`,
+                }}
               />
+              
               {task.metrics?.isOverdue && (
                 <Chip
                   label="OVERDUE"
                   color="error"
-                  size="small"
+                  size="medium"
+                  icon={<Warning fontSize="small" />}
+                  sx={{
+                    fontWeight: 700,
+                    borderRadius: 1.5,
+                    height: 28,
+                    fontSize: '0.75rem',
+                  }}
                 />
               )}
+              
               {task.metrics?.riskScore >= 4 && (
                 <Chip
                   label="HIGH RISK"
                   color="error"
-                  size="small"
+                  size="medium"
+                  icon={<Security fontSize="small" />}
+                  sx={{
+                    fontWeight: 700,
+                    borderRadius: 1.5,
+                    height: 28,
+                    fontSize: '0.75rem',
+                  }}
                 />
               )}
             </Box>
           </Box>
-          <IconButton onClick={onClose} disabled={loading} size="small">
+          
+          <IconButton 
+            onClick={onClose} 
+            disabled={loading} 
+            size="medium"
+            sx={{
+              color: theme.palette.text.secondary,
+              backgroundColor: alpha(theme.palette.primary.main, 0.08),
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+              '&:hover': {
+                backgroundColor: alpha(theme.palette.primary.main, 0.15),
+                color: theme.palette.primary.main,
+                transform: 'rotate(90deg)',
+                borderColor: alpha(theme.palette.primary.main, 0.4),
+              },
+              transition: 'all 0.3s ease',
+              width: 44,
+              height: 44,
+              borderRadius: 2,
+            }}
+          >
             <Close />
           </IconButton>
         </Box>
       </DialogTitle>
-      
-      {/* Tabs */}
-      <Box sx={{ 
-        borderBottom: 1, 
-        borderColor: 'divider',
-        px: 3,
-        pt: 1
-      }}>
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          {['overview', 'metrics', 'proof', 'activity'].map((tab) => (
-            <Button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              variant={activeTab === tab ? 'contained' : 'text'}
-              size="small"
+    </Box>
+    
+    {/* Minimalist Tab Navigation */}
+    <Box sx={{ 
+      borderBottom: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+      px: 4,
+      pt: 1,
+      pb: 1,
+    }}>
+      <Box sx={{ display: 'flex', gap: 1 }}>
+        {[
+          { key: 'overview', label: 'Overview', icon: <Dashboard fontSize="small" /> },
+          { key: 'metrics', label: 'Metrics', icon: <Assessment fontSize="small" /> },
+          { key: 'proof', label: 'Proof', icon: <Upload fontSize="small" /> },
+          { key: 'activity', label: 'Activity', icon: <HistoryIcon fontSize="small" /> }
+        ].map((tab) => (
+          <Button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            variant={activeTab === tab.key ? 'contained' : 'text'}
+            size="medium"
+            startIcon={tab.icon}
+            sx={{ 
+              textTransform: 'capitalize',
+              borderRadius: 2,
+              px: 3,
+              py: 1,
+              fontWeight: 600,
+              fontFamily: '"Inter", sans-serif',
+              fontSize: '0.875rem',
+              minWidth: 'auto',
+              '&.MuiButton-contained': {
+                background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+              },
+              '&.MuiButton-text': {
+                color: theme.palette.text.secondary,
+                '&:hover': {
+                  color: theme.palette.primary.main,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                }
+              }
+            }}
+          >
+            {tab.label}
+          </Button>
+        ))}
+      </Box>
+    </Box>
+
+    <DialogContent dividers sx={{ 
+      p: 0, 
+      '&.MuiDialogContent-dividers': {
+        border: 'none',
+      }
+    }}>
+      {/* Overview Tab - Redesigned */}
+      {activeTab === 'overview' && (
+        <Box sx={{ p: 4 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            
+            {/* Task Description Card */}
+            <Paper 
+              elevation={0}
               sx={{ 
-                textTransform: 'capitalize',
-                borderRadius: 1,
-                px: 2
+                p: 3.5, 
+                borderRadius: 3,
+                backgroundColor: alpha(theme.palette.primary.main, 0.03),
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                position: 'relative',
+                overflow: 'hidden',
               }}
             >
-              {tab}
-            </Button>
-          ))}
-        </Box>
-      </Box>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2.5 }}>
+                <Box sx={{ 
+                  p: 2, 
+                  borderRadius: 2.5,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  width: 56,
+                  height: 56,
+                }}>
+                  <Description sx={{ 
+                    color: theme.palette.primary.main, 
+                    fontSize: 28 
+                  }} />
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="h6" fontWeight="700" gutterBottom sx={{ 
+                    fontFamily: '"Adlam Display", serif',
+                    color: theme.palette.text.primary,
+                  }}>
+                    Task Description
+                  </Typography>
+                  <Typography variant="body1" sx={{ 
+                    color: theme.palette.text.secondary,
+                    fontFamily: '"Inter", sans-serif',
+                    lineHeight: 1.6,
+                    whiteSpace: 'pre-wrap',
+                  }}>
+                    {task.description || 'No description provided.'}
+                  </Typography>
+                </Box>
+              </Box>
+            </Paper>
 
-      <DialogContent dividers sx={{ p: 0 }}>
-        {/* Overview Tab */} 
-        {activeTab === 'overview' && (
-          <Box sx={{ p: 3 }}>
-            {/* Main Content Container */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              
-              {/* Task Header Section */}
+            {/* Key Information Row - Compact Flex Layout */}
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              gap: 3,
+            }}>
+              {/* Assignee */}
               <Paper 
-                variant="outlined" 
+                elevation={0}
                 sx={{ 
-                  p: 3, 
-                  borderRadius: 2,
-                  backgroundColor: alpha(theme.palette.primary.main, 0.02),
-                  borderColor: alpha(theme.palette.primary.main, 0.1)
+                  flex: 1,
+                  p: 3,
+                  borderRadius: 3,
+                  backgroundColor: theme.palette.background.paper,
+                  border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+                  position: 'relative',
+                  overflow: 'hidden',
+                  minWidth: 280,
                 }}
               >
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                  <Box sx={{ 
-                    p: 1.5, 
-                    borderRadius: 2,
-                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 2, 
+                  mb: 2.5,
+                  pb: 2,
+                  borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                }}>
+                  <Person sx={{ 
+                    color: theme.palette.primary.main, 
+                    fontSize: 24 
+                  }} />
+                  <Typography variant="body1" fontWeight="600" sx={{ 
+                    fontFamily: '"Adlam Display", serif',
+                    color: theme.palette.text.primary,
                   }}>
-                    <Assessment sx={{ color: theme.palette.primary.main }} />
-                  </Box>
+                    Assigned To
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
+                  <Avatar 
+                    src={task.assignedTo?.avatar}
+                    sx={{ 
+                      width: 52, 
+                      height: 52,
+                      fontSize: 18,
+                      fontWeight: 'bold',
+                      border: `3px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                      boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.15)}`,
+                    }}
+                  >
+                    {task.assignedTo?.name?.charAt(0) || 'U'}
+                  </Avatar>
                   <Box sx={{ flex: 1 }}>
-                    <Typography variant="h6" fontWeight="600" gutterBottom>
-                      {task.taskTitle}
+                    <Typography variant="body1" fontWeight="600" sx={{ 
+                      fontFamily: '"Inter", sans-serif',
+                      mb: 0.5,
+                    }}>
+                      {task.assignedTo?.name || 'Unassigned'}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {task.description || 'No description provided'}
-                    </Typography>
+                    {task.assignedTo?.email && (
+                      <Typography variant="caption" sx={{ 
+                        color: theme.palette.text.secondary,
+                        fontFamily: '"Inter", sans-serif',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                      }}>
+                        <Email fontSize="inherit" /> {task.assignedTo.email}
+                      </Typography>
+                    )}
                   </Box>
-                  <Chip
-                    label={task.status.replace('_', ' ').toUpperCase()}
-                    color={getStatusColor(task.status)}
-                    size="small"
-                    sx={{ fontWeight: 600 }}
-                  />
                 </Box>
               </Paper>
 
-              {/* Stats Row */}
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                {/* Assignee Card */}
-                <Paper 
-                  variant="outlined" 
-                  sx={{ 
-                    p: 2.5, 
-                    borderRadius: 2, 
-                    flex: 1, 
-                    minWidth: 250,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1.5
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Person sx={{ color: theme.palette.text.secondary, fontSize: 20 }} />
-                    <Typography variant="subtitle2" color="text.secondary">
-                      ASSIGNEE
+              {/* Deadline */}
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  flex: 1,
+                  p: 3,
+                  borderRadius: 3,
+                  backgroundColor: task.metrics?.isOverdue 
+                    ? alpha(theme.palette.error.main, 0.05)
+                    : theme.palette.background.paper,
+                  border: `1px solid ${task.metrics?.isOverdue 
+                    ? alpha(theme.palette.error.main, 0.2)
+                    : alpha(theme.palette.divider, 0.3)}`,
+                  position: 'relative',
+                  overflow: 'hidden',
+                  minWidth: 280,
+                }}
+              >
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  gap: 2, 
+                  mb: 2.5,
+                  pb: 2,
+                  borderBottom: `1px solid ${task.metrics?.isOverdue 
+                    ? alpha(theme.palette.error.main, 0.2)
+                    : alpha(theme.palette.divider, 0.2)}`,
+                }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <CalendarToday sx={{ 
+                      color: task.metrics?.isOverdue 
+                        ? theme.palette.error.main
+                        : theme.palette.primary.main, 
+                      fontSize: 24 
+                    }} />
+                    <Typography variant="body1" fontWeight="600" sx={{ 
+                      fontFamily: '"Adlam Display", serif',
+                      color: task.metrics?.isOverdue 
+                        ? theme.palette.error.main
+                        : theme.palette.text.primary,
+                    }}>
+                      Deadline
+                    </Typography>
+                  </Box>
+                  {task.metrics?.isOverdue && (
+                    <Chip
+                      label="OVERDUE"
+                      color="error"
+                      size="small"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  )}
+                </Box>
+                
+                <Box>
+                  <Typography variant="h4" fontWeight="800" gutterBottom sx={{ 
+                    fontFamily: '"Alkatra", cursive',
+                    color: task.metrics?.isOverdue 
+                      ? theme.palette.error.main
+                      : theme.palette.text.primary,
+                  }}>
+                    {formatDate(task.deadline)}
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1 }}>
+                    <AccessTime sx={{ 
+                      fontSize: 18, 
+                      color: theme.palette.text.secondary 
+                    }} />
+                    <Typography variant="body2" sx={{ 
+                      color: theme.palette.text.secondary,
+                      fontFamily: '"Inter", sans-serif',
+                    }}>
+                      {task.metrics?.daysUntilDeadline > 0 
+                        ? `${task.metrics.daysUntilDeadline} days remaining`
+                        : task.metrics?.isOverdue 
+                          ? 'Past deadline' 
+                          : 'Due soon'}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Paper>
+            </Box>
+
+            {/* Time Tracking & Efficiency - Side by side */}
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              gap: 3,
+            }}>
+              {/* Time Tracking */}
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  flex: 1,
+                  p: 3,
+                  borderRadius: 3,
+                  backgroundColor: theme.palette.background.paper,
+                  border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+                  position: 'relative',
+                  overflow: 'hidden',
+                  minWidth: 280,
+                }}
+              >
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 2, 
+                  mb: 3,
+                  pb: 2,
+                  borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                }}>
+                  <Timer sx={{ 
+                    color: theme.palette.info.main, 
+                    fontSize: 24 
+                  }} />
+                  <Typography variant="body1" fontWeight="600" sx={{ 
+                    fontFamily: '"Adlam Display", serif',
+                    color: theme.palette.text.primary,
+                  }}>
+                    Time Tracking
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 2, mb: 2 }}>
+                    <Typography variant="h3" fontWeight="800" sx={{ 
+                      fontFamily: '"Alkatra", cursive',
+                      color: theme.palette.info.main,
+                      lineHeight: 1,
+                    }}>
+                      {formatTime(task.totalFocusTime)}
+                    </Typography>
+                    <Typography variant="body2" sx={{ 
+                      color: theme.palette.text.secondary,
+                      fontFamily: '"Inter", sans-serif',
+                    }}>
+                      of {formatTime(task.estimatedTime)} estimated
                     </Typography>
                   </Box>
                   
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
-                    <Avatar 
-                      src={task.assignedTo?.avatar}
+                  {/* Progress Bar */}
+                  <Box sx={{ 
+                    position: 'relative', 
+                    height: 8, 
+                    borderRadius: 4, 
+                    backgroundColor: alpha(theme.palette.info.main, 0.1),
+                    overflow: 'hidden',
+                    mb: 1.5,
+                  }}>
+                    <Box 
                       sx={{ 
-                        width: 44, 
-                        height: 44,
-                        border: `2px solid ${alpha(theme.palette.primary.main, 0.2)}`
+                        position: 'absolute',
+                        height: '100%',
+                        borderRadius: 4,
+                        background: `linear-gradient(90deg, ${theme.palette.info.main}, ${theme.palette.info.light})`,
+                        width: `${Math.min((task.totalFocusTime / (task.estimatedTime || 1)) * 100, 100)}%`,
+                        transition: 'width 0.5s ease',
+                      }}
+                    />
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="caption" sx={{ 
+                      color: theme.palette.text.secondary,
+                      fontFamily: '"Inter", sans-serif',
+                    }}>
+                      Time spent
+                    </Typography>
+                    <Typography variant="caption" sx={{ 
+                      color: theme.palette.text.secondary,
+                      fontFamily: '"Inter", sans-serif',
+                      fontWeight: 600,
+                    }}>
+                      {((task.totalFocusTime / (task.estimatedTime || 1)) * 100).toFixed(1)}%
+                    </Typography>
+                  </Box>
+                </Box>
+              </Paper>
+
+              {/* Efficiency */}
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  flex: 1,
+                  p: 3,
+                  borderRadius: 3,
+                  backgroundColor: theme.palette.background.paper,
+                  border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+                  position: 'relative',
+                  overflow: 'hidden',
+                  minWidth: 280,
+                }}
+              >
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 2, 
+                  mb: 3,
+                  pb: 2,
+                  borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                }}>
+                  <TrendingUp sx={{ 
+                    color: theme.palette.success.main, 
+                    fontSize: 24 
+                  }} />
+                  <Typography variant="body1" fontWeight="600" sx={{ 
+                    fontFamily: '"Adlam Display", serif',
+                    color: theme.palette.text.primary,
+                  }}>
+                    Efficiency
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 2, mb: 2 }}>
+                    <Typography variant="h3" fontWeight="800" sx={{ 
+                      fontFamily: '"Alkatra", cursive',
+                      color: getEfficiencyColor(task.taskMetrics?.efficiency),
+                      lineHeight: 1,
+                    }}>
+                      {task.taskMetrics?.efficiency?.toFixed(1) || '0.0'}%
+                    </Typography>
+                    <Chip
+                      label={task.taskMetrics?.efficiency > 120 ? 'High' : 
+                            task.taskMetrics?.efficiency < 50 ? 'Low' : 
+                            'Optimal'}
+                      color={getEfficiencyColor(task.taskMetrics?.efficiency)}
+                      size="small"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </Box>
+                  
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={Math.min(task.taskMetrics?.efficiency || 0, 100)}
+                    color={getEfficiencyColor(task.taskMetrics?.efficiency)}
+                    sx={{ 
+                      height: 8, 
+                      borderRadius: 4, 
+                      mb: 1.5,
+                      backgroundColor: alpha(getEfficiencyColor(task.taskMetrics?.efficiency) === 'success' 
+                        ? theme.palette.success.main 
+                        : getEfficiencyColor(task.taskMetrics?.efficiency) === 'warning'
+                          ? theme.palette.warning.main
+                          : theme.palette.error.main, 0.1),
+                    }}
+                  />
+                  
+                  <Typography variant="caption" sx={{ 
+                    color: theme.palette.text.secondary,
+                    fontFamily: '"Inter", sans-serif',
+                    fontStyle: 'italic',
+                  }}>
+                    {task.taskMetrics?.efficiency > 120 
+                      ? 'Above expected efficiency' 
+                      : task.taskMetrics?.efficiency < 50 
+                        ? 'Below expected efficiency'
+                        : 'Within optimal range'}
+                  </Typography>
+                </Box>
+              </Paper>
+            </Box>
+
+            {/* Quick Actions - Minimalist Bar */}
+            {(userRole?.role === 'teacher' || userRole?.role === 'admin' || task.assignedTo?._id === userRole?.userId) && (
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  p: 2.5, 
+                  borderRadius: 3,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.02),
+                  border: `1px dashed ${alpha(theme.palette.primary.main, 0.2)}`,
+                }}
+              >
+                <Typography variant="body2" fontWeight="600" sx={{ 
+                  mb: 2.5,
+                  color: theme.palette.text.secondary,
+                  fontFamily: '"Adlam Display", serif',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                }}>
+                  <PlayCircleOutline fontSize="small" />
+                  Quick Actions
+                </Typography>
+                
+                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                  {task.assignedTo?._id === userRole?.userId && (
+                    <>
+                      {task.status !== 'completed' && (
+                        <Button
+                          variant="contained"
+                          startIcon={<CheckCircle />}
+                          onClick={() => handleStatusChange('completed')}
+                          disabled={loading}
+                          size="medium"
+                          sx={{ 
+                            borderRadius: 2,
+                            px: 3,
+                            py: 1,
+                            fontWeight: 600,
+                            background: `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.success.dark})`,
+                            '&:hover': {
+                              boxShadow: `0 6px 20px ${alpha(theme.palette.success.main, 0.4)}`,
+                            }
+                          }}
+                        >
+                          Mark Complete
+                        </Button>
+                      )}
+                      <Button
+                        variant="outlined"
+                        startIcon={<Timer />}
+                        onClick={() => onLogTime(task)}
+                        size="medium"
+                        sx={{ borderRadius: 2, px: 3, py: 1, fontWeight: 600 }}
+                      >
+                        Log Time
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        startIcon={<Upload />}
+                        onClick={() => {
+                          onClose();
+                          setTimeout(() => {
+                            window.dispatchEvent(new CustomEvent('openUploadProofModal', { detail: task }));
+                          }, 100);
+                        }}
+                        size="medium"
+                        sx={{ borderRadius: 2, px: 3, py: 1, fontWeight: 600 }}
+                      >
+                        Upload Proof
+                      </Button>
+                    </>
+                  )}
+                  
+                  {(userRole?.role === 'teacher' || userRole?.role === 'admin') && (
+                    <>
+                      <Button
+                        variant="outlined"
+                        color="warning"
+                        startIcon={<Flag />}
+                        onClick={handleEditFlags}
+                        size="medium"
+                        sx={{ borderRadius: 2, px: 3, py: 1, fontWeight: 600 }}
+                      >
+                        Edit Flags
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        color="primary"
+                        startIcon={<Grade />}
+                        onClick={handleGradeOverride}
+                        size="medium"
+                        sx={{ borderRadius: 2, px: 3, py: 1, fontWeight: 600 }}
+                      >
+                        Override Grade
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        color="secondary"
+                        startIcon={<Person />}
+                        onClick={handleReassignTask}
+                        size="medium"
+                        sx={{ borderRadius: 2, px: 3, py: 1, fontWeight: 600 }}
+                      >
+                        Reassign
+                      </Button>
+                    </>
+                  )}
+                  
+                  <Button
+                    variant="outlined"
+                    color="info"
+                    startIcon={<Edit />}
+                    onClick={() => {alert('Edit details functionality to be implemented');}}
+                    size="medium"
+                    sx={{ borderRadius: 2, px: 3, py: 1, fontWeight: 600 }}
+                  >
+                    Edit Details
+                  </Button>
+                </Box>
+              </Paper>
+            )}
+          </Box>
+        </Box>
+      )}
+
+      {/* Metrics Tab - Minimalist */}
+      {activeTab === 'metrics' && (
+        <Box sx={{ p: 4 }}>
+          <Typography variant="h5" fontWeight="700" gutterBottom sx={{ 
+            fontFamily: '"Adlam Display", serif',
+            mb: 3,
+          }}>
+            Task Metrics
+          </Typography>
+          
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 3 }}>
+            {/* Risk Score Card */}
+            <Paper 
+              elevation={0}
+              sx={{ 
+                flex: 1,
+                p: 3.5,
+                borderRadius: 3,
+                backgroundColor: theme.palette.background.paper,
+                border: `1px solid ${alpha(getRiskColor(task.metrics?.riskScore) === 'error' 
+                  ? theme.palette.error.main 
+                  : getRiskColor(task.metrics?.riskScore) === 'warning'
+                    ? theme.palette.warning.main
+                    : theme.palette.success.main, 0.2)}`,
+                minWidth: 280,
+              }}
+            >
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                mb: 3,
+                pb: 2,
+                borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+              }}>
+                <Typography variant="body1" fontWeight="600" sx={{ 
+                  fontFamily: '"Adlam Display", serif',
+                  color: theme.palette.text.primary,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                }}>
+                  <Security sx={{ color: getRiskColor(task.metrics?.riskScore) === 'error' 
+                    ? theme.palette.error.main 
+                    : getRiskColor(task.metrics?.riskScore) === 'warning'
+                      ? theme.palette.warning.main
+                      : theme.palette.success.main }} />
+                  Risk Score
+                </Typography>
+                <Chip
+                  label={task.metrics?.riskScore >= 4 ? 'High' : 
+                        task.metrics?.riskScore >= 2 ? 'Medium' : 
+                        'Low'}
+                  color={getRiskColor(task.metrics?.riskScore)}
+                  size="small"
+                  sx={{ fontWeight: 700 }}
+                />
+              </Box>
+              
+              <Box sx={{ textAlign: 'center', mb: 3 }}>
+                <Typography variant="h1" fontWeight="800" sx={{ 
+                  fontFamily: '"Alkatra", cursive',
+                  color: getRiskColor(task.metrics?.riskScore) === 'error' 
+                    ? theme.palette.error.main 
+                    : getRiskColor(task.metrics?.riskScore) === 'warning'
+                      ? theme.palette.warning.main
+                      : theme.palette.success.main,
+                  lineHeight: 1,
+                  mb: 1,
+                }}>
+                  {task.metrics?.riskScore || 0}
+                </Typography>
+                <Typography variant="body2" sx={{ 
+                  color: theme.palette.text.secondary,
+                  fontFamily: '"Inter", sans-serif',
+                }}>
+                  out of 8
+                </Typography>
+              </Box>
+              
+              {/* Risk Factors */}
+              <Box sx={{ 
+                p: 2.5,
+                borderRadius: 2,
+                backgroundColor: alpha(theme.palette.divider, 0.05),
+                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+              }}>
+                <Typography variant="body2" fontWeight="600" sx={{ 
+                  mb: 2,
+                  color: theme.palette.text.secondary,
+                  fontFamily: '"Inter", sans-serif',
+                }}>
+                  Risk Factors
+                </Typography>
+                
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  {[
+                    { label: 'Padded Time', value: task.flags?.paddedTime, icon: <Timer /> },
+                    { label: 'Rushed Completion', value: task.flags?.rushedCompletion, icon: <Speed /> },
+                    { label: 'No Proof', value: task.flags?.noProof, icon: <Warning /> },
+                    { label: 'Manual Review Required', value: task.flags?.manualReviewRequired, icon: <Assessment /> }
+                  ].map((item) => (
+                    <Box 
+                      key={item.label} 
+                      sx={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        py: 1,
+                        borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                        '&:last-child': { borderBottom: 'none' }
                       }}
                     >
-                      {task.assignedTo?.name?.charAt(0) || 'U'}
-                    </Avatar>
-                    <Box>
-                      <Typography variant="body1" fontWeight="600">
-                        {task.assignedTo?.name || 'Unassigned'}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {task.assignedTo?.email || 'No email provided'}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Paper>
-
-                {/* Deadline Card */}
-                <Paper 
-                  variant="outlined" 
-                  sx={{ 
-                    p: 2.5, 
-                    borderRadius: 2, 
-                    flex: 1, 
-                    minWidth: 250,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1.5,
-                    borderColor: task.metrics?.isOverdue 
-                      ? theme.palette.error.main 
-                      : undefined
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <CalendarToday sx={{ color: theme.palette.text.secondary, fontSize: 20 }} />
-                    <Typography variant="subtitle2" color="text.secondary">
-                      DEADLINE
-                    </Typography>
-                    {task.metrics?.isOverdue && (
-                      <Chip
-                        label="OVERDUE"
-                        color="error"
-                        size="small"
-                        sx={{ ml: 'auto' }}
-                      />
-                    )}
-                  </Box>
-                  
-                  <Box>
-                    <Typography variant="h6" fontWeight="600" gutterBottom>
-                      {formatDate(task.deadline)}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <AccessTime sx={{ fontSize: 16, color: theme.palette.text.secondary }} />
-                      <Typography variant="caption" color="text.secondary">
-                        {task.metrics?.daysUntilDeadline > 0 
-                          ? `${task.metrics.daysUntilDeadline} days remaining`
-                          : task.metrics?.isOverdue 
-                            ? 'Past deadline' 
-                            : 'Due soon'}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Paper>
-
-                {/* Time Spent Card */}
-                <Paper 
-                  variant="outlined" 
-                  sx={{ 
-                    p: 2.5, 
-                    borderRadius: 2, 
-                    flex: 1, 
-                    minWidth: 250,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1.5
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Timer sx={{ color: theme.palette.text.secondary, fontSize: 20 }} />
-                    <Typography variant="subtitle2" color="text.secondary">
-                      TIME TRACKING
-                    </Typography>
-                  </Box>
-                  
-                  <Box>
-                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 1 }}>
-                      <Typography variant="h5" fontWeight="600" color="primary">
-                        {formatTime(task.totalFocusTime)}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        / {formatTime(task.estimatedTime)} estimated
-                      </Typography>
-                    </Box>
-                    
-                    {/* Progress Bar */}
-                    <Box sx={{ position: 'relative', height: 6, borderRadius: 3, bgcolor: alpha(theme.palette.primary.main, 0.1) }}>
-                      <Box 
-                        sx={{ 
-                          position: 'absolute',
-                          height: '100%',
-                          borderRadius: 3,
-                          bgcolor: theme.palette.primary.main,
-                          width: `${Math.min((task.totalFocusTime / (task.estimatedTime || 1)) * 100, 100)}%`,
-                          transition: 'width 0.3s ease'
-                        }}
-                      />
-                    </Box>
-                    
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                      {task.taskMetrics?.efficiency?.percentage.toFixed(1)}% efficiency
-                    </Typography>
-                  </Box>
-                </Paper>
-              </Box>
-
-              {/* Flags & Project Info Row */}
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                {/* Flags Section */}
-                <Paper 
-                  variant="outlined" 
-                  sx={{ 
-                    p: 2.5, 
-                    borderRadius: 2, 
-                    flex: 1, 
-                    minWidth: 300,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1.5
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Flag sx={{ color: theme.palette.text.secondary, fontSize: 20 }} />
-                    <Typography variant="subtitle2" color="text.secondary">
-                      RISK FLAGS
-                    </Typography>
-                    <Box sx={{ ml: 'auto' }}>
-                      <Chip
-                        label={task.metrics?.riskScore >= 4 ? 'HIGH' : 
-                              task.metrics?.riskScore >= 2 ? 'MEDIUM' : 'LOW'}
-                        color={getRiskColor(task.metrics?.riskScore)}
-                        size="small"
-                        icon={<Security fontSize="small" />}
-                      />
-                    </Box>
-                  </Box>
-                  
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                    {task.flags?.paddedTime && (
-                      <Chip 
-                        icon={<Timer />} 
-                        label="Padded Time" 
-                        color="warning" 
-                        size="small" 
-                        variant="outlined"
-                        sx={{ fontWeight: 500 }}
-                      />
-                    )}
-                    {task.flags?.rushedCompletion && (
-                      <Chip 
-                        icon={<Speed />} 
-                        label="Rushed Completion" 
-                        color="error" 
-                        size="small" 
-                        variant="outlined"
-                        sx={{ fontWeight: 500 }}
-                      />
-                    )}
-                    {task.flags?.noProof && (
-                      <Chip 
-                        icon={<Warning />} 
-                        label="No Proof" 
-                        color="error" 
-                        size="small" 
-                        variant="outlined"
-                        sx={{ fontWeight: 500 }}
-                      />
-                    )}
-                    {task.flags?.manualReviewRequired && (
-                      <Chip 
-                        icon={<Assessment />} 
-                        label="Needs Review" 
-                        color="warning" 
-                        size="small" 
-                        variant="outlined"
-                        sx={{ fontWeight: 500 }}
-                      />
-                    )}
-                    {!task.flags?.paddedTime && 
-                    !task.flags?.rushedCompletion && 
-                    !task.flags?.noProof && 
-                    !task.flags?.manualReviewRequired && (
-                      <Box sx={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: 1,
-                        p: 1.5,
-                        borderRadius: 1,
-                        bgcolor: alpha(theme.palette.success.main, 0.1)
-                      }}>
-                        <CheckCircle sx={{ color: theme.palette.success.main, fontSize: 20 }} />
-                        <Typography variant="body2" color="success.main" fontWeight="500">
-                          All checks passed
-                        </Typography>
-                      </Box>
-                    )}
-                  </Box>
-                  
-                  {/* Risk Score Indicator */}
-                  {task.metrics?.riskScore > 0 && (
-                    <Box sx={{ mt: 2 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Risk Score
-                        </Typography>
-                        <Typography variant="caption" fontWeight="600">
-                          {task.metrics?.riskScore || 0}/8
-                        </Typography>
-                      </Box>
-                      <Box sx={{ 
-                        height: 4, 
-                        borderRadius: 2, 
-                        bgcolor: alpha(theme.palette.grey[300], 0.5),
-                        overflow: 'hidden'
-                      }}>
-                        <Box 
-                          sx={{ 
-                            height: '100%',
-                            borderRadius: 2,
-                            bgcolor: getRiskColor(task.metrics?.riskScore) === 'error' 
-                              ? theme.palette.error.main 
-                              : getRiskColor(task.metrics?.riskScore) === 'warning'
-                                ? theme.palette.warning.main
-                                : theme.palette.success.main,
-                            width: `${(task.metrics?.riskScore / 8) * 100}%`,
-                            transition: 'width 0.3s ease'
-                          }}
-                        />
-                      </Box>
-                    </Box>
-                  )}
-                </Paper>
-
-                {/* Project & Meta Info */}
-                <Paper 
-                  variant="outlined" 
-                  sx={{ 
-                    p: 2.5, 
-                    borderRadius: 2, 
-                    flex: 1, 
-                    minWidth: 300,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 2
-                  }}
-                >
-                  {/* Project Info */}
-                  <Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                      <Folder sx={{ color: theme.palette.text.secondary, fontSize: 20 }} />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        PROJECT
-                      </Typography>
-                    </Box>
-                    
-                    <Box sx={{ 
-                      p: 1.5, 
-                      borderRadius: 1.5,
-                      bgcolor: alpha(theme.palette.info.main, 0.05),
-                      border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`
-                    }}>
-                      <Typography variant="body1" fontWeight="600" gutterBottom>
-                        {task.projectId?.projectName || 'Unknown Project'}
-                      </Typography>
-                      {task.projectId?._id && (
-                        <Typography variant="caption" color="text.secondary">
-                          ID: {task.projectId._id.slice(-8)}
-                        </Typography>
-                      )}
-                    </Box>
-                  </Box>
-
-                  {/* Additional Info */}
-                  <Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                      <Info sx={{ color: theme.palette.text.secondary, fontSize: 20 }} />
-                      <Typography variant="subtitle2" color="text.secondary">
-                        ADDITIONAL INFO
-                      </Typography>
-                    </Box>
-                    
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      {/* Created At */}
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Created
-                        </Typography>
-                        <Typography variant="caption" fontWeight="500">
-                          {task.createdAt ? formatDate(task.createdAt) : 'N/A'}
-                        </Typography>
-                      </Box>
-                      
-                      {/* Last Updated */}
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Last Updated
-                        </Typography>
-                        <Typography variant="caption" fontWeight="500">
-                          {task.updatedAt ? formatDate(task.updatedAt) : 'N/A'}
-                        </Typography>
-                      </Box>
-                      
-                      {/* Proof Count */}
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Proof Files
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          {task.metrics?.hasProof ? (
-                            <CheckCircle sx={{ fontSize: 14, color: theme.palette.success.main }} />
-                          ) : (
-                            <Warning sx={{ fontSize: 14, color: theme.palette.error.main }} />
-                          )}
-                          <Typography variant="caption" fontWeight="500">
-                            {task.proofUploads?.length || 0} uploaded
-                          </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <Box sx={{ 
+                          color: item.value ? theme.palette.error.main : theme.palette.success.main,
+                          display: 'flex',
+                          alignItems: 'center',
+                        }}>
+                          {item.icon}
                         </Box>
+                        <Typography variant="body2" sx={{ fontFamily: '"Inter", sans-serif' }}>
+                          {item.label}
+                        </Typography>
                       </Box>
-                      
-                      {/* Task ID */}
-                      {task._id && (
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <Typography variant="caption" color="text.secondary">
-                            Task ID
-                          </Typography>
-                          <Typography variant="caption" fontWeight="500">
-                            {task._id.slice(-8)}
-                          </Typography>
-                        </Box>
-                      )}
-                    </Box>
-                  </Box>
-                </Paper>
-              </Box>
-
-              {/* Quick Actions Bar */}
-              {(userRole?.role === 'teacher' || userRole?.role === 'admin' || task.assignedTo?._id === userRole?.userId) && (
-                <Paper 
-                  variant="outlined" 
-                  sx={{ 
-                    p: 2, 
-                    borderRadius: 2,
-                    bgcolor: alpha(theme.palette.primary.main, 0.02)
-                  }}
-                >
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ mb: 2 }}>
-                    QUICK ACTIONS
-                  </Typography>
-                  
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {task.assignedTo?._id === userRole?.userId && (
-                      <>
-                        {task.status !== 'completed' && (
-                          <Button
-                            variant="contained"
-                            startIcon={<CheckCircle />}
-                            onClick={() => handleStatusChange('completed')}
-                            disabled={loading}
-                            size="small"
-                            sx={{ borderRadius: 1.5 }}
-                          >
-                            Mark Complete
-                          </Button>
-                        )}
-                        <Button
-                          variant="outlined"
-                          startIcon={<Timer />}
-                          onClick={() => onLogTime(task)}
-                          size="small"
-                          sx={{ borderRadius: 1.5 }}
-                        >
-                          Log Time
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          startIcon={<Upload />}
-                          onClick={() => {
-                            onClose();
-                            setTimeout(() => {
-                              window.dispatchEvent(new CustomEvent('openUploadProofModal', { detail: task }));
-                            }, 100);
-                          }}
-                          size="small"
-                          sx={{ borderRadius: 1.5 }}
-                        >
-                          Upload Proof
-                        </Button>
-                      </>
-                    )}
-                    
-                    {(userRole?.role === 'teacher' || userRole?.role === 'admin') && (
-                      <>
-                        <Button
-                          variant="outlined"
-                          color="warning"
-                          startIcon={<Flag />}
-                          onClick={handleEditFlags}
-                          size="small"
-                          sx={{ borderRadius: 1.5 }}
-                        >
-                          Edit Flags
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          color="primary"
-                          startIcon={<Grade />}
-                          onClick={handleGradeOverride}
-                          size="small"
-                          sx={{ borderRadius: 1.5 }}
-                        >
-                          Override Grade
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          color="secondary"
-                          startIcon={<Person />}
-                          onClick={handleReassignTask}
-                          size="small"
-                          sx={{ borderRadius: 1.5 }}
-                        >
-                          Reassign
-                        </Button>
-                      </>
-                    )}
-                    
-                    <Button
-                      variant="outlined"
-                      color="info"
-                      startIcon={<Edit />}
-                      onClick={handleEditTask}
-                      size="small"
-                      sx={{ borderRadius: 1.5 }}
-                    >
-                      Edit Details
-                    </Button>
-                  </Box>
-                </Paper>
-              )}
-            </Box>
-          </Box>
-        )}
-
-        {/* Metrics Tab */}
-        {activeTab === 'metrics' && (
-          <Box sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', mb: 3 }}>
-              {/* Efficiency Card */}
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, flex: 1, minWidth: 280 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    EFFICIENCY
-                  </Typography>
-                  <Chip
-                    label={task.metrics?.efficiency > 120 ? 'Overworked' : 
-                           task.metrics?.efficiency < 50 ? 'Rushed' : 
-                           'Optimal'}
-                    color={getEfficiencyColor(task.metrics?.efficiency)}
-                    size="small"
-                  />
-                </Box>
-                <Typography 
-                  variant="h3" 
-                  fontWeight="600"
-                  color={getEfficiencyColor(task.taskMetrics?.efficiency?.percentage)}
-                  sx={{ mb: 1 }}
-                >
-                  {getLiveEfficiency(task).toFixed(1)}%
-                </Typography>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={Math.min(task.taskMetrics?.efficiency?.percentage || 0, 100)}
-                  color={getEfficiencyColor(task.taskMetrics?.efficiency?.percentage)}
-                  sx={{ height: 8, borderRadius: 4, mb: 1 }}
-                />
-                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography variant="caption" color="text.secondary">
-                    {formatTime(task.totalFocusTime)} spent
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {formatTime(task.estimatedTime)} estimated
-                  </Typography>
-                </Box>
-              </Paper>
-
-              {/* Risk Card */}
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, flex: 1, minWidth: 280 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    RISK SCORE
-                  </Typography>
-                  <Chip
-                    label={task.metrics?.riskScore >= 4 ? 'High Risk' : 
-                           task.metrics?.riskScore >= 2 ? 'Medium Risk' : 
-                           'Low Risk'}
-                    color={getRiskColor(task.metrics?.riskScore)}
-                    size="small"
-                  />
-                </Box>
-                <Typography 
-                  variant="h3" 
-                  fontWeight="600"
-                  color={getRiskColor(task.metrics?.riskScore)}
-                  sx={{ mb: 2 }}
-                >
-                  {task.metrics?.riskScore || 0}/8
-                </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {[
-                    { label: 'Padded Time', value: task.flags?.paddedTime, score: 2 },
-                    { label: 'Rushed Completion', value: task.flags?.rushedCompletion, score: 2 },
-                    { label: 'No Proof', value: task.flags?.noProof, score: 1 },
-                    { label: 'Manual Review', value: task.flags?.manualReviewRequired, score: 3 }
-                  ].map((item) => (
-                    <Box key={item.label} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography variant="body2">{item.label}</Typography>
                       <Chip
-                        label={item.value ? `+${item.score}` : 'No'}
+                        label={item.value ? 'Yes' : 'No'}
                         color={item.value ? 'error' : 'success'}
                         size="small"
+                        variant="outlined"
+                        sx={{ fontWeight: 500 }}
                       />
                     </Box>
                   ))}
                 </Box>
-              </Paper>
-            </Box>
-          </Box>
-        )}
-
-        {/* Proof Tab */}
-        {activeTab === 'proof' && (
-          <Box sx={{ p: 3 }}>
-            <Box sx={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center', 
-              mb: 2 
-            }}>
-              <Typography variant="subtitle1" fontWeight="500">
-                Proof Uploads ({task.proofUploads?.length || 0})
-              </Typography>
-              {task.assignedTo?._id === userRole?.userId && (
-                <Button
-                  variant="outlined"
-                  startIcon={<Upload />}
-                  size="small"
-                  onClick={() => {
-                    // You'll need to implement this or use the UploadProofModal
-                    alert('Upload proof functionality');
-                  }}
-                >
-                  Add Proof
-                </Button>
-              )}
-            </Box>
-            
-            {task.proofUploads?.length > 0 ? (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {task.proofUploads.map((proof, index) => (
-                  <Paper key={index} variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Box>
-                        <Typography variant="body1" fontWeight="500">
-                          {proof.filename}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Uploaded {formatDate(proof.uploadedAt)}
-                        </Typography>
-                      </Box>
-                      <Button
-                        startIcon={<Visibility />}
-                        size="small"
-                        onClick={() => window.open(proof.fileUrl, '_blank')}
-                      >
-                        View
-                      </Button>
-                    </Box>
-                  </Paper>
-                ))}
               </Box>
-            ) : (
-              <Paper variant="outlined" sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-                <Upload sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
-                <Typography variant="body1" color="text.secondary" gutterBottom>
-                  No proof uploaded yet
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Upload proof of work to reduce risk score
-                </Typography>
-              </Paper>
-            )}
-          </Box>
-        )}
-        
+            </Paper>
 
-        {/* Activity Tab */}
-        {activeTab === 'activity' && (
-          <Box sx={{ p: 3 }}>
-            <Box sx={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center', 
-              mb: 3 
-            }}>
-              <Typography variant="subtitle1" fontWeight="600">
-                Activity Log
-              </Typography>
-              <Button
-                startIcon={<Refresh />}
-                size="small"
-                onClick={fetchActivityLogs}
-                disabled={loadingActivity}
-                variant="outlined"
-              >
-                Refresh
-              </Button>
-            </Box>
-            
-            {loadingActivity ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                <CircularProgress size={40} />
-              </Box>
-            ) : activityLogs.length === 0 ? (
-              <Paper 
-                variant="outlined" 
-                sx={{ 
-                  p: 4, 
-                  textAlign: 'center', 
-                  borderRadius: 2,
-                  backgroundColor: alpha(theme.palette.background.default, 0.5)
-                }}
-              >
-                <AccessTime sx={{ 
-                  fontSize: 48, 
-                  color: 'text.disabled', 
-                  mb: 2 
-                }} />
-                <Typography variant="body1" color="text.secondary" gutterBottom>
-                  No activity recorded yet
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Activities will appear when changes are made to this task
-                </Typography>
-              </Paper>
-            ) : (
+            {/* Efficiency Details Card */}
+            <Paper 
+              elevation={0}
+              sx={{ 
+                flex: 1,
+                p: 3.5,
+                borderRadius: 3,
+                backgroundColor: theme.palette.background.paper,
+                border: `1px solid ${alpha(getEfficiencyColor(task.taskMetrics?.efficiency) === 'success' 
+                  ? theme.palette.success.main 
+                  : getEfficiencyColor(task.taskMetrics?.efficiency) === 'warning'
+                    ? theme.palette.warning.main
+                    : theme.palette.error.main, 0.2)}`,
+                minWidth: 280,
+              }}
+            >
               <Box sx={{ 
                 display: 'flex', 
-                flexDirection: 'column',
-                gap: 2 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                mb: 3,
+                pb: 2,
+                borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
               }}>
-                {activityLogs.map((log, index) => (
-                  <Paper 
-                    key={log.id || index}
-                    variant="outlined"
-                    sx={{
-                      p: 2,
-                      borderRadius: 2,
-                      backgroundColor: index === 0 ? 
-                        alpha(theme.palette.primary.main, 0.03) : 
-                        'background.paper'
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                      <Avatar
-                        sx={{
-                          width: 40,
-                          height: 40,
-                          backgroundColor: log.isSystemEvent ? 
-                            'grey.500' : 
-                            theme.palette.primary.main
+                <Typography variant="body1" fontWeight="600" sx={{ 
+                  fontFamily: '"Adlam Display", serif',
+                  color: theme.palette.text.primary,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                }}>
+                  <TrendingUp sx={{ color: getEfficiencyColor(task.taskMetrics?.efficiency) }} />
+                  Efficiency Analysis
+                </Typography>
+              </Box>
+              
+              {/* Efficiency Score */}
+              <Box sx={{ textAlign: 'center', mb: 4 }}>
+                <Typography variant="h1" fontWeight="800" sx={{ 
+                  fontFamily: '"Alkatra", cursive',
+                  color: getEfficiencyColor(task.taskMetrics?.efficiency),
+                  lineHeight: 1,
+                  mb: 1,
+                }}>
+                  {task.taskMetrics?.efficiency?.toFixed(1) || '0.0'}%
+                </Typography>
+                <Typography variant="body2" sx={{ 
+                  color: theme.palette.text.secondary,
+                  fontFamily: '"Inter", sans-serif',
+                }}>
+                  {task.taskMetrics?.efficiency > 120 
+                    ? 'Above expected range' 
+                    : task.taskMetrics?.efficiency < 50 
+                      ? 'Below expected range'
+                      : 'Within optimal range'}
+                </Typography>
+              </Box>
+              
+              {/* Time Breakdown */}
+              <Box sx={{ 
+                p: 2.5,
+                borderRadius: 2,
+                backgroundColor: alpha(theme.palette.divider, 0.05),
+                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+              }}>
+                <Typography variant="body2" fontWeight="600" sx={{ 
+                  mb: 2.5,
+                  color: theme.palette.text.secondary,
+                  fontFamily: '"Inter", sans-serif',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                }}>
+                  <AccessTime fontSize="small" />
+                  Time Breakdown
+                </Typography>
+                
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                      <Typography variant="caption" sx={{ 
+                        color: theme.palette.text.secondary,
+                        fontFamily: '"Inter", sans-serif',
+                      }}>
+                        Time Spent
+                      </Typography>
+                      <Typography variant="caption" sx={{ 
+                        color: theme.palette.text.primary,
+                        fontFamily: '"Inter", sans-serif',
+                        fontWeight: 600,
+                      }}>
+                        {formatTime(task.totalFocusTime)}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ 
+                      height: 4, 
+                      borderRadius: 2, 
+                      backgroundColor: alpha(theme.palette.info.main, 0.1),
+                      overflow: 'hidden',
+                    }}>
+                      <Box sx={{ 
+                        height: '100%',
+                        borderRadius: 2,
+                        backgroundColor: theme.palette.info.main,
+                        width: `${Math.min((task.totalFocusTime / (task.estimatedTime || 1)) * 100, 100)}%`,
+                      }} />
+                    </Box>
+                  </Box>
+                  
+                  <Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                      <Typography variant="caption" sx={{ 
+                        color: theme.palette.text.secondary,
+                        fontFamily: '"Inter", sans-serif',
+                      }}>
+                        Estimated Time
+                      </Typography>
+                      <Typography variant="caption" sx={{ 
+                        color: theme.palette.text.primary,
+                        fontFamily: '"Inter", sans-serif',
+                        fontWeight: 600,
+                      }}>
+                        {formatTime(task.estimatedTime)}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ 
+                      height: 4, 
+                      borderRadius: 2, 
+                      backgroundColor: alpha(theme.palette.success.main, 0.1),
+                    }} />
+                  </Box>
+                </Box>
+                
+                <Box sx={{ 
+                  mt: 2.5,
+                  pt: 2,
+                  borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                }}>
+                  <Typography variant="caption" sx={{ 
+                    color: theme.palette.text.secondary,
+                    fontFamily: '"Inter", sans-serif',
+                  }}>
+                    Efficiency Ratio
+                  </Typography>
+                  <Typography variant="caption" sx={{ 
+                    color: getEfficiencyColor(task.taskMetrics?.efficiency),
+                    fontFamily: '"Inter", sans-serif',
+                    fontWeight: 600,
+                  }}>
+                    {((task.totalFocusTime / (task.estimatedTime || 1)) * 100).toFixed(1)}%
+                  </Typography>
+                </Box>
+              </Box>
+            </Paper>
+          </Box>
+        </Box>
+      )}
+
+      {/* Proof Tab - Minimalist */}
+      {activeTab === 'proof' && (
+        <Box sx={{ p: 4 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            mb: 4,
+            pb: 2,
+            borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+          }}>
+            <Box>
+              <Typography variant="h5" fontWeight="700" gutterBottom sx={{ 
+                fontFamily: '"Adlam Display", serif',
+              }}>
+                Proof of Work
+              </Typography>
+              <Typography variant="body2" sx={{ 
+                color: theme.palette.text.secondary,
+                fontFamily: '"Inter", sans-serif',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+              }}>
+                <Upload fontSize="small" />
+                {task.proofUploads?.length || 0} file(s) uploaded
+              </Typography>
+            </Box>
+            {task.assignedTo?._id === userRole?.userId && (
+              <Button
+                variant="contained"
+                startIcon={<Upload />}
+                size="medium"
+                onClick={() => onUploadProof(task)}
+                sx={{ 
+                  borderRadius: 2,
+                  px: 3,
+                  py: 1,
+                  fontWeight: 600,
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                  '&:hover': {
+                    boxShadow: `0 6px 20px ${alpha(theme.palette.primary.main, 0.4)}`,
+                  }
+                }}
+              >
+                Add Proof
+              </Button>
+
+            )}
+          </Box>
+          
+          {task.proofUploads?.length > 0 ? (
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: 2.5 
+            }}>
+              {task.proofUploads.map((proof, index) => (
+                <Paper 
+                  key={index}
+                  elevation={0}
+                  sx={{ 
+                    p: 3, 
+                    borderRadius: 3,
+                    backgroundColor: theme.palette.background.paper,
+                    border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      borderColor: alpha(theme.palette.primary.main, 0.3),
+                      backgroundColor: alpha(theme.palette.primary.main, 0.02),
+                      transform: 'translateX(4px)',
+                    }
+                  }}
+                >
+                  <Box sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'flex-start',
+                    gap: 2,
+                  }}>
+                    <Box sx={{ flex: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5 }}>
+                        <Box sx={{ 
+                          p: 1.5,
+                          borderRadius: 2,
+                          backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <Attachment sx={{ color: theme.palette.primary.main }} />
+                        </Box>
+                        <Box>
+                          <Typography variant="body1" fontWeight="600" sx={{ 
+                            fontFamily: '"Inter", sans-serif',
+                          }}>
+                            {proof.filename}
+                          </Typography>
+                          <Typography variant="caption" sx={{ 
+                            color: theme.palette.text.secondary,
+                            fontFamily: '"Inter", sans-serif',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                            mt: 0.5,
+                          }}>
+                            <CalendarToday fontSize="inherit" />
+                            Uploaded {formatDate(proof.uploadedAt)}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          const fullUrl = proof.fileUrl.startsWith('/') 
+                          ? `${axiosClient.defaults.baseURL}${proof.fileUrl}`
+                          : proof.fileUrl;
+                          window.open(fullUrl, '_blank')
+                        }}
+                        sx={{ 
+                          color: theme.palette.primary.main,
+                          backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                          '&:hover': {
+                            backgroundColor: alpha(theme.palette.primary.main, 0.2),
+                          }
                         }}
                       >
-                        {log.isSystemEvent ? (
-                          <Timer />
-                        ) : (
-                          log.user?.name?.charAt(0) || 'U'
-                        )}
-                      </Avatar>
+                        <Visibility />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          const token = getAuthToken();
+    window.open(`http://localhost:5000/api/user/task/${taskId}/proof/${proof.serverFilename}?token=${token}`, '_blank');
+                        }}
+                        sx={{ 
+                          color: theme.palette.info.main,
+                          backgroundColor: alpha(theme.palette.info.main, 0.1),
+                          '&:hover': {
+                            backgroundColor: alpha(theme.palette.info.main, 0.2),
+                          }
+                        }}
+                      >
+                        <Download />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                </Paper>
+              ))}
+            </Box>
+          ) : (
+            <Paper 
+              elevation={0}
+              sx={{ 
+                p: 6, 
+                textAlign: 'center', 
+                borderRadius: 3,
+                backgroundColor: alpha(theme.palette.background.default, 0.5),
+                border: `2px dashed ${alpha(theme.palette.divider, 0.3)}`,
+              }}
+            >
+              <Upload sx={{ 
+                fontSize: 56, 
+                color: alpha(theme.palette.text.secondary, 0.3),
+                mb: 3,
+              }} />
+              <Typography variant="h6" gutterBottom sx={{ 
+                color: theme.palette.text.secondary,
+                fontFamily: '"Adlam Display", serif',
+                mb: 1.5,
+              }}>
+                No Proof Uploaded
+              </Typography>
+              <Typography variant="body2" sx={{ 
+                color: theme.palette.text.secondary,
+                fontFamily: '"Inter", sans-serif',
+                maxWidth: 400,
+                mx: 'auto',
+                lineHeight: 1.6,
+              }}>
+                Upload proof of work to reduce risk score and provide verification for completed tasks.
+              </Typography>
+            </Paper>
+          )}
+        </Box>
+      )}
+      
+      {/* Activity Tab - Minimalist */}
+      {activeTab === 'activity' && (
+        <Box sx={{ p: 4 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            mb: 4,
+            pb: 2,
+            borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+          }}>
+            <Box>
+              <Typography variant="h5" fontWeight="700" gutterBottom sx={{ 
+                fontFamily: '"Adlam Display", serif',
+              }}>
+                Activity Log
+              </Typography>
+              <Typography variant="body2" sx={{ 
+                color: theme.palette.text.secondary,
+                fontFamily: '"Inter", sans-serif',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+              }}>
+                <HistoryIcon fontSize="small" />
+                {activityLogs.length} activities recorded
+              </Typography>
+            </Box>
+            <Button
+              startIcon={<Refresh />}
+              onClick={fetchActivityLogs}
+              disabled={loadingActivity}
+              variant="outlined"
+              size="medium"
+              sx={{ 
+                borderRadius: 2,
+                px: 3,
+                py: 1,
+                fontWeight: 600,
+              }}
+            >
+              Refresh
+            </Button>
+          </Box>
+          
+          {loadingActivity ? (
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              p: 6,
+            }}>
+              <CircularProgress size={48} sx={{ mb: 3, color: theme.palette.primary.main }} />
+              <Typography variant="body2" sx={{ 
+                color: theme.palette.text.secondary,
+                fontFamily: '"Inter", sans-serif',
+              }}>
+                Loading activities...
+              </Typography>
+            </Box>
+          ) : activityLogs.length === 0 ? (
+            <Paper 
+              elevation={0}
+              sx={{ 
+                p: 6, 
+                textAlign: 'center', 
+                borderRadius: 3,
+                backgroundColor: alpha(theme.palette.background.default, 0.5),
+                border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+              }}
+            >
+              <HistoryIcon sx={{ 
+                fontSize: 56, 
+                color: alpha(theme.palette.text.secondary, 0.3),
+                mb: 3,
+              }} />
+              <Typography variant="h6" gutterBottom sx={{ 
+                color: theme.palette.text.secondary,
+                fontFamily: '"Adlam Display", serif',
+                mb: 1.5,
+              }}>
+                No Activity Yet
+              </Typography>
+              <Typography variant="body2" sx={{ 
+                color: theme.palette.text.secondary,
+                fontFamily: '"Inter", sans-serif',
+                maxWidth: 400,
+                mx: 'auto',
+                lineHeight: 1.6,
+              }}>
+                Activities will appear here when changes are made to this task or when users interact with it.
+              </Typography>
+            </Paper>
+          ) : (
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: 'column',
+              gap: 2 
+            }}>
+              {activityLogs.map((log, index) => (
+                <Paper 
+                  key={log.id || index}
+                  elevation={0}
+                  sx={{
+                    p: 3,
+                    borderRadius: 3,
+                    backgroundColor: theme.palette.background.paper,
+                    border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+                    position: 'relative',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      backgroundColor: alpha(theme.palette.primary.main, 0.02),
+                      borderColor: alpha(theme.palette.primary.main, 0.2),
+                    }
+                  }}
+                >
+                  <Box sx={{ display: 'flex', gap: 2.5 }}>
+                    <Avatar
+                      sx={{
+                        width: 44,
+                        height: 44,
+                        backgroundColor: log.isSystemEvent 
+                          ? theme.palette.grey[500]
+                          : theme.palette.primary.main,
+                        boxShadow: `0 4px 12px ${alpha(log.isSystemEvent 
+                          ? theme.palette.grey[500]
+                          : theme.palette.primary.main, 0.2)}`,
+                      }}
+                    >
+                      {log.isSystemEvent ? (
+                        <Settings />
+                      ) : (
+                        log.user?.name?.charAt(0) || 'U'
+                      )}
+                    </Avatar>
+                    
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="body1" sx={{ 
+                        fontFamily: '"Inter", sans-serif',
+                        fontWeight: 600,
+                        mb: 1,
+                      }}>
+                        {log.action}
+                      </Typography>
                       
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="body1" sx={{ mb: 0.5 }}>
-                          {log.action}
+                      <Box sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 2,
+                        flexWrap: 'wrap',
+                        mb: 1.5,
+                      }}>
+                        <Typography 
+                          variant="caption" 
+                          sx={{ 
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                            color: theme.palette.text.secondary,
+                            fontFamily: '"Inter", sans-serif',
+                          }}
+                        >
+                          <Person fontSize="inherit" />
+                          {log.user?.name || 'System'}
                         </Typography>
                         
-                        <Box sx={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: 1,
-                          flexWrap: 'wrap'
-                        }}>
-                          <Typography 
-                            variant="caption" 
-                            sx={{ 
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 0.5,
-                              color: 'text.secondary'
-                            }}
-                          >
-                            <Person fontSize="inherit" />
-                            {log.user?.name || 'System'}
-                          </Typography>
-                          
-                          <Typography 
-                            variant="caption" 
-                            sx={{ 
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 0.5,
-                              color: 'text.secondary'
-                            }}
-                          >
-                            <AccessTime fontSize="inherit" />
-                            {log.time}
-                          </Typography>
-                          
-                          {log.metadata?.duration && (
-                            <Chip
-                              label={formatTime(log.metadata.duration)}
-                              size="small"
-                              icon={<Timer />}
-                              variant="outlined"
-                            />
-                          )}
-                          {log.metadata?.duration && (
+                        <Typography 
+                          variant="caption" 
+                          sx={{ 
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 0.5,
+                            color: theme.palette.text.secondary,
+                            fontFamily: '"Inter", sans-serif',
+                          }}
+                        >
+                          <AccessTime fontSize="inherit" />
+                          {log.time}
+                        </Typography>
+                        
+                        {log.metadata?.duration && (
                           <Chip
                             label={formatTime(log.metadata.duration)}
                             size="small"
                             icon={<Timer />}
                             variant="outlined"
+                            sx={{ fontWeight: 500 }}
                           />
                         )}
-
+                        
                         {log.eventType === 'efficiency_update' && (
                           <Chip
-                            label={`${log.metadata.efficiency}% (${log.metadata.label})`}
+                            label={`${log.metadata.efficiency}%`}
                             size="small"
                             color="info"
                             variant="outlined"
+                            sx={{ fontWeight: 500 }}
                           />
                         )}
-
-                          {log.eventType === 'proof_upload' && (
-                            <Chip
-                              label="Proof"
-                              size="small"
-                              icon={<Upload />}
-                              color="success"
-                              variant="outlined"
-                            />
-                          )}
-                        </Box>
                         
-                        {log.metadata?.comment && (
-                          <Paper
+                        {log.eventType === 'proof_upload' && (
+                          <Chip
+                            label="Proof"
+                            size="small"
+                            icon={<Upload />}
+                            color="success"
                             variant="outlined"
-                            sx={{
-                              mt: 1,
-                              p: 1.5,
-                              backgroundColor: alpha(theme.palette.info.main, 0.05),
-                              borderColor: alpha(theme.palette.info.main, 0.2)
-                            }}
-                          >
-                            <Typography variant="body2" color="text.secondary">
-                              {log.metadata.comment}
-                            </Typography>
-                          </Paper>
+                            sx={{ fontWeight: 500 }}
+                          />
                         )}
                       </Box>
+                      
+                      {log.metadata?.comment && (
+                        <Paper
+                          elevation={0}
+                          sx={{
+                            mt: 2,
+                            p: 2,
+                            borderRadius: 2,
+                            backgroundColor: alpha(theme.palette.info.main, 0.05),
+                            border: `1px solid ${alpha(theme.palette.info.main, 0.1)}`,
+                          }}
+                        >
+                          <Typography variant="body2" sx={{ 
+                            color: theme.palette.text.secondary,
+                            fontFamily: '"Inter", sans-serif',
+                            fontStyle: 'italic',
+                          }}>
+                            {log.metadata.comment}
+                          </Typography>
+                        </Paper>
+                      )}
                     </Box>
-                  </Paper>
-                ))}
-              </Box>
-            )}
-            
-            {activityLogs.length > 0 && (
-              <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'center', 
-                mt: 3,
-                pt: 2,
-                borderTop: 1,
-                borderColor: 'divider'
+                  </Box>
+                </Paper>
+              ))}
+            </Box>
+          )}
+          
+          {activityLogs.length > 0 && (
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              mt: 4,
+              pt: 3,
+              borderTop: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+            }}>
+              <Typography variant="caption" sx={{ 
+                color: theme.palette.text.secondary,
+                fontFamily: '"Inter", sans-serif',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
               }}>
-                <Typography variant="caption" color="text.secondary">
-                  Showing {activityLogs.length} most recent activities
-                </Typography>
-              </Box>
-            )}
-          </Box>
-        )}
-      </DialogContent>
-      
-      {/* Dialog Actions */}
-      <DialogActions sx={{ p: 2, justifyContent: 'space-between' }}>
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          {userRole?.role === 'teacher' || userRole?.role === 'admin' ? (
-            <>
-              <Button
-                startIcon={<Flag />}
-                color="warning"
-                disabled={loading}
-                onClick={handleEditFlags}
-                size="small"
-              >
-                Edit Flags
-              </Button>
-              <Button
-                startIcon={<Grade />}
-                color="primary"
-                disabled={loading}
-                onClick={handleGradeOverride}
-                size="small"
-              >
-                Override Grade
-              </Button>
-              <Button
-                startIcon={<Edit />}
-                color="info"
-                disabled={loading}
-                onClick={handleEditTask}
-                size="small"
-              >
-                Edit Task
-              </Button>
-              {task.assignedTo && (
-                <Button
-                  startIcon={<Person />}
-                  color="secondary"
-                  disabled={loading}
-                  onClick={handleReassignTask}
-                  size="small"
-                >
-                  Reassign
-                </Button>
-              )}
-            </>
-          ) : task.assignedTo?._id === userRole?.userId && (
-            <>
-              {task.status !== 'completed' && (
-                <Button
-                  variant="contained"
-                  startIcon={<CheckCircle />}
-                  onClick={() => handleStatusChange('completed')}
-                  disabled={loading}
-                  size="small"
-                >
-                  Mark Complete
-                </Button>
-              )}
-              {task.status === 'completed' && (
-                <Button
-                  variant="outlined"
-                  onClick={() => handleStatusChange('active')}
-                  disabled={loading}
-                  size="small"
-                >
-                  Reopen
-                </Button>
-              )}
-              <Button
-                startIcon={<Edit />}
-                onClick={handleEditTask}
-                disabled={loading}
-                size="small"
-              >
-                Edit
-              </Button>
-              <Button
-                startIcon={<AccessTime />}
-                onClick={handleAddComment}
-                disabled={loading}
-                size="small"
-              >
-                Add Comment
-              </Button>
-            </>
+                <Info fontSize="small" />
+                Showing {activityLogs.length} most recent activities
+              </Typography>
+            </Box>
           )}
         </Box>
-        <Button onClick={onClose} disabled={loading}>
-          Close
-        </Button>
-      </DialogActions>
+      )}
+    </DialogContent>
+    
+    {/* Dialog Actions - Minimalist Footer */}
+    <DialogActions sx={{ 
+      p: 2.5, 
+      justifyContent: 'space-between',
+      borderTop: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+      backgroundColor: alpha(theme.palette.background.default, 0.3),
+    }}>
+      <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+        {userRole?.role === 'teacher' || userRole?.role === 'admin' ? (
+          <>
+            <Button
+              startIcon={<Flag />}
+              color="warning"
+              disabled={loading}
+              onClick={handleEditFlags}
+              size="small"
+              sx={{ 
+                borderRadius: 2,
+                px: 2.5,
+                py: 1,
+                fontWeight: 600,
+                fontFamily: '"Inter", sans-serif',
+              }}
+            >
+              Edit Flags
+            </Button>
+            <Button
+              startIcon={<Grade />}
+              color="primary"
+              disabled={loading}
+              onClick={handleGradeOverride}
+              size="small"
+              sx={{ 
+                borderRadius: 2,
+                px: 2.5,
+                py: 1,
+                fontWeight: 600,
+                fontFamily: '"Inter", sans-serif',
+              }}
+            >
+              Override Grade
+            </Button>
+            <Button
+              startIcon={<Edit />}
+              color="info"
+              disabled={loading}
+              onClick={handleEditTask}
+              size="small"
+              sx={{ 
+                borderRadius: 2,
+                px: 2.5,
+                py: 1,
+                fontWeight: 600,
+                fontFamily: '"Inter", sans-serif',
+              }}
+            >
+              Edit Task
+            </Button>
+            {task.assignedTo && (
+              <Button
+                startIcon={<Person />}
+                color="secondary"
+                disabled={loading}
+                onClick={handleReassignTask}
+                size="small"
+                sx={{ 
+                  borderRadius: 2,
+                  px: 2.5,
+                  py: 1,
+                  fontWeight: 600,
+                  fontFamily: '"Inter", sans-serif',
+                }}
+              >
+                Reassign
+              </Button>
+            )}
+          </>
+        ) : task.assignedTo?._id === userRole?.userId && (
+          <>
+            {task.status !== 'completed' && (
+              <Button
+                variant="contained"
+                startIcon={<CheckCircle />}
+                onClick={() => handleStatusChange('completed')}
+                disabled={loading}
+                size="small"
+                sx={{ 
+                  borderRadius: 2,
+                  px: 2.5,
+                  py: 1,
+                  fontWeight: 600,
+                  background: `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.success.dark})`,
+                  fontFamily: '"Inter", sans-serif',
+                }}
+              >
+                Mark Complete
+              </Button>
+            )}
+            {task.status === 'completed' && (
+              <Button
+                variant="outlined"
+                onClick={() => handleStatusChange('active')}
+                disabled={loading}
+                size="small"
+                sx={{ 
+                  borderRadius: 2,
+                  px: 2.5,
+                  py: 1,
+                  fontWeight: 600,
+                  fontFamily: '"Inter", sans-serif',
+                }}
+              >
+                Reopen
+              </Button>
+            )}
+            <Button
+              startIcon={<Edit />}
+              onClick={() => {alert('Edit details functionality to be implemented');}}
+              disabled={loading}
+              size="small"
+              sx={{ 
+                borderRadius: 2,
+                px: 2.5,
+                py: 1,
+                fontWeight: 600,
+                fontFamily: '"Inter", sans-serif',
+              }}
+            >
+              Edit
+            </Button>
+            <Button
+              startIcon={<Comment />}
+              onClick={handleAddComment}
+              disabled={loading}
+              size="small"
+              sx={{ 
+                borderRadius: 2,
+                px: 2.5,
+                py: 1,
+                fontWeight: 600,
+                fontFamily: '"Inter", sans-serif',
+              }}
+            >
+              Add Comment
+            </Button>
+          </>
+        )}
+      </Box>
+      <Button 
+        onClick={onClose} 
+        disabled={loading}
+        size="medium"
+        sx={{ 
+          borderRadius: 2,
+          px: 3,
+          py: 1,
+          fontWeight: 600,
+          fontFamily: '"Adlam Display", serif',
+          color: theme.palette.text.secondary,
+          '&:hover': {
+            color: theme.palette.primary.main,
+            backgroundColor: alpha(theme.palette.primary.main, 0.05),
+          }
+        }}
+      >
+        Close
+      </Button>
+    </DialogActions>
 
-      {/* Assign Task Dialog */}
-      <AssignTaskDialog
-        open={assignDialogOpen}
-        onClose={() => setAssignDialogOpen(false)}
-        task={task}
-        projectTeam={projectTeam}
-        onAssign={handleAssignTask}
-        theme={theme}
-      />
+    {/* Assign Task Dialog */}
+    <AssignTaskDialog
+      open={assignDialogOpen}
+      onClose={() => setAssignDialogOpen(false)}
+      task={task}
+      projectTeam={projectTeam}
+      onAssign={handleAssignTask}
+      theme={theme}
+    />
 
-      {/* Add Comment Dialog (to be implemented) */}
-      <Dialog open={commentDialogOpen} onClose={() => setCommentDialogOpen(false)}>
-        <DialogTitle>Add Comment</DialogTitle>
-        <DialogContent>
-          <Typography>Comment dialog to be implemented</Typography>
-        </DialogContent>
-      </Dialog>
+    {/* Add Comment Dialog (to be implemented) */}
+    <Dialog open={commentDialogOpen} onClose={() => setCommentDialogOpen(false)}>
+      <DialogTitle>Add Comment</DialogTitle>
+      <DialogContent>
+        <Typography>Comment dialog to be implemented</Typography>
+      </DialogContent>
     </Dialog>
-  );
+  </Dialog>
+);
 };
 // Task Table Row Component
 const TaskTableRow = ({ 
@@ -1876,7 +2452,7 @@ const TaskTableRow = ({
   onViewDetails,
   onStatusChange,
   userTeacher,
-  getLiveEfficiency
+  
 }) => {
   const [actionsAnchorEl, setActionsAnchorEl] = useState(null);
 
@@ -2026,7 +2602,11 @@ const TaskTableRow = ({
             fontWeight="medium"
             color={getEfficiencyColor(task.taskMetrics?.efficiency?.percentage)}
           >
-            {getLiveEfficiency(task).toFixed(1)}%
+            {task.status === "active" ? (
+                <CircularProgress size={18} />
+              ) : (
+                `${task.taskMetrics?.efficiency.toFixed(1) || 0}%`
+              )} 
           </Typography>
         </Box>
       </TableCell>
@@ -2185,8 +2765,9 @@ const Tasks = () => {
   const [userRole, setUserRole] = useState(null);
   const [userId, setUserId] = useState(null);
   const [userTeacher, setUserTeacher] = useState(false);
-  const [liveTimers, setLiveTimers] = useState({});
-
+  const [uploadProofModalOpen, setUploadProofModalOpen] = useState(false);
+  const [selectedTaskForProof, setSelectedTaskForProof] = useState(null);
+  const [liveTimers, setLiveTimers] = useState({}); 
   
 
   if (isTeacher(userRole)) {
@@ -2194,6 +2775,7 @@ const Tasks = () => {
     setUserTeacher(true);
   }
   console.log("projectId: ",projectId);
+  
   
   // Check authentication and get user role
   const checkAuth = useCallback(() => {
@@ -2214,15 +2796,7 @@ const Tasks = () => {
     });
     return true;
   }, []);
-  const getLiveEfficiency = (task) => {
-    const baseFocus = task.totalFocusTime || 0;
-    const liveAdd = liveTimers[task._id] || 0;
-    const est = task.estimatedTime || 0;
-
-    if (!est) return 0;
-    return ((baseFocus + liveAdd) / est) * 100;
-  };
-
+  
 
   // Fetch tasks
   const fetchTasks = useCallback(async () => {
@@ -2365,7 +2939,16 @@ const calculateDaysUntilDeadline = (deadline) => {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 };
 
+const handleOpenUploadProof = (task) => {
+  setSelectedTaskForProof(task);
+  setUploadProofModalOpen(true);
+};
 
+const handleProofUploadSuccess = () => {
+  // Refresh tasks or show success message
+  console.log('Proof uploaded successfully');
+
+};
 
 const handleFetchError = (err) => {
   if (err.response?.status === 401) {
@@ -2496,16 +3079,11 @@ const handleFetchError = (err) => {
       if (!task) return;
 
       const now = new Date();
-      let additionalTime = 0;
 
-      // Only log time if task was active before
-      if (task.status === 'active' && task.lastEventTime) {
-        additionalTime = Math.floor((now - new Date(task.lastEventTime)) / 1000); // seconds
-      }
 
 
       const response = await axiosClient.put(`/user/task/${taskId}/status`,
-        { status: newStatus, additionalTime },
+        { status: newStatus, timestamp: now.toISOString() },
         {
           headers: { 
             Authorization: `Bearer ${token}`,
@@ -2520,27 +3098,8 @@ const handleFetchError = (err) => {
         // Update local state with the returned task data
         const updatedTask = response.data?.task;
         
-        setTasks(prev => prev.map(task =>
-          task._id === taskId
-            ? { 
-                ...task, 
-                status: newStatus,
-                lastEventTime: task.lastEventTime,
-                totalFocusTime: (task.totalFocusTime || 0) + additionalTime,
-                // Updating metrics based on new status
-                metrics: {
-                  ...task.metrics,
-                  efficiency: {
-                    ...task.metrics.efficiency,
-                    percentage: task.estimatedTime
-                      ? Math.round((((task.totalFocusTime || 0) + additionalTime) / task.estimatedTime) * 100 * 100) / 100
-                      : 0
-                  },
-                  statusWeightPercentage: calculateStatusWeight(newStatus),
-                  isOverdue: calculateIsOverdue({ ...task, status: newStatus })
-                }
-              }
-            : task
+        setTasks(prevTasks => prevTasks.map(t =>
+          t._id === taskId ? updatedTask  : t
         ));
         
         // Show success message
@@ -2646,9 +3205,9 @@ const handleDeleteSelected = async () => {
             </Typography>
           </Box>
           
-          <Button
+          <Button 
             variant="outlined"
-            onClick={() => navigate('/projects')}
+            onClick={() => navigate('/user-app/projects')}
             startIcon={<ArrowBack />}
             size="small"
             sx={{ borderRadius: 1 }}
@@ -2750,68 +3309,234 @@ const handleDeleteSelected = async () => {
 
       {/* Stats Cards */}
       {!authError && tasks.length > 0 && (
-        <Grid container spacing={2} sx={{ mb: 4 }}>
+        <Box sx={{ 
+          mb: 4,
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
+          gap: 2.5,
+          position: 'relative',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: -10,
+            left: -10,
+            right: -10,
+            bottom: -10,
+            background: `linear-gradient(135deg, 
+              ${alpha(theme.palette.primary.main, 0.03)} 0%, 
+              ${alpha(theme.palette.secondary.main, 0.02)} 50%, 
+              ${alpha(theme.palette.background.paper, 0.01)} 100%)`,
+            borderRadius: 3,
+            zIndex: 0,
+          }
+        }}>
           {[
             { 
               label: 'Total Tasks', 
               value: filteredTasks.length, 
               icon: <Assessment fontSize="small" />,
-              color: theme.palette.primary.main 
+              color: theme.palette.primary.main,
+              gradient: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.15)}, ${alpha(theme.palette.primary.main, 0.05)})`,
+              hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.2)}, ${alpha(theme.palette.primary.main, 0.1)})`
             },
             { 
               label: 'High Risk', 
               value: filteredTasks.filter(t => t.metrics?.riskScore >= 4).length, 
               icon: <Security fontSize="small" />,
-              color: theme.palette.error.main 
+              color: theme.palette.error.main,
+              gradient: `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.12)}, ${alpha(theme.palette.error.main, 0.04)})`,
+              hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.18)}, ${alpha(theme.palette.error.main, 0.08)})`
             },
             { 
               label: 'Completed', 
               value: filteredTasks.filter(t => t.status === 'completed').length, 
               icon: <CheckCircle fontSize="small" />,
-              color: theme.palette.success.main 
+              color: theme.palette.success.main,
+              gradient: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.12)}, ${alpha(theme.palette.success.main, 0.04)})`,
+              hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.18)}, ${alpha(theme.palette.success.main, 0.08)})`
             },
             { 
               label: 'Need Proof', 
               value: filteredTasks.filter(t => !t.metrics?.hasProof).length, 
               icon: <Warning fontSize="small" />,
-              color: theme.palette.warning.main 
+              color: theme.palette.warning.main,
+              gradient: `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.12)}, ${alpha(theme.palette.warning.main, 0.04)})`,
+              hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.18)}, ${alpha(theme.palette.warning.main, 0.08)})`
             }
           ].map((stat, index) => (
-            <Grid item xs={6} sm={3} key={stat.label}>
-              <Paper
-                sx={{
-                  p: 2,
-                  borderRadius: 1,
-                  backgroundColor: theme.palette.background.paper,
-                  border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                  position: 'relative',
-                  overflow: 'hidden',
-                  '&::before': {
-                    content: '""',
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: 3,
-                    backgroundColor: stat.color,
+            <Paper
+              key={stat.label}
+              elevation={0}
+              sx={{
+                p: 2.5,
+                borderRadius: 3,
+                background: stat.gradient,
+                border: `1.5px solid ${alpha(stat.color, 0.15)}`,
+                position: 'relative',
+                overflow: 'hidden',
+                cursor: 'default',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  background: stat.hoverGradient,
+                  border: `1.5px solid ${alpha(stat.color, 0.25)}`,
+                  boxShadow: `0 8px 24px ${alpha(stat.color, 0.15)}`,
+                  '& .stat-icon-wrapper': {
+                    transform: 'scale(1.1) rotate(5deg)',
+                  },
+                  '& .stat-value': {
+                    textShadow: `0 0 20px ${alpha(stat.color, 0.3)}`,
                   }
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <Box sx={{ color: stat.color }}>
+                },
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 4,
+                  background: `linear-gradient(90deg, ${stat.color}, ${alpha(stat.color, 0.7)})`,
+                  borderRadius: '3px 3px 0 0',
+                },
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  bottom: -20,
+                  right: -20,
+                  width: 60,
+                  height: 60,
+                  background: `radial-gradient(circle, ${alpha(stat.color, 0.08)} 0%, transparent 70%)`,
+                  borderRadius: '50%',
+                }
+              }}
+            >
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                mb: 1.5,
+                position: 'relative',
+                zIndex: 1
+              }}>
+                <Box 
+                  className="stat-icon-wrapper"
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: alpha(stat.color, 0.1),
+                    border: `1px solid ${alpha(stat.color, 0.2)}`,
+                    transition: 'all 0.3s ease',
+                    boxShadow: `0 4px 12px ${alpha(stat.color, 0.1)}`,
+                  }}
+                >
+                  <Box sx={{ 
+                    color: stat.color,
+                    fontSize: 22,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
                     {stat.icon}
                   </Box>
-                  <Typography variant="h6" fontWeight="600">
-                    {stat.value}
-                  </Typography>
                 </Box>
-                <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                
+                <Typography 
+                  className="stat-value"
+                  variant="h3"
+                  sx={{
+                    fontFamily: '"Alkatra", cursive',
+                    fontWeight: 700,
+                    fontSize: { xs: '2rem', sm: '2.5rem' },
+                    color: stat.color,
+                    lineHeight: 1,
+                    transition: 'all 0.3s ease',
+                    background: `linear-gradient(45deg, ${stat.color}, ${alpha(stat.color, 0.8)})`,
+                    backgroundClip: 'text',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    textShadow: `0 0 10px ${alpha(stat.color, 0.2)}`,
+                  }}
+                >
+                  {stat.value}
+                </Typography>
+              </Box>
+              
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 1,
+                position: 'relative',
+                zIndex: 1
+              }}>
+                <Box sx={{
+                  flexShrink: 0,
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  backgroundColor: stat.color,
+                  boxShadow: `0 0 8px ${alpha(stat.color, 0.5)}`,
+                }} />
+                
+                <Typography 
+                  variant="h6"
+                  sx={{
+                    fontFamily: '"Adlam Display", serif',
+                    fontWeight: 500,
+                    color: theme.palette.mode === 'dark' ? alpha('#fff', 0.9) : alpha('#000', 0.8),
+                    letterSpacing: '0.5px',
+                    fontSize: { xs: '0.9rem', sm: '1rem' },
+                  }}
+                >
                   {stat.label}
                 </Typography>
-              </Paper>
-            </Grid>
+              </Box>
+              
+              <Typography 
+                variant="caption"
+                sx={{
+                  display: 'block',
+                  mt: 0.5,
+                  ml: 2,
+                  color: theme.palette.mode === 'dark' ? alpha('#fff', 0.6) : alpha('#000', 0.6),
+                  fontFamily: '"Inter", sans-serif',
+                  fontWeight: 300,
+                  fontSize: '0.75rem',
+                  letterSpacing: '0.3px',
+                }}
+              >
+                {index === 0 && 'All active tasks in queue'}
+                {index === 1 && 'Tasks requiring attention'}
+                {index === 2 && 'Successfully finished tasks'}
+                {index === 3 && 'Awaiting verification'}
+              </Typography>
+              
+              {/* Progress indicator */}
+              <Box sx={{
+                mt: 2,
+                height: 2,
+                background: alpha(theme.palette.mode === 'dark' ? '#fff' : '#000', 0.1),
+                borderRadius: 1,
+                overflow: 'hidden',
+                position: 'relative',
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  height: '100%',
+                  width: `${Math.min(100, (stat.value / Math.max(1, filteredTasks.length)) * 100)}%`,
+                  background: `linear-gradient(90deg, ${alpha(stat.color, 0.6)}, ${stat.color})`,
+                  borderRadius: 1,
+                  transition: 'width 0.8s ease',
+                }
+              }} />
+            </Paper>
           ))}
-        </Grid>
+        </Box>
       )}
 
       <TaskTabs 
@@ -3014,7 +3739,6 @@ const handleDeleteSelected = async () => {
                     onViewDetails={handleViewDetails}
                     onStatusChange={handleStatusChange}
                     userTeacher={userTeacher}
-                    getLiveEfficiency={getLiveEfficiency}
 
                   />
                 ))}
@@ -3062,7 +3786,7 @@ const handleDeleteSelected = async () => {
         onTaskUpdate={handleTaskUpdate}
         onLogTime={handleLogTime}
         userTeacher={userTeacher}
-        getLiveEfficiency={getLiveEfficiency}
+        onUploadProof={handleOpenUploadProof}
 
       />
 
@@ -3075,11 +3799,14 @@ const handleDeleteSelected = async () => {
       />
 
       <UploadProofModal
-        open={uploadProofOpen}
-        onClose={() => setUploadProofOpen(false)}
-        task={selectedTask}
+        open={uploadProofModalOpen}
+        onClose={() => {
+          setUploadProofModalOpen(false);
+          setSelectedTaskForProof(null);
+        }}
+        task={selectedTaskForProof}
         theme={theme}
-        onSuccess={handleTaskUpdate}
+        onSuccess={handleProofUploadSuccess}
       />
     </Box>
   );

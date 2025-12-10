@@ -1,4 +1,4 @@
-// TeamDetails.jsx - UPDATED WITH ENHANCED USER SEARCH SUGGESTIONS
+// TeamDetails.jsx 
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -1094,7 +1094,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
               }
             }}
           >
-            Schedule invites for later ⏰
+            Schedule invites for later
           </Button>
         </Box>
       </Dialog>

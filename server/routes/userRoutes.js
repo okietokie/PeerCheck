@@ -74,6 +74,7 @@ const router = express.Router();
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { getMentors } from '../controllers/mentorController.js';
 
 // Create avatar upload directory
 //code working explanation: checks if the directory for storing uploaded avatars exists. If it doesn't, the code creates the directory using fs.mkdirSync with the recursive option set to true, ensuring that any necessary parent directories are also created.
@@ -122,13 +123,26 @@ router.put("/update-profile", authMiddleware, updateProfile);
 router.post("/upload-avatar", authMiddleware, avatarUpload.single('avatar'), uploadAvatar);
 router.put("/update-profile", authMiddleware, updateProfile);
 
+router.get("/get-mentors", authMiddleware, getMentors);
+
+
 // Existing routes
 router.get("/me", authMiddleware, fetchUserDetails);
 router.post("/create-project", authMiddleware, createProject);
 router.delete("/del-project/:id", authMiddleware, deleteProject);
 router.put("/update-project/:id", authMiddleware, updateProject);
 
-// TASK ROUTES - FIXED organization
+// In your routes file (taskRoutes.js)
+import { getProofFile, getProofFileDirect } from '../controllers/taskController.js';
+
+// Get specific proof file with authentication and authorization
+router.get("/task/:taskId/proof/:proofId", authMiddleware, getProofFile);
+
+// Direct file access (optional - less secure but simpler for frontend)
+router.get("/uploads/proofs/:filename", getProofFileDirect); // Can be public or with minimal auth
+
+// OR with auth for direct access:
+router.get("/uploads/proofs/:filename", authMiddleware, getProofFileDirect);
 // Get project tasks
 router.get("/tasks/project/:projectId", authMiddleware, getTasks);
 router.get("/tasks/project/:projectId/filtered", authMiddleware, getTasksWithFilter);

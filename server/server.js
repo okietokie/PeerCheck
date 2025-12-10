@@ -8,7 +8,8 @@ import path from "path";
 //dotenv.config() loads .env file
 //path.resolve() provides exact file location to load it 
 dotenv.config({ path: path.resolve('./server/.env') });  
-
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const app = express();
 
 // Middleware
@@ -16,7 +17,7 @@ app.use(cors());  //allows your frontend (React) to access your backend. Without
 app.use(express.json()); //allows Express to understand JSON data sent from the frontend (like { email: "...", password: "..." }).
 
 // Server uploaded files
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads/proofs')));
+app.use('/uploads', express.static(path.join(process.cwd(), '/uploads/proofs')));
 
 // Connect MongoDB
 mongoose
@@ -31,6 +32,7 @@ import adminRoutes from "./routes/adminRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import projectRoutes from "./routes/projectRoutes.js"; 
 import reviewRoutes from "./routes/reviewRoutes.js";
+import { fileURLToPath } from "url";
 
 
 

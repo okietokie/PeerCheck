@@ -120,40 +120,13 @@ export default function App() {
                   <UserApp />
                 </ProtectedRoute>
               }
-            />
-            <Route
-              path="/tasks"
-              element={
-                <ProtectedRoute>
-                  <Tasks />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/projects/:projectId/tasks"
-              element={
-                <ProtectedRoute>
-                  <Tasks />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/projects"
-              element={
-                <ProtectedRoute>
-                  <Projects />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/my-project"
-              element={
-                <ProtectedRoute>
-                  <MyProject />
-                </ProtectedRoute>
-              }
-            />
+            >
+                <Route path="tasks" element={<Tasks />} />
+                <Route path="projects" element={<Projects />} />
+                <Route path="my-project" element={<MyProject />} />
+                <Route path="my-project/:projectId" element={<MyProject />} />
+            </Route>
+            
             
           </Routes>
         </Router>

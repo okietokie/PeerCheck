@@ -6,14 +6,37 @@ import TaskActivityEvent from '../models/taskActivityEvent.js';
 import { formatTimeAgo, getActionMessage, logActivity } from "./activityLogger.js";
 import DeletedProjects from '../models/deletedProjectInfo.js';
 import DeletedTaskInfo from '../models/deletedTaskInfo.js';
+import fs from 'fs';
+import path from 'path';
 
+//individual task risk score
+/**
+ * system flags paddedTiem, rushedCompletion, noProof, manualReviewRequired
+ * task risk weighing logic:
+    riskScore =
+    (paddedTime ? 2 : 0) +
+    (rushedCompletion ? 2 : 0) +
+    (noProof ? 1 : 0) +
+    (manualReviewRequired ? 3 : 0)
+
+//Combines multiple suspicious behaviors into a single risk number.
+// Computes task and project risk scores to flag potential integrity issues
+
+ */
 
 export const calculateTaskMetrics = (task) => { 
   // Calculate efficiency 
   const estimatedTime = task.estimatedTime || 1; 
   const focusTime = task.totalFocusTime || 0; 
-  const efficiency = (focusTime / estimatedTime) * 100; 
+
+
+  const efficiency = estimatedTime > 0 ? (focusTime / estimatedTime) * 100 : 0;
   
+  const paddedTime = efficiency > 200;           // Worked >2x estimated
+  const rushedCompletion = task.status === 'completed' && efficiency < 50;
+  const noProof = !task.proofUploads || task.proofUploads.length === 0;
+  const manualReviewRequired = paddedTime || rushedCompletion || noProof;
+
   let efficiencyStatus = 'normal'; 
   let efficiencyLabel = 'Ideal'; 
   
@@ -33,6 +56,45 @@ export const calculateTaskMetrics = (task) => {
     efficiencyStatus = 'high'; 
     efficiencyLabel = 'Padded Time'; 
   }
+
+  
+  // Calculate risk score based on flag severity
+  const riskScore =    //total score point = 8  (2+2+1+3)
+    (paddedTime ? 2 : 0) +
+    (rushedCompletion ? 2 : 0) +
+    (noProof ? 1 : 0) +
+    (manualReviewRequired ? 3 : 0);  
+
+
+  // Determine risk level based on score
+  let riskLevel, riskLabel;
+  
+  if (riskScore >= 4) {
+    riskLevel = 'high';
+    riskLabel = 'High Risk';
+  } else if (riskScore >= 2) {
+    riskLevel = 'medium';
+    riskLabel = 'Medium Risk';
+  } else {
+    riskLevel = 'low';
+    riskLabel = 'Low Risk';
+  }
+
+
+    return {
+    efficiency,
+    flags: {
+      paddedTime,
+      rushedCompletion,
+      noProof,
+      manualReviewRequired
+    },
+    risk: {
+      riskScore,
+      riskLevel,
+      riskLabel
+    },
+    }
 };
 // Helper functions for derived metrics
 const getStatusWeight = (status) => {
@@ -54,63 +116,8 @@ const calculateStatusWeight = (status) => {
   return weights[status] || 0;
 };
 
-//individual task risk score
-/**
- * system flags paddedTiem, rushedCompletion, noProof, manualReviewRequired
- * task risk weighing logic:
-    riskScore =
-    (paddedTime ? 2 : 0) +
-    (rushedCompletion ? 2 : 0) +
-    (noProof ? 1 : 0) +
-    (manualReviewRequired ? 3 : 0)
-
-//Combines multiple suspicious behaviors into a single risk number.
-// Computes task and project risk scores to flag potential integrity issues
-
- */
-
-const calculateTaskRisk = (task) => {
-  // Ensure flags exist with defaults
-  const flags = {
-    paddedTime: false,
-    rushedCompletion: false,
-    noProof: false,
-    manualReviewRequired: false,
-    ...(task.flags || {})
-  };
-  
-  // Calculate risk score based on flag severity
-  const riskScore = 
-    (flags.paddedTime ? 2 : 0) +
-    (flags.rushedCompletion ? 2 : 0) +
-    (flags.noProof ? 1 : 0) +
-    (flags.manualReviewRequired ? 3 : 0);
 
 
-  // Determine risk level based on score
-  let riskLevel, riskLabel;
-  
-  if (riskScore >= 4) {
-    riskLevel = 'high';
-    riskLabel = 'High Risk';
-  } else if (riskScore >= 2) {
-    riskLevel = 'medium';
-    riskLabel = 'Medium Risk';
-  } else {
-    riskLevel = 'low';
-    riskLabel = 'Low Risk';
-  }
-
-  // Return comprehensive risk analysis
-  return {
-    riskScore,      // Numerical score (0-8)
-    riskLevel,      // 'low' | 'medium' | 'high'
-    riskLabel,      // Descriptive label
-    flags,          // Original flags object
-    hasRisk: riskScore > 0, // Boolean for quick checks
-    flagCount: Object.values(flags).filter(Boolean).length // Number of active flags
-  };
-};
 
 // Helper to calculate task efficiency
 // Returns 0 if estimatedTime is 0 or less
@@ -144,7 +151,7 @@ const enrichTaskWithMetrics = (task) => {
   if (!task) return null;
   
   const efficiency = calculateTaskEfficiency(task);
-  const riskScore = calculateTaskRisk(task);
+  const riskScore = calculateTaskMetrics(task);
   const statusWeight = getStatusWeight(task.status);
   const isOverdue = calculateIsOverdue(task);
   const daysUntilDeadline = calculateDaysUntilDeadline(task);
@@ -154,7 +161,7 @@ const enrichTaskWithMetrics = (task) => {
     _id: task._id,
     metrics: {
       efficiency: Number(efficiency.toFixed(2)),
-      riskScore,
+      riskScore: riskScore.risk.riskScore,
       statusWeight,
       statusWeightPercentage: statusWeight * 100,
       hasProof: task.proofUploads && task.proofUploads.length > 0,
@@ -247,7 +254,8 @@ export const getTasks = async (req, res) => {
     handleError(res, err, 'fetching tasks');
   }
 };
-// Get task details with activities AND METRICS (FIXED: Use helper functions)
+// Get task details with activities AND METRICS 
+
 export const getTaskDetails = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -286,7 +294,7 @@ export const getTaskDetails = async (req, res) => {
 
     // Calculate metrics using helper functions
     const efficiency = calculateTaskEfficiency(task);
-    const riskScore = calculateTaskRisk(task);
+    const riskScore = calculateTaskMetrics(task);
     const statusWeight = getStatusWeight(task.status);
     const isOverdue = calculateIsOverdue(task);
     const daysUntilDeadline = calculateDaysUntilDeadline(task);
@@ -297,7 +305,7 @@ export const getTaskDetails = async (req, res) => {
       activities,
       statistics: {
         efficiency: Number(efficiency.toFixed(2)),
-        riskScore,
+        riskScore: riskScore.risk.riskScore,
         statusWeight,
         statusWeightPercentage: statusWeight * 100,
         totalFocusTime: task.totalFocusTime,
@@ -491,10 +499,11 @@ export const getAllTasks = async (req, res) => {
     .lean();
 
     const user = await User.findById(userId).select('name email avatar');
-    
+
     // Add metrics to each task
     const tasksWithMetrics = tasks.map(task => {
       const taskMetrics = calculateTaskMetrics(task);
+
       return {
         ...task,
         taskMetrics,
@@ -509,13 +518,14 @@ export const getAllTasks = async (req, res) => {
         }
       };
     });
+
     
     // Calculate summary metrics
     const totalTasks = tasks.length;
     const completedTasks = tasks.filter(t => t.status === 'completed').length;
     const highRiskTasks = tasksWithMetrics.filter(t => t.metrics.riskScore >= 4).length;
     const tasksWithoutProof = tasksWithMetrics.filter(t => !t.metrics.hasProof).length;
-    
+    console.log("tasks with metrics/tasks: ", tasksWithMetrics);
     res.json({
       success: true,
       user: user,
@@ -619,7 +629,7 @@ export const getAllTasksWithFilters = async (req, res) => {
     // 4. Apply computed filters
     if (riskLevel && riskLevel !== 'all') {
       tasks = tasks.filter(task => {
-        const riskScore = calculateTaskRisk(task);
+        const riskScore = calculateTaskMetrics(task).risk.riskScore;
         if (riskLevel === 'high') return riskScore >= 4;
         if (riskLevel === 'medium') return riskScore >= 2 && riskScore < 4;
         if (riskLevel === 'low') return riskScore < 2;
@@ -641,8 +651,8 @@ export const getAllTasksWithFilters = async (req, res) => {
     const sortOptions = {
       deadline: (a, b) => new Date(a.deadline) - new Date(b.deadline),
       'deadline-desc': (a, b) => new Date(b.deadline) - new Date(a.deadline),
-      risk: (a, b) => calculateTaskRisk(b) - calculateTaskRisk(a),
-      'risk-desc': (a, b) => calculateTaskRisk(a) - calculateTaskRisk(b),
+      risk: (a, b) => calculateTaskMetrics(b).risk.riskScore - calculateTaskMetrics(a).risk.riskScore,
+      'risk-desc': (a, b) => calculateTaskMetrics(a).risk.riskScore - calculateTaskMetrics(b).risk.riskScore,
       efficiency: (a, b) => calculateTaskEfficiency(a) - calculateTaskEfficiency(b),
       'efficiency-desc': (a, b) => calculateTaskEfficiency(b) - calculateTaskEfficiency(a),
       updatedAt: (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt),
@@ -825,7 +835,7 @@ export const startTask = async (req, res) => {
   }
 };
 
-// Pause a task - FIXED
+// Pause a task 
 export const pauseTask = async (req, res) => {
   const { taskId } = req.params;
   const userId = req.user.id;
@@ -845,14 +855,19 @@ export const pauseTask = async (req, res) => {
     // Calculate elapsed time since last event
     const now = new Date();
 
-    const lastEvent = task.lastEventTime 
-      ? new Date(task.lastEventTime)
-      : new Date();  // treat missing timestamp as now to avoid big jumps
+    const lastEvent = task.lastEventTime ? new Date(task.lastEventTime) : new Date();  // treat missing timestamp as current time to avoid negative elapsed time
+    if (lastEvent > now) {
+      lastEvent = now;
+    }
 
-    const elapsedSeconds = Math.floor((now - new Date(lastEvent)) / 1000);
+
+    const elapsedSeconds = Math.floor((now - lastEvent) / 1000);  //1000 means convert milliseconds to seconds
     
     // Update focus time
-    task.totalFocusTime += Math.max(elapsedSeconds, 0);
+    if (task.lastEventTime) {
+      task.totalFocusTime += Math.max(elapsedSeconds, 0);  //.max to prevent negative elapsed time, 0 is the minimum value
+    }    
+
     task.status = "paused";
     task.lastEventTime = now;
     
@@ -881,7 +896,7 @@ export const pauseTask = async (req, res) => {
   }
 };
 
-// Resume task - FIXED
+// Resume task 
 export const resumeTask = async (req, res) => {
   const { taskId } = req.params;
   const userId = req.user.id;
@@ -920,7 +935,7 @@ export const resumeTask = async (req, res) => {
   }
 };
 
-// Complete task - FIXED
+// Complete task
 export const completeTask = async (req, res) => {
   const { taskId } = req.params;
   const userId = req.user.id;
@@ -1748,7 +1763,7 @@ const calculateRiskScore = (task) => {
 export const updateTaskStatus = async (req, res) => {
   try {
     const { taskId } = req.params;
-    const { status, additionalTime } = req.body;
+    const { status, timestamp } = req.body;
     const userId = req.user.id;
 
     const task = await Task.findById(taskId);
@@ -1760,20 +1775,26 @@ export const updateTaskStatus = async (req, res) => {
     }
     console.log("task", task);
 
+    let additionalTime = 0;
 
-    if (additionalTime) {
-      task.totalFocusTime = (task.totalFocusTime || 0) + additionalTime;
+    if (task.status === "active" && task.lastEventTime) {
+      additionalTime = Math.floor(
+        (new Date(timestamp) - new Date(task.lastEventTime)) / 1000   //new Date() creates a real JS data object, converts to milliseconds, divide by 1000 to get seconds
+      );
     }
+    task.totalFocusTime += Math.max(additionalTime, 0);
+    task.lastEventTime = new Date(timestamp);
+
     console.log("totalFocusTime", task.totalFocusTime);
+    
     const oldStatus = task.status;
     task.status = status;
 
 
 
     const metrics = calculateTaskMetrics(task);
-    const riskScore = calculateRiskScore(task);
-    console.log("riskScore", riskScore);
-    task.risk.riskScore = riskScore;
+    console.log("riskScore", metrics.riskScore);
+    task.risk.riskScore = metrics.riskScore;
     task.taskMetrics.efficiency = Math.round(metrics.efficiency * 100) / 100;
     task.taskMetrics.label = metrics.efficiency.label;
     task.taskMetrics.status = metrics.efficiency.status;
@@ -1893,7 +1914,7 @@ export const updateTaskTime = async (req, res) => {
   }
 };
 
-// Update the existing uploadProof function
+
 export const uploadProof = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -1909,13 +1930,22 @@ export const uploadProof = async (req, res) => {
       });
     }
 
-    // Create proof object
+    // Create proof object with multiple URL options
     const proof = {
       filename: file.originalname,
-      fileUrl: `/uploads/${file.filename}`,
+      // Direct static URL (if using express.static)
+      fileUrl: `/uploads/proofs/${file.filename}`,
+      // API endpoint URL (with auth)
+      apiUrl: `/api/user/task/${taskId}/proof/${file.filename}`,
+      // Direct download URL
+      downloadUrl: `/api/user/download/proof/${file.filename}`,
+      filePath: file.path,
       uploadedAt: new Date(),
       description: description || '',
-      uploadedBy: userId
+      uploadedBy: userId,
+      fileSize: file.size,
+      fileType: file.mimetype,
+      serverFilename: file.filename // Store the server-generated filename
     };
 
     if (!task.proofUploads) task.proofUploads = [];
@@ -1924,7 +1954,7 @@ export const uploadProof = async (req, res) => {
     
     await task.save();
 
-    // Log activity with proof_uploaded event type
+    // Log activity
     await logActivity({
       taskId,
       userId,
@@ -1933,14 +1963,20 @@ export const uploadProof = async (req, res) => {
       metadata: {
         filename: file.originalname,
         description: description,
-        proofId: proof._id
+        fileSize: file.size
       }
     });
 
     res.json({
       success: true,
       message: "Proof uploaded successfully",
-      proof: proof
+      proof: proof,
+      // Return URLs for frontend to use
+      urls: {
+        view: `/api/user/task/${taskId}/proof/${file.filename}`,
+        download: `/api/user/download/proof/${file.filename}`,
+        direct: `/uploads/proofs/${file.filename}`
+      }
     });
   } catch (error) {
     console.error('Error uploading proof:', error);
@@ -1950,7 +1986,162 @@ export const uploadProof = async (req, res) => {
     });
   }
 };
-// Export all functions (FIXED: Add missing functions)
+
+
+// Get proof file (view/download)
+export const getProofFile = async (req, res) => {
+  try {
+    const { taskId, proofId } = req.params;
+    const userId = req.user.id;
+
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        error: "Task not found"
+      });
+    }
+
+    // Find the specific proof in the task
+    const proof = task.proofUploads.id(proofId);
+    if (!proof) {
+      return res.status(404).json({
+        success: false,
+        error: "Proof not found"
+      });
+    }
+
+    // Check if user has permission to view this proof
+    // Allow: task assignee, project members, teachers, admins
+    const isAssignee = task.assignedTo?.toString() === userId.toString();
+    const isTeacherOrAdmin = req.user.role === 'teacher' || req.user.role === 'admin';
+    
+    if (!isAssignee && !isTeacherOrAdmin) {
+      // Check if user is in the same project team
+      const project = await Project.findById(task.projectId);
+      if (!project || !project.teamId) {
+        return res.status(403).json({
+          success: false,
+          error: "Access denied"
+        });
+      }
+      
+      const team = await Team.findById(project.teamId);
+      if (!team || !team.members.some(m => m.user?.toString() === userId.toString())) {
+        return res.status(403).json({
+          success: false,
+          error: "Access denied"
+        });
+      }
+    }
+
+    // Construct file path
+    // Make sure this matches where you're saving files in uploadMiddleware
+    const filePath = proof.filePath || path.join(process.cwd(), 'uploads', 'proofs', path.basename(proof.fileUrl));
+
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      console.error('File not found at path:', filePath);
+      return res.status(404).json({
+        success: false,
+        error: "File not found on server"
+      });
+    }
+
+    // Determine content type
+    const contentType = getContentType(proof.filename);
+    
+    // Set appropriate headers
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(proof.filename)}"`);
+    
+    // Stream the file
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+
+    // Log the access
+    await logActivity({
+      taskId,
+      userId,
+      projectId: task.projectId,
+      eventType: 'proof_viewed',
+      metadata: {
+        filename: proof.filename,
+        proofId: proof._id
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting proof file:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
+    });
+  }
+};
+
+// Helper function to determine content type
+const getContentType = (filename) => {
+  const ext = path.extname(filename).toLowerCase();
+  const contentTypes = {
+    '.pdf': 'application/pdf',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.txt': 'text/plain',
+    '.zip': 'application/zip'
+  };
+  
+  return contentTypes[ext] || 'application/octet-stream';
+};
+// Direct file access endpoint (can be public or with minimal auth)
+export const getProofFileDirect = async (req, res) => {
+  try {
+    const { filename } = req.params;
+    
+    // Security: Validate filename to prevent directory traversal
+    if (filename.includes('..') || filename.includes('/')) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid filename"
+      });
+    }
+
+    const filePath = path.join(process.cwd(), 'uploads', 'proofs', filename);
+    
+    // Check if file exists
+    if (!fs.existsSync(filePath)) {
+      console.error('File not found:', filePath);
+      return res.status(404).json({
+        success: false,
+        error: "File not found"
+      });
+    }
+
+    // Determine content type
+    const contentType = getContentType(filename);
+    
+    // Set headers
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
+    
+    // Stream the file
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+
+  } catch (error) {
+    console.error('Error getting proof file:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
+    });
+  }
+};
+
+// Export all functions 
 export default {
   getTasks,
   getAllTasks,           // ADDED
