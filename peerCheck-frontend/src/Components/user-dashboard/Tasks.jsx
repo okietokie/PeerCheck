@@ -1798,7 +1798,7 @@ const [selectedTaskForProof, setSelectedTaskForProof] = useState(null);
         </Box>
       )}
 
-      {/* Proof Tab - Minimalist */}
+      {/* Proof Tab */}
       {activeTab === 'proof' && (
         <Box sx={{ p: 4 }}>
           <Box sx={{ 
@@ -1987,7 +1987,7 @@ const [selectedTaskForProof, setSelectedTaskForProof] = useState(null);
         </Box>
       )}
       
-      {/* Activity Tab - Minimalist */}
+      {/* Activity Tab  */}
       {activeTab === 'activity' && (
         <Box sx={{ p: 4 }}>
           <Box sx={{ 
@@ -2251,7 +2251,7 @@ const [selectedTaskForProof, setSelectedTaskForProof] = useState(null);
       )}
     </DialogContent>
     
-    {/* Dialog Actions - Minimalist Footer */}
+    {/* Dialog Actions  */}
     <DialogActions sx={{ 
       p: 2.5, 
       justifyContent: 'space-between',

@@ -33,7 +33,7 @@ export const calculateTaskMetrics = (task) => {
   const efficiency = estimatedTime > 0 ? (focusTime / estimatedTime) * 100 : 0;
   
   const paddedTime = efficiency > 200;           // Worked >2x estimated
-  const rushedCompletion = task.status === 'completed' && efficiency < 50;
+  const rushedCompletion = task.status === 'completed' && efficiency < 20;
   const noProof = !task.proofUploads || task.proofUploads.length === 0;
   const manualReviewRequired = paddedTime || rushedCompletion || noProof;
 
@@ -65,7 +65,7 @@ export const calculateTaskMetrics = (task) => {
     (noProof ? 1 : 0) +
     (manualReviewRequired ? 3 : 0);  
 
-
+  console.log("riskScore", riskScore);
   // Determine risk level based on score
   let riskLevel, riskLabel;
   
@@ -1790,11 +1790,12 @@ export const updateTaskStatus = async (req, res) => {
     const oldStatus = task.status;
     task.status = status;
 
-
+    
 
     const metrics = calculateTaskMetrics(task);
-    console.log("riskScore", metrics.riskScore);
-    task.risk.riskScore = metrics.riskScore;
+    console.log("metrics", metrics);
+    console.log("riskScore", metrics.risk.riskScore);
+    task.metrics.riskScore = metrics.risk.riskScore;
     task.taskMetrics.efficiency = Math.round(metrics.efficiency * 100) / 100;
     task.taskMetrics.label = metrics.efficiency.label;
     task.taskMetrics.status = metrics.efficiency.status;

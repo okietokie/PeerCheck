@@ -332,12 +332,17 @@ export const inviteToTeam = async (req, res) => {
       });
     }
 
+    //check if users are connected to each other
+
     if (!email && !username) {
       return res.status(400).json({ 
         success: false,
         message: "Either email or username is required" 
       });
     }
+
+
+
 
     // Check if team exists and user is a member
     const team = await Group.findOne({

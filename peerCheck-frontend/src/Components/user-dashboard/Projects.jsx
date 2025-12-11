@@ -75,7 +75,9 @@ import {
   Description,
   Person,
   PersonOff,
-  WarningAmber
+  WarningAmber,
+  Email,
+  Save
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import axiosClient from '@/api/axiosClient';
@@ -272,6 +274,25 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
     
     return true;
   };
+  const resetForm = () => {
+    setFormData({
+      projectName: '',
+      description: '',
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      tags: '',
+      teamName: '',
+      teamId: '',
+      mentorId: '',
+      allowPeerReview: true,
+      taskCompletionWeight: 40,
+      peerReviewWeight: 30,
+      teacherReviewWeight: 30
+    });
+    setTags([]);
+    setTagInput('');
+    setError('');
+};
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -301,7 +322,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
         startDate: formData.startDate,
         endDate: formData.endDate,
         tags: tags,
-        mentor: formData.mentorId,
+        mentorId: formData.mentorId || formData.mentorId === '' || 'none' ,
         teamId: formData.teamId ? [formData.teamId] : [],
         teamName: selectedTeam?.teamName || selectedTeam?.name || 'Unnamed Team', 
         gradingCriteria: {
@@ -312,7 +333,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
         }
       };
   
-      console.log('Creating project with data:', projectData); // Add for debugging
+      console.log('Creating project with data:', projectData); 
   
       const response = await axiosClient.post('/projects', projectData, {
         headers: { 
@@ -321,13 +342,16 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
         }
       });
       
-      console.log('Project created response:', response.data); // Add for debugging
+      console.log('Project created response:', response.data); 
       
       if (onProjectCreated) {
         onProjectCreated(response.data);
       }
       
-      onClose();
+      if(response.data){
+        onClose();
+      }
+      
       
     } catch (err) {
       console.error('Error creating project:', err);
@@ -1185,6 +1209,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
         Cancel
       </Button>
       <Button
+        type='submit'
         onClick={handleSubmit}
         variant="contained"
         disabled={loading}
@@ -1259,39 +1284,7 @@ const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = 'create'
     }
   }, [open, mode, taskToEdit]);
 
-  useEffect(() => {
-    const fetchTeamMembers = async () => {
-      if (!open || !project) return;
-      setFetchingMembers(true);
-      try {
-        const token = getAuthToken();
 
-        teams.map(team => {
-          if (project.teamId._id === team._id) {
-            const members = team.members?.map(member => ({
-              id: member.user?._id,
-              username: member.user?.username
-            })) || [];
-        
-            console.log("members:", members);
-            console.log("project.teamId:", project.teamId);
-        
-            setTeamMembers(members);
-          }
-        });
-        
-      } catch (err) {
-        console.error('Error fetching team members:', err);
-      } finally {
-        setFetchingMembers(false);
-      }
-    };
-
-    if (open && project) {
-      setError('');
-      fetchTeamMembers();
-    }
-  }, [open, project]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1378,6 +1371,40 @@ const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = 'create'
       setLoading(false);
     }
   };
+
+    useEffect(() => {
+    const fetchTeamMembers = async () => {
+      if (!open || !project) return;
+      setFetchingMembers(true);
+      try {
+        const token = getAuthToken();
+
+        teams.map(team => {
+          if (project.teamId._id === team._id) {
+            const members = team.members?.map(member => ({
+              id: member.user?._id,
+              username: member.user?.username
+            })) || [];
+        
+            console.log("members:", members);
+            console.log("project.teamId:", project.teamId);
+        
+            setTeamMembers(members);
+          }
+        });
+        
+      } catch (err) {
+        console.error('Error fetching team members:', err);
+      } finally {
+        setFetchingMembers(false);
+      }
+    };
+
+    if (open && project) {
+      setError('');
+      fetchTeamMembers();
+    }
+  }, [open, project]);
 
   const getMemberDisplay = (member) => {
     if (!member || typeof member !== 'object') {

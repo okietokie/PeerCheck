@@ -1,4 +1,3 @@
-// middleware/uploadMiddleware.js
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -21,7 +20,6 @@ const storage = multer.diskStorage({
   }
 });
 
-// middleware/uploadMiddleware.js
 const fileFilter = (req, file, cb) => {
   console.log('File filter checking:', {
     originalname: file.originalname,

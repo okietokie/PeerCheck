@@ -197,7 +197,7 @@ router.get('/teams', authMiddleware, getUserTeams); // get user's teams
 router.post('/create-team', authMiddleware, createTeam);  // create new team
 router.delete('/leave-team/:teamId', authMiddleware, leaveTeam);  // leave team
 router.put('/update-team/:teamId', authMiddleware, updateTeam); // update team details
-//router.post('/invite-to-team/:teamId', authMiddleware, inviteToTeam); 
+router.post('/invite-to-team/:teamId', authMiddleware, inviteToTeam); 
 router.get('/team-suggestions', authMiddleware, getTeamSuggestions); // get team suggestions
 
 // User discovery routes

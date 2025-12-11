@@ -17,7 +17,7 @@ export const uploadAvatar = async (req, res) => {
       });
     }
     
-    // Construct avatar URL
+    // avatar URL
     const avatarUrl = `/uploads/avatars/${req.file.filename}`;
     
     // Get previous avatar to delete later
@@ -117,7 +117,7 @@ export const updateProfile = async (req, res) => {
     });
   }
 };
-// In userController.js - update fetchUserDetails
+
 export const fetchUserDetails = async (req, res) => {
   try {
     const user = await User.findById(req.userId).select('-password -resetPasswordToken');
@@ -164,11 +164,10 @@ export const existingPeerGroup = async ({ name, members }) => {
     }
 }
 
-// CREATE PROJECT - Updated for new schema
 export const createProject = async (req, res) => {
   try {
     const { name, description, dueDate, attributes = [] } = req.body;
-    const userId = req.userId; // Changed from req.user.id to req.userId to match your auth middleware
+    const userId = req.userId; 
 
     // Validates required fields
     if (!name || !description || !dueDate) {
@@ -219,10 +218,9 @@ export const createProject = async (req, res) => {
   }
 };
 
-// GET USER PROJECTS - Updated for new schema
 export const getUserProjects = async (req, res) => {
   try {
-    const userId = req.userId; // Changed from req.user.id to req.userId
+    const userId = req.userId; 
 
     // Finds projects where the user is a member
     const projects = await Project.find({
@@ -248,18 +246,17 @@ export const getUserProjects = async (req, res) => {
   }
 };
 
-// UPDATE PROJECT - Updated for new schema
 export const updateProject = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, dueDate, status, attributes } = req.body;
-    const userId = req.userId; // Changed from req.user.id to req.userId
+    const userId = req.userId; 
 
     // Checks if user is project lead
     const project = await Project.findOne({
       _id: id,
       'members.user': userId,
-      'members.userRole': 'project-lead' // Changed from role to userRole
+      'members.userRole': 'project-lead' 
     });
 
     if (!project) {
@@ -273,9 +270,9 @@ export const updateProject = async (req, res) => {
     const updateData = {};
     if (name) updateData.name = name;
     if (description) updateData.description = description;
-    if (dueDate) updateData.dueDate = dueDate; // Changed from endDate to dueDate
+    if (dueDate) updateData.dueDate = dueDate; 
     if (status) updateData.status = status;
-    if (attributes) updateData.attributes = attributes; // Changed from requirements to attributes
+    if (attributes) updateData.attributes = attributes; 
 
     const updatedProject = await Project.findByIdAndUpdate(
       id,
@@ -302,18 +299,17 @@ export const updateProject = async (req, res) => {
   }
 };
 
-// ADD MEMBER TO PROJECT - Updated for new schema
 export const addMemberToProject = async (req, res) => {
   try {
     const { id } = req.params;
     const { memberId } = req.body;
-    const userId = req.userId; // Changed from req.user.id to req.userId
+    const userId = req.userId; 
 
     // Check if user is project lead
     const project = await Project.findOne({
       _id: id,
       'members.user': userId,
-      'members.userRole': 'project-lead' // Changed from role to userRole
+      'members.userRole': 'project-lead' 
     });
 
     if (!project) {
@@ -338,7 +334,7 @@ export const addMemberToProject = async (req, res) => {
     // Add member with new schema structure
     project.members.push({
       user: memberId,
-      userRole: 'project-member' // Changed from role to userRole
+      userRole: 'project-member' 
     });
 
     await project.save();
@@ -363,7 +359,6 @@ export const addMemberToProject = async (req, res) => {
   }
 };
 
-// REMOVE MEMBER FROM PROJECT - New function for new schema
 export const removeMemberFromProject = async (req, res) => {
   try {
     const { id } = req.params;
@@ -423,7 +418,7 @@ export const removeMemberFromProject = async (req, res) => {
   }
 };
 
-// DELETE PROJECT - Updated for new schema
+// DELETE PROJECT
 export const deleteProject = async (req, res) => {
   try {
     const projectId = req.params.id;
@@ -475,7 +470,7 @@ export const deleteProject = async (req, res) => {
   }
 }
 
-// GET PROJECT BY ID - New function
+// GET PROJECT BY ID 
 export const getProjectById = async (req, res) => {
   try {
     const { id } = req.params;

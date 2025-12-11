@@ -594,14 +594,21 @@ export const createProject = async (req, res) => {
     const newProject = new Project(projectData);
     await newProject.save();
 
-    // Optionally, add project to team.projects array
     team.projects.push(newProject._id);
     await team.save();
 
-    await MentorProjectAssignment.create({
-      mentor: mentorID,
-      project: newProject._id
-    });
+    if (mentorID && mentorID !== '') {
+      // Check if the mentor exists
+      const mentor = await User.findById(mentorID);
+      if (!mentor || mentor.role !== 'teacher') {
+        return res.status(400).json({ error: "Invalid mentor ID" });
+      }
+      
+      await MentorProjectAssignment.create({
+        mentor: mentorID,  // This should match your schema
+        project: newProject._id
+      });
+    }
 
     // Populate teamId and createdBy before sending response
     const populatedProject = await Project.findById(newProject._id)

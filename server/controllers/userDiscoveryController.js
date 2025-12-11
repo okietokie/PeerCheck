@@ -5,11 +5,11 @@ import Connection from "../models/connection.js";
 
 
 
-// Get suggested users (users not connected with current user)
+// Get suggested users (users who not connected with current user)
 export const getSuggestedUsers = async (req, res) => {
   try {
     const userId = req.userId;
-    const limit = parseInt(req.query.limit) || 50; // Increased default limit
+    const limit = parseInt(req.query.limit) || 50; 
 
     console.log(`Fetching suggested users for user: ${userId}, limit: ${limit}`);
 
@@ -40,11 +40,11 @@ export const getSuggestedUsers = async (req, res) => {
       'name username email bio course institution joinedOn avatar'
     )
     .limit(limit)
-    .sort({ joinedOn: -1 }); // Show newest users first
+    .sort({ joinedOn: -1 }); // Shows newest users first
 
     console.log(`Found ${suggestedUsers.length} suggested users`);
 
-    // If we have very few suggestions, try to include some inactive users too
+    // If we very few suggestions, include some inactive users too
     if (suggestedUsers.length < 5) {
       console.log('Very few active users found, expanding search...');
       
@@ -58,7 +58,7 @@ export const getSuggestedUsers = async (req, res) => {
       .limit(limit - suggestedUsers.length)
       .sort({ joinedOn: -1 });
 
-      // Merge results (avoiding duplicates)
+      // Merge results (duplicates excluded)
       const additionalUserIds = new Set(suggestedUsers.map(u => u._id.toString()));
       additionalUsers.forEach(user => {
         if (!additionalUserIds.has(user._id.toString())) {

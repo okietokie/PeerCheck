@@ -19,7 +19,6 @@ const projectSchema = new mongoose.Schema(
       default: 0 
     },
     
-    // ADD THIS METRICS SECTION
     metrics: {
       lastCalculated: { type: Date },
       weightedProgress: { type: Number, default: 0 },

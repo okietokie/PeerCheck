@@ -783,7 +783,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
                   Invite to {team.name}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Find and invite awesome people to join your squad! 🚀
+                  Find and invite awesome people to join your squad!
                 </Typography>
               </Box>
             </Box>
@@ -822,7 +822,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
           >
             <FlashOnIcon sx={{ color: 'warning.main', mb: 1, fontSize: 24 }} />
             <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-              <strong>Teamwork makes the dream work! 🌟</strong> Find your perfect teammates below.
+              <strong>Teamwork makes the dream work! </strong> Find your perfect teammates below.
             </Typography>
           </Box>
 
@@ -836,7 +836,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
                   <span>Search by name, username, or email...</span>
                 </Box>
               }
-              placeholder="Type to find awesome people... 👀"
+              placeholder="Type to find awesome people... "
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               variant="outlined"
@@ -915,7 +915,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
               <Box sx={{ textAlign: 'center', py: 4 }}>
                 <CircularProgress size={32} />
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  Searching for awesome people... 🔍
+                  Searching for awesome people... 
                 </Typography>
               </Box>
             ) : displayUsers.length > 0 ? (
@@ -945,7 +945,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
               <Box sx={{ textAlign: 'center', py: 4 }}>
                 <PersonIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2, opacity: 0.5 }} />
                 <Typography variant="body2" color="text.secondary">
-                  No users found for "{searchQuery}" 😢
+                  No users found for "{searchQuery}" 
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Try searching by name, username, or email
@@ -955,7 +955,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
               <Box sx={{ textAlign: 'center', py: 4 }}>
                 <GroupIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2, opacity: 0.5 }} />
                 <Typography variant="body2" color="text.secondary">
-                  Start typing to find teammates! ✨
+                  Start typing to find teammates! 
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
                   Search by name, username, or email address
@@ -1041,14 +1041,14 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
           >
             <TrendingUpIcon sx={{ color: 'info.main', mb: 1, fontSize: 24 }} />
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              <strong>Team Growth 📈</strong>
+              <strong>Team Growth </strong>
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
               <Typography variant="h6" color="primary.main" fontWeight={700}>
                 {team.members?.length || 0}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                current members • goal: {team.members?.length + 1} 🎯
+                current members • goal: {team.members?.length + 1} 
               </Typography>
             </Box>
           </Box>

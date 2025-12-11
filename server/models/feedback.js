@@ -1,12 +1,12 @@
 import mongoose from "mongoose";
 
 const peerFeedbackSchema = new mongoose.Schema({
-    fromUser: {  // Who is giving the feedback
+    fromUser: {  // the one giving the feedback
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true
     },
-    toUser: {  // Who is receiving the feedback
+    toUser: {  // the one receiving the feedback
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true
@@ -16,17 +16,17 @@ const peerFeedbackSchema = new mongoose.Schema({
         ref: "Project",
         required: true
     },
-    task: {  // Optional: feedback for a specific task
+    task: {  // feedback for a specific task
         type: mongoose.Schema.Types.ObjectId,
         ref: "Task"
     },
-    rating: {  // Example: 1–5 scale
+    rating: {  //1–5 scale
         type: Number,
         required: true,
         min: 1,
         max: 5
     },
-    comment: {  // Optional text feedback
+    comment: {  // detailed feedback
         type: String,
         trim: true
     },

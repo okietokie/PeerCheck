@@ -230,7 +230,7 @@ export default function Dashboard() {
   };
 
   const handleViewProject = (projectId) => {
-    navigate(`/user-app/projects/${projectId}`);
+    navigate(`/user-app/my-project`);
   };
 
   const handleViewAllProjects = () => {
