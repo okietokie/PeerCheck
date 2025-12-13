@@ -44,8 +44,7 @@ export default function PeerTeams() {
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [teamDetailsOpen, setTeamDetailsOpen] = useState(false);
   const [profileActive, setProfileActive] = useState(false);
-  const [searchText, setSearchText] = useState("");
-  const [suggestions, setSuggestions] = useState([]);
+
 
 
   const handleChangeTab = () => {
@@ -60,6 +59,8 @@ export default function PeerTeams() {
       const res = await axiosClient.get("/user/teams", {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+
+      console.log("Fetched teams:", res.data.teams);
       setTeams(res.data.teams || []);
     } catch (error) {
       console.log(`Error fetching teams: ${error}`);
@@ -387,7 +388,7 @@ export default function PeerTeams() {
           maxWidth="sm"
           fullWidth
         >
-          <DialogTitle sx={{ fontWeight: 600, fontSize: '1.25rem' }}> {/* FIXED */}
+          <DialogTitle sx={{ fontWeight: 600, fontSize: '1.25rem' }}> 
             Create New Team
           </DialogTitle>
           
@@ -428,7 +429,7 @@ export default function PeerTeams() {
     );
   }
 
-  // Has teams - Display teams beautifully
+  // Has teams - Display teams
   return (
     <Container maxWidth="lg" sx={{ py: 6 }}>
       {error && (
@@ -487,7 +488,7 @@ export default function PeerTeams() {
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
                 <Box>
                   <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
-                    {team.name}
+                    {team.name  || team.teamName}
                   </Typography>
                   <Chip
                     label={`${team.members?.length || 0} members`}

@@ -1,4 +1,4 @@
-// themes.js
+// //peerCheck-frontend/src/assets/theme.js
 import { createTheme } from "@mui/material/styles";
 import '@fontsource/inter/300.css';
 import '@fontsource/inter/400.css';

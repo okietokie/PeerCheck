@@ -4,11 +4,36 @@ import User from "../models/user.js";
 
 export const getMentors = async (req,res) => {
     try {
+    
         const mentors = await User.find({ role: 'teacher' }).select('_id name email');
         res.status(200).json({ mentors });
     } catch (error) {
         console.error("Error fetching mentors:", error);
         res.status(500).json({ message: "Server error fetching mentors." });
+    }
+};
+
+export const getMentorById = async (req, res) => {
+    try {
+        const projectId = req.params.projectId;
+
+        console.log("Fetching mentor for project ID:", projectId);
+
+        const mentor = await MentorProjectAssignment.findOne({ project: projectId })
+            .populate('mentor', '_id name email avatar')
+            .select('mentor');
+        console.log("Fetched mentor assignment:", mentor);
+
+        if (!mentor) {
+            
+            return res.status(200).json({ mentor: 'Dummy Mentor name',message: "Mentor not found." });
+        }
+
+        
+        res.status(200).json({ mentor });
+    } catch (error) {
+        console.error("Error fetching mentor:", error);
+        res.status(500).json({ message: "Server error fetching mentor." });
     }
 };
 

@@ -74,7 +74,7 @@ const router = express.Router();
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { getMentors } from '../controllers/mentorController.js';
+import { getMentorById, getMentors } from '../controllers/mentorController.js';
 
 // Create avatar upload directory
 //code working explanation: checks if the directory for storing uploaded avatars exists. If it doesn't, the code creates the directory using fs.mkdirSync with the recursive option set to true, ensuring that any necessary parent directories are also created.
@@ -124,6 +124,7 @@ router.post("/upload-avatar", authMiddleware, avatarUpload.single('avatar'), upl
 router.put("/update-profile", authMiddleware, updateProfile);
 
 router.get("/get-mentors", authMiddleware, getMentors);
+router.get("/get-mentor-for-project/:projectId", authMiddleware, getMentorById);
 
 
 // Existing routes

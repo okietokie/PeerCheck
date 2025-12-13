@@ -36,11 +36,13 @@ import {
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import  useInView  from '../../hooks/useInView';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const theme = useTheme();
-
+  const { ref, inView } = useInView({ threshold: 0.1 }); 
+  
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [username, setUsername] = useState('');
@@ -229,7 +231,7 @@ export default function Dashboard() {
     navigate('/user-app/tasks');
   };
 
-  const handleViewProject = (projectId) => {
+  const handleViewProject = () => {
     navigate(`/user-app/my-project`);
   };
 
@@ -271,7 +273,10 @@ export default function Dashboard() {
   }
 
   return (
-    <Box sx={{
+    <Box 
+    ref = {ref}
+
+    sx={{
       minHeight: '100vh',
       background: theme.palette.background.default,
       py: 4,

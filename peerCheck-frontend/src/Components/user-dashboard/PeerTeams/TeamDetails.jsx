@@ -309,7 +309,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
         { 
           email: inviteData.email,
           username: inviteData.username,
-          message: `You've been invited to join ${team.name}!` 
+          message: `You've been invited to join ${team.name || team.teamName || 'the team'}!` 
         },
         { headers: { 'Authorization': `Bearer ${token}` } }
       );

@@ -54,10 +54,12 @@ import { useState, useEffect, useCallback } from "react";
 import axiosClient from "@/api/axiosClient";
 import { motion } from "framer-motion";
 import ReviewDialog from "./ReviewDialog";
+import useInView from "@/hooks/useInView";
 
 
 export default function Home() {
   const theme = useTheme();
+  const { ref, inView } = useInView({ threshold: 0.3 });  
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));  
   const [stats, setStats] = useState({
     activeUsers: 0,
@@ -250,6 +252,7 @@ export default function Home() {
 
       {/* Enhanced Hero Section */}
       <Box
+        ref={ref}
         sx={{
           background: `linear-gradient(135deg, 
             ${alpha(theme.palette.background.default, 0.8)} 0%, 

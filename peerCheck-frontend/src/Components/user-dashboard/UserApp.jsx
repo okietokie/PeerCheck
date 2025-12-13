@@ -14,7 +14,7 @@ import {
   Logout as LogoutIcon,
   VisibilityOutlined
 } from '@mui/icons-material';
-import { useNavigate, useLocation, Routes, Route } from 'react-router-dom';
+import { useNavigate, useLocation, Routes, Route, Outlet } from 'react-router-dom';
 import { useEffect } from 'react';
 import Dashboard from './Dashboard';
 import Projects from './Projects';
@@ -28,6 +28,7 @@ export default function UserApp() {
   const location = useLocation();
   
   const [selectedTab, setSelectedTab] = useState(0);
+  const [selectedProject, setSelectedProject] = useState(null);
 
   // Map paths to tab values
   const pathToValue = {
@@ -44,7 +45,11 @@ export default function UserApp() {
   useEffect(() => {
     const currentPath = location.pathname;
     const tabValue = pathToValue[currentPath] || 0;
-    setSelectedTab(tabValue);
+    if (currentPath.startsWith('/user-app/my-project/')) {
+      setSelectedTab(3);
+    } else {
+      setSelectedTab(tabValue);
+    }
   }, [location.pathname]);
 
   const handleTabChange = (event, newValue) => {
@@ -153,16 +158,7 @@ export default function UserApp() {
       </Box>
 
       <Container>
-        <Routes>
-          <Route index element={<Dashboard />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="projects" element={<Projects />} />
-          <Route path="tasks" element={<Tasks />} />
-          <Route path="my-project" element={<MyProject />} />
-
-          <Route path="peerteams" element={<PeerTeams />} />
-          <Route path="profile" element={<Profile />} />
-        </Routes>
+        <Outlet />
       </Container>
     </>
   );

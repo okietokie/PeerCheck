@@ -556,7 +556,7 @@ export const calculateTaskMetrics = (task) => {
 
 export const createProject = async (req, res) => {
   try {
-    const { projectName, description, startDate, endDate, teamId, teamName, tags, gradingCriteria, mentorID } = req.body;
+    const { projectName, description, startDate, endDate, teamId, teamName, tags, gradingCriteria, mentorId} = req.body;
 
     // Basic validation
     if (!projectName || !description || !startDate || !endDate || !teamId) {
@@ -597,15 +597,12 @@ export const createProject = async (req, res) => {
     team.projects.push(newProject._id);
     await team.save();
 
-    if (mentorID && mentorID !== '') {
-      // Check if the mentor exists
-      const mentor = await User.findById(mentorID);
-      if (!mentor || mentor.role !== 'teacher') {
-        return res.status(400).json({ error: "Invalid mentor ID" });
-      }
+
+
+    if (mentorId) {
       
       await MentorProjectAssignment.create({
-        mentor: mentorID,  // This should match your schema
+        mentor:   mentorId,  
         project: newProject._id
       });
     }
@@ -726,13 +723,13 @@ export const getProjectById = async (req, res) => {
     const { projectId } = req.params;
     
     const project = await Project.findById(projectId)
-      .populate('createdBy', 'name email')
+      .populate('createdBy', 'name email avatar username')
       .populate({
         path: "teamId",
         select: "name",
         populate: {
           path: "members",
-          select: "name email avatar"
+          select: "name email avatar username"
         }
       });
     

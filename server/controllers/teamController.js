@@ -20,7 +20,7 @@ export const getUserTeams = async (req, res) => {
     // Format response to match frontend expectations
     const formattedTeams = teams.map(team => ({
       _id: team._id,
-      teamName: team.name,
+      name: team.name,
       description: team.description || `Team with ${team.members.length} members`,
       members: team.members.map(member => ({
         _id: member._id,

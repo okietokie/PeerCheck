@@ -82,7 +82,6 @@ import {
 import { motion } from 'framer-motion';
 import axiosClient from '@/api/axiosClient';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 
 // Helper to get auth token properly
 const getAuthToken = () => {
@@ -2617,6 +2616,7 @@ const ProjectTableRow = ({
   const [tagsAnchorEl, setTagsAnchorEl] = useState(null);
   const [dueAnchorEl, setDueAnchorEl] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [selectedProject, setSelectedProject] = useState(null);
   const navigate = useNavigate();
   
   
@@ -2714,7 +2714,8 @@ const ProjectTableRow = ({
     <>
       <TableRow
         key={project._id}
-        onDoubleClick = {()=>navigate(`/user-app/my-project`, { state: { projectId: project._id } })}
+        onDoubleClick = {()=>  {
+          navigate(`/user-app/my-project/${project._id}`)}}
         hover
         selected={isSelected}
         sx={{
@@ -2945,7 +2946,6 @@ const Projects = () => {
   const checkAuth = useCallback(() => {
     const token = getAuthToken();
     const user = getUserData();
-    
     if (!token || !user) {
       setAuthError(true);
       setError('Please log in to view projects.');

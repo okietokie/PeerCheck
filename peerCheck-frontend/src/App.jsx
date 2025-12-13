@@ -28,6 +28,9 @@ import themes from './assets/theme.js';
 import Tasks from "./Components/user-dashboard/Tasks.jsx";
 import Projects from "./Components/user-dashboard/Projects.jsx";
 import MyProject from "./Components/user-dashboard/MyProject.jsx";
+import PeerTeams from "./Components/user-dashboard/PeerTeams.jsx";
+import Profile from "./Components/user-dashboard/Profile.jsx";
+import Dashboard from "./Components/user-dashboard/Dashboard.jsx";
 
 // Extract theme names dynamically
 const themeNames = Object.keys(themes);
@@ -57,6 +60,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [expanded, setExpanded] = useState(false);
   const [showThemePicker, setShowThemePicker] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
 
   useEffect(() => {
     const theme = themes[themeName];
@@ -121,10 +125,13 @@ export default function App() {
                 </ProtectedRoute>
               }
             >
+                <Route index element={<Dashboard />} />
+                <Route path="dashboard" element={<Dashboard />} />
                 <Route path="tasks" element={<Tasks />} />
                 <Route path="projects" element={<Projects />} />
-                <Route path="my-project" element={<MyProject />} />
                 <Route path="my-project/:projectId" element={<MyProject />} />
+                <Route path="peerteams" element={<PeerTeams />} />
+                <Route path="profile" element={<Profile />} />
             </Route>
             
             
