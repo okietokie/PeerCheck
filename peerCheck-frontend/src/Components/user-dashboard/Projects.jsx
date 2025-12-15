@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, use } from 'react';
 import {
   Box,
   Typography,
@@ -77,11 +77,15 @@ import {
   PersonOff,
   WarningAmber,
   Email,
-  Save
+  Save,
+  PlayCircleFilledOutlined,
+  PlayCircleOutline
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import axiosClient from '@/api/axiosClient';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { set } from 'date-fns';
+import { useInView } from 'react-intersection-observer';
 
 // Helper to get auth token properly
 const getAuthToken = () => {
@@ -102,6 +106,7 @@ const getUserData = () => {
   } catch (err) {
     console.error('Error parsing user data:', err);
     return null;
+    
   }
 }; 
 
@@ -1242,7 +1247,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
 };
 
 // Create Task Modal (now supports Edit mode too)
-const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = 'create', taskToEdit = null }) => {
+export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = 'create', taskToEdit = null }) => {
   const [formData, setFormData] = useState({
     taskTitle: '',
     description: '',
@@ -1329,15 +1334,16 @@ const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = 'create'
         default:
           estimatedSeconds = timeValue * 60 * 60;
       }
-
+      console.log("project: ", project)
       const taskData = {
         taskTitle: formData.taskTitle.trim(),
         description: formData.description.trim(),
-        projectId: project._id,
+        projectId: project?._id || project?.projectId,
         assignedTo: formData.assignedTo,
         deadline: formData.deadline,
         estimatedTime: Math.round(estimatedSeconds)
       };
+      console.log("taskdata/createtask/frommyprojects: ", taskData)
 
       let response;
       
@@ -1376,7 +1382,6 @@ const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = 'create'
       if (!open || !project) return;
       setFetchingMembers(true);
       try {
-        const token = getAuthToken();
 
         teams.map(team => {
           if (project.teamId._id === team._id) {
@@ -2610,7 +2615,8 @@ const ProjectTableRow = ({
   onSelect, 
   theme,
   onCreateTask,
-  onReviewProject 
+  onReviewProject,
+  userId
 }) => {
   const [teamAnchorEl, setTeamAnchorEl] = useState(null);
   const [tagsAnchorEl, setTagsAnchorEl] = useState(null);
@@ -2711,222 +2717,607 @@ const ProjectTableRow = ({
       fetchTeamMembers();
   }, [project]);
   return (
-    <>
-      <TableRow
-        key={project._id}
-        onDoubleClick = {()=>  {
-          navigate(`/user-app/my-project/${project._id}`)}}
-        hover
-        selected={isSelected}
+<>
+  <TableRow
+    key={project._id}
+    onDoubleClick={() => navigate(`/user-app/my-project/${project._id}`)}
+    hover
+    selected={isSelected}
+    sx={{
+      cursor: 'pointer',
+      transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+      backgroundColor: isSelected 
+        ? alpha(theme.palette.primary.main, 0.08)
+        : 'transparent',
+      '&:hover': {
+        backgroundColor: alpha(theme.palette.primary.main, 0.04),
+        transform: 'translateX(4px)',
+        '& .progress-bar': {
+          transform: 'scaleX(1.05)',
+        },
+        '& .action-button': {
+          opacity: 1,
+          transform: 'translateY(0)',
+        }
+      },
+      '&.Mui-selected': {
+        backgroundColor: alpha(theme.palette.primary.main, 0.12),
+        '&:hover': {
+          backgroundColor: alpha(theme.palette.primary.main, 0.16),
+        }
+      }
+    }}
+  >
+    <TableCell padding="checkbox">
+      <Checkbox
+        checked={isSelected}
+        onChange={(e) => onSelect(project._id, e.target.checked)}
         sx={{
-          '&:hover': {
-            backgroundColor: alpha(theme.palette.primary.main, 0.04),
+          color: theme.palette.primary.main,
+          '&.Mui-checked': {
+            color: theme.palette.primary.main,
           },
-          '&.Mui-selected': {
-            backgroundColor: alpha(theme.palette.primary.main, 0.08),
+          '&:hover': {
+            backgroundColor: alpha(theme.palette.primary.main, 0.1),
           }
         }}
-        >
-        <TableCell padding="checkbox">
-          <Checkbox
-            checked={isSelected}
-            onChange={(e) => onSelect(project._id, e.target.checked)}
-          />
-        </TableCell>
+      />
+    </TableCell>
 
-        <TableCell>
-          <Typography variant="body2" fontWeight="medium">
+    <TableCell>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box
+          sx={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            backgroundColor: getHealthColor(healthScore),
+            boxShadow: `0 0 8px ${alpha(getHealthColor(healthScore), 0.5)}`,
+            flexShrink: 0,
+          }}
+        />
+        <Box sx={{ minWidth: 0 }}>
+          <Typography 
+            variant="body1" 
+            sx={{
+              fontWeight: 600,
+              color: theme.palette.mode === 'dark' ? alpha('#fff', 0.95) : alpha('#000', 0.9),
+              fontFamily: '"Inter", sans-serif',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: 200,
+            }}
+          >
             {project.projectName || 'Untitled Project'}
           </Typography>
-        </TableCell>
-
-        <TableCell>
-          <Stack direction="row" spacing={1}>
-            <Tooltip title="Add Task">
-              <IconButton size="small" onClick={() => onCreateTask(project)} >
-                <AddTask fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            
-            <Tooltip title={daysRemaining()}>
-              <IconButton 
-                size="small"
-                onMouseEnter={(e) => setDueAnchorEl(e.currentTarget)}
-                onMouseLeave={() => setDueAnchorEl(null)}
-              >
-                <CalendarToday fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            
-            <Tooltip title="Review Project">
-              <IconButton size="small" onClick={() => onReviewProject(project)}>
-                <Grade fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Stack>
-        </TableCell>
-
-        <TableCell>
-          <Tooltip title={project.teamName || 'No team'}>
-            <Box
-              display="flex"
-              alignItems="center"
-              gap={1}
-              onMouseEnter={(e) => setTeamAnchorEl(e.currentTarget)}
-              onMouseLeave={() => setTeamAnchorEl(null)}
-              sx={{ cursor: 'pointer' }}
-            >
-              <People fontSize="small" />
-              <Typography variant="body2">
-                {project.teamName || 'No team'}
-              </Typography>
-            </Box>
-          </Tooltip>
-        </TableCell>
-
-        <TableCell>
-          <Box display="flex" alignItems="center" gap={1}>
-            {getStatusIcon(project.status)}
-            <Typography variant="body2">
-              {project.status ? project.status.replace('_', ' ').toUpperCase() : 'NOT STARTED'}
-            </Typography>
-          </Box>
-        </TableCell>
-
-        <TableCell>
-          <Box
-            display="flex"
-            alignItems="center"
-            gap={0.5}
-            onMouseEnter={(e) => setTagsAnchorEl(e.currentTarget)}
-            onMouseLeave={() => setTagsAnchorEl(null)}
-            sx={{ cursor: 'pointer' }}
-          >
-            <Tag fontSize="small" />
-            <Typography variant="body2">
-              {project.tags?.slice(0, 2).map(tag => `#${tag}`).join(', ')}
-              {project.tags && project.tags.length > 2 && '...'}
-              {(!project.tags || project.tags.length === 0) && 'No tags'}
-            </Typography>
-          </Box>
-        </TableCell>
-
-        <TableCell>
-          <Box sx={{ width: '100%' }}>
-            <Box display="flex" justifyContent="space-between" mb={0.5}>
-              <Typography variant="caption" color="text.secondary">
-                Progress
-              </Typography>
-              <Typography variant="caption" fontWeight="medium">
-                {project.progress || 0}%
-              </Typography>
-            </Box>
-            <LinearProgress
-              variant="determinate"
-              value={project.progress || 0}
+          {project.description && (
+            <Typography 
+              variant="caption" 
               sx={{
-                height: 6,
-                borderRadius: 3,
+                color: theme.palette.text.secondary,
+                display: 'block',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: 200,
+              }}
+            >
+              {project.description}
+            </Typography>
+          )}
+        </Box>
+      </Box>
+    </TableCell>
+
+    <TableCell>
+      <Box sx={{ display: 'flex', gap: 0.5, opacity: 0.8 }}>
+        <Tooltip title="Add Task" arrow>
+          <IconButton 
+            size="small" 
+            onClick={(e) => {
+              e.stopPropagation();
+              onCreateTask(project);
+            }} 
+            disabled={project.status === 'COMPLETED' || project.createdBy._id !== userId}
+            className="action-button"
+            sx={{
+              opacity: 0,
+              transform: 'translateY(4px)',
+              transition: 'all 0.2s ease',
+              backgroundColor: alpha(theme.palette.primary.main, 0.1),
+              '&:hover': {
+                backgroundColor: alpha(theme.palette.primary.main, 0.2),
+                transform: 'scale(1.1)',
+              },
+              '&.Mui-disabled': {
                 backgroundColor: alpha(theme.palette.divider, 0.2),
-                '& .MuiLinearProgress-bar': {
-                  borderRadius: 3,
-                  backgroundColor: getHealthColor(healthScore),
-                }
+                opacity: 0.3,
+              }
+            }}
+          >
+            <AddTask fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        
+        <Tooltip title="Timeline" arrow>
+          <IconButton 
+            size="small"
+            className="action-button"
+            onMouseEnter={(e) => setDueAnchorEl(e.currentTarget)}
+            onMouseLeave={() => setDueAnchorEl(null)}
+            onClick={(e) => e.stopPropagation()}
+            sx={{
+              opacity: 0,
+              transform: 'translateY(4px)',
+              transition: 'all 0.2s ease',
+              backgroundColor: alpha(theme.palette.info.main, 0.1),
+              '&:hover': {
+                backgroundColor: alpha(theme.palette.info.main, 0.2),
+                transform: 'scale(1.1)',
+              }
+            }}
+          >
+            <CalendarToday fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        
+        <Tooltip title="Review" arrow>
+          <IconButton 
+            size="small" 
+            onClick={(e) => {
+              e.stopPropagation();
+              onReviewProject(project);
+            }}
+            className="action-button"
+            sx={{
+              opacity: 0,
+              transform: 'translateY(4px)',
+              transition: 'all 0.2s ease',
+              backgroundColor: alpha(theme.palette.warning.main, 0.1),
+              '&:hover': {
+                backgroundColor: alpha(theme.palette.warning.main, 0.2),
+                transform: 'scale(1.1)',
+              }
+            }}
+          >
+            <Grade fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
+    </TableCell>
+
+    <TableCell>
+      <Tooltip title="View Team Details" arrow>
+        <Box
+          display="flex"
+          alignItems="center"
+          gap={1}
+          onMouseEnter={(e) => setTeamAnchorEl(e.currentTarget)}
+          onMouseLeave={() => setTeamAnchorEl(null)}
+          sx={{ 
+            cursor: 'pointer',
+            p: 1,
+            borderRadius: 2,
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              backgroundColor: alpha(theme.palette.primary.main, 0.05),
+              transform: 'translateX(2px)',
+            }
+          }}
+        >
+          <Box
+            sx={{
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: `linear-gradient(135deg, 
+                ${alpha(theme.palette.primary.main, 0.15)} 0%, 
+                ${alpha(theme.palette.primary.main, 0.05)} 100%)`,
+              border: `1.5px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+            }}
+          >
+            <People fontSize="small" sx={{ color: theme.palette.primary.main }} />
+          </Box>
+          <Typography 
+            variant="body2"
+            sx={{
+              fontWeight: 500,
+              color: theme.palette.text.primary,
+              maxWidth: 120,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {project.teamName || 'No team'}
+          </Typography>
+        </Box>
+      </Tooltip>
+    </TableCell>
+
+    <TableCell>
+      <Box 
+        display="flex" 
+        alignItems="center" 
+        gap={1.5}
+        sx={{
+          p: 1,
+          borderRadius: 2,
+          background: alpha(getStatusColor(project.status), 0.08),
+          border: `1.5px solid ${alpha(getStatusColor(project.status), 0.2)}`,
+          width: 'fit-content',
+        }}
+      >
+        <Box sx={{ color: getStatusColor(project.status) }}>
+          {getStatusIcon(project.status)}
+        </Box>
+        <Typography 
+          variant="body2"
+          sx={{
+            fontWeight: 600,
+            color: getStatusColor(project.status),
+            fontFamily: '"Inter", sans-serif',
+            letterSpacing: '0.5px',
+            textTransform: 'uppercase',
+            fontSize: '0.75rem',
+          }}
+        >
+          {project.status ? project.status.replace('_', ' ').toUpperCase() : 'NOT STARTED'}
+        </Typography>
+      </Box>
+    </TableCell>
+
+    <TableCell>
+      <Tooltip title="View All Tags" arrow>
+        <Box
+          display="flex"
+          alignItems="center"
+          gap={1}
+          onMouseEnter={(e) => setTagsAnchorEl(e.currentTarget)}
+          onMouseLeave={() => setTagsAnchorEl(null)}
+          sx={{ 
+            cursor: 'pointer',
+            p: 1,
+            borderRadius: 2,
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              backgroundColor: alpha(theme.palette.secondary.main, 0.05),
+              transform: 'translateX(2px)',
+            }
+          }}
+        >
+          <Box
+            sx={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: `linear-gradient(135deg, 
+                ${alpha(theme.palette.secondary.main, 0.15)} 0%, 
+                ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
+              border: `1.5px solid ${alpha(theme.palette.secondary.main, 0.2)}`,
+            }}
+          >
+            <Tag fontSize="small" sx={{ color: theme.palette.secondary.main }} />
+          </Box>
+          <Typography 
+            variant="body2"
+            sx={{
+              fontWeight: 500,
+              color: theme.palette.text.primary,
+              maxWidth: 120,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {project.tags?.slice(0, 2).map(tag => `#${tag}`).join(', ')}
+            {project.tags && project.tags.length > 2 && '...'}
+            {(!project.tags || project.tags.length === 0) && 'No tags'}
+          </Typography>
+        </Box>
+      </Tooltip>
+    </TableCell>
+
+    <TableCell>
+      <Box sx={{ width: '100%', minWidth: 180 }}>
+        {/* Progress Bar */}
+        <Box display="flex" justifyContent="space-between" mb={1}>
+          <Typography 
+            variant="caption" 
+            sx={{ 
+              color: theme.palette.text.secondary,
+              fontWeight: 500,
+              fontFamily: '"Inter", sans-serif',
+            }}
+          >
+            Progress
+          </Typography>
+          <Typography 
+            variant="caption" 
+            sx={{ 
+              fontWeight: 700,
+              color: theme.palette.text.primary,
+              fontFamily: '"Inter", sans-serif',
+            }}
+          >
+            {project.progress || 0}%
+          </Typography>
+        </Box>
+        <Box className="progress-bar" sx={{ transition: 'transform 0.3s ease' }}>
+          <LinearProgress
+            variant="determinate"
+            value={project.progress || 0}
+            sx={{
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: alpha(theme.palette.divider, 0.1),
+              overflow: 'hidden',
+              '& .MuiLinearProgress-bar': {
+                borderRadius: 4,
+                background: `linear-gradient(90deg, 
+                  ${getHealthColor(healthScore)} 0%, 
+                  ${alpha(getHealthColor(healthScore), 0.8)} 100%)`,
+                boxShadow: `0 0 8px ${alpha(getHealthColor(healthScore), 0.3)}`,
+              }
+            }}
+          />
+        </Box>
+        
+        {/* Health Score */}
+        <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
+          <Typography 
+            variant="caption" 
+            sx={{ 
+              color: theme.palette.text.secondary,
+              fontWeight: 500,
+              fontFamily: '"Inter", sans-serif',
+            }}
+          >
+            Health Score
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography 
+              variant="caption" 
+              sx={{ 
+                fontWeight: 700,
+                color: getHealthColor(healthScore),
+                fontFamily: '"Inter", sans-serif',
+                fontSize: '0.85rem',
+              }}
+            >
+              {healthScore.toFixed(0)}%
+            </Typography>
+            <Box
+              sx={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                backgroundColor: getHealthColor(healthScore),
+                boxShadow: `0 0 8px ${alpha(getHealthColor(healthScore), 0.5)}`,
               }}
             />
-            <Box display="flex" justifyContent="space-between" mt={0.5}>
-              <Typography variant="caption" color="text.secondary">
-                Health
-              </Typography>
-              <Typography 
-                variant="caption" 
-                fontWeight="medium"
-                color={getHealthColor(healthScore)}
-              >
-                {healthScore.toFixed(0)}%
-              </Typography>
-            </Box>
-          </Box>
-        </TableCell>
-      </TableRow>
-      <TeamMembersPopover
-        anchorEl={teamAnchorEl}
-        open={Boolean(teamAnchorEl)}
-        onClose={() => setTeamAnchorEl(null)}
-        teamMembers={teamMembers}
-      />
-
-      <Popover
-        open={Boolean(tagsAnchorEl)}
-        anchorEl={tagsAnchorEl}
-        onClose={() => setTagsAnchorEl(null)}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
-      >
-        <Box sx={{ p: 2, minWidth: 200 }}>
-          <Typography variant="subtitle2" gutterBottom fontWeight="medium">
-            Project Tags
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-            {project.tags?.map((tag, index) => (
-              <Chip
-                key={index}
-                label={tag}
-                size="small"
-                sx={{ m: 0.25 }}
-              />
-            ))}
-            {(!project.tags || project.tags.length === 0) && (
-              <Typography variant="body2" color="text.secondary">
-                No tags added
-              </Typography>
-            )}
           </Box>
         </Box>
-      </Popover>
+      </Box>
+    </TableCell>
+  </TableRow>
 
-      <Popover
-        open={Boolean(dueAnchorEl)}
-        anchorEl={dueAnchorEl}
-        onClose={() => setDueAnchorEl(null)}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
+  {/* Team Members Popover */}
+  <TeamMembersPopover
+    anchorEl={teamAnchorEl}
+    open={Boolean(teamAnchorEl)}
+    onClose={() => setTeamAnchorEl(null)}
+    teamMembers={teamMembers}
+    theme={theme}
+  />
+
+  {/* Tags Popover */}
+  <Popover
+    open={Boolean(tagsAnchorEl)}
+    anchorEl={tagsAnchorEl}
+    onClose={() => setTagsAnchorEl(null)}
+    anchorOrigin={{
+      vertical: 'bottom',
+      horizontal: 'left',
+    }}
+    transformOrigin={{
+      vertical: 'top',
+      horizontal: 'left',
+    }}
+    PaperProps={{
+      sx: {
+        borderRadius: 3,
+        background: `linear-gradient(135deg, 
+          ${alpha(theme.palette.background.paper, 0.95)} 0%, 
+          ${alpha(theme.palette.background.paper, 0.9)} 100%)`,
+        border: `1.5px solid ${alpha(theme.palette.secondary.main, 0.15)}`,
+        boxShadow: `0 8px 32px ${alpha(theme.palette.mode === 'dark' ? '#000' : theme.palette.secondary.main, 0.15)}`,
+        overflow: 'hidden',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 3,
+          background: `linear-gradient(90deg, 
+            ${theme.palette.secondary.main}, 
+            ${alpha(theme.palette.secondary.main, 0.7)})`,
+          borderRadius: '12px 12px 0 0',
+        }
+      }
+    }}
+  >
+    <Box sx={{ p: 3, minWidth: 240 }}>
+      <Typography 
+        variant="subtitle1" 
+        gutterBottom 
+        sx={{ 
+          fontWeight: 700,
+          color: theme.palette.text.primary,
+          fontFamily: '"Inter", sans-serif',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
         }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
-        disableRestoreFocus
       >
-        <Box sx={{ p: 2, minWidth: 200 }}>
-          <Typography variant="subtitle2" gutterBottom fontWeight="medium">
-            Project Timeline
+        <Tag fontSize="small" />
+        Project Tags
+      </Typography>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 2 }}>
+        {project.tags?.map((tag, index) => (
+          <Chip
+            key={index}
+            label={tag}
+            size="small"
+            sx={{
+              m: 0,
+              background: `linear-gradient(135deg, 
+                ${alpha(theme.palette.secondary.main, 0.15)} 0%, 
+                ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
+              border: `1.5px solid ${alpha(theme.palette.secondary.main, 0.2)}`,
+              color: theme.palette.text.primary,
+              fontWeight: 500,
+              '&:hover': {
+                background: `linear-gradient(135deg, 
+                  ${alpha(theme.palette.secondary.main, 0.25)} 0%, 
+                  ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
+                transform: 'translateY(-1px)',
+              },
+              transition: 'all 0.2s ease',
+            }}
+          />
+        ))}
+        {(!project.tags || project.tags.length === 0) && (
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              color: theme.palette.text.secondary,
+              fontStyle: 'italic',
+              p: 2,
+              textAlign: 'center',
+              width: '100%',
+            }}
+          >
+            No tags added to this project
           </Typography>
-          <Typography variant="body2" gutterBottom>
-            <strong>Start:</strong> {formatDate(project.startDate)}
+        )}
+      </Box>
+    </Box>
+  </Popover>
+
+  {/* Timeline Popover */}
+  <Popover
+    open={Boolean(dueAnchorEl)}
+    anchorEl={dueAnchorEl}
+    onClose={() => setDueAnchorEl(null)}
+    anchorOrigin={{
+      vertical: 'bottom',
+      horizontal: 'left',
+    }}
+    transformOrigin={{
+      vertical: 'top',
+      horizontal: 'left',
+    }}
+    PaperProps={{
+      sx: {
+        borderRadius: 3,
+        background: `linear-gradient(135deg, 
+          ${alpha(theme.palette.background.paper, 0.95)} 0%, 
+          ${alpha(theme.palette.background.paper, 0.9)} 100%)`,
+        border: `1.5px solid ${alpha(theme.palette.info.main, 0.15)}`,
+        boxShadow: `0 8px 32px ${alpha(theme.palette.mode === 'dark' ? '#000' : theme.palette.info.main, 0.15)}`,
+        overflow: 'hidden',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 3,
+          background: `linear-gradient(90deg, 
+            ${theme.palette.info.main}, 
+            ${alpha(theme.palette.info.main, 0.7)})`,
+          borderRadius: '12px 12px 0 0',
+        }
+      }
+    }}
+  >
+    <Box sx={{ p: 3, minWidth: 240 }}>
+      <Typography 
+        variant="subtitle1" 
+        gutterBottom 
+        sx={{ 
+          fontWeight: 700,
+          color: theme.palette.text.primary,
+          fontFamily: '"Inter", sans-serif',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+        }}
+      >
+        <CalendarToday fontSize="small" />
+        Project Timeline
+      </Typography>
+      
+      <Box sx={{ mt: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+          <PlayCircleOutline fontSize="small" sx={{ color: theme.palette.success.main }} />
+          <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+            Start Date
           </Typography>
-          <Typography variant="body2" gutterBottom>
-            <strong>End:</strong> {formatDate(project.endDate)}
+          <Typography variant="body2" sx={{ color: theme.palette.text.secondary, ml: 'auto' }}>
+            {formatDate(project.startDate)}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+        </Box>
+        
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+          <Flag fontSize="small" sx={{ color: theme.palette.error.main }} />
+          <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+            End Date
+          </Typography>
+          <Typography variant="body2" sx={{ color: theme.palette.text.secondary, ml: 'auto' }}>
+            {formatDate(project.endDate)}
+          </Typography>
+        </Box>
+        
+        <Box
+          sx={{
+            mt: 3,
+            pt: 2,
+            borderTop: `1.5px solid ${alpha(theme.palette.divider, 0.1)}`,
+          }}
+        >
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              fontWeight: 600,
+              color: theme.palette.primary.main,
+              fontFamily: '"Inter", sans-serif',
+            }}
+          >
             {daysRemaining()}
           </Typography>
         </Box>
-      </Popover>
-    </>
+      </Box>
+    </Box>
+  </Popover> 
+</>
   );
 };
 
 const Projects = () => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const [user, setUser] = useState(getUserData() || null);
+
   const [projects, setProjects] = useState([]);
   const [filteredProjects, setFilteredProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2942,6 +3333,8 @@ const Projects = () => {
   const [authError, setAuthError] = useState(false);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
 
+  const { ref, inView } = useInView({ threshold: 0, triggerOnce: true });
+
   // Check authentication
   const checkAuth = useCallback(() => {
     const token = getAuthToken();
@@ -2953,7 +3346,27 @@ const Projects = () => {
     }
     return true;
   }, []);
+  
+  const fetchUserData = async () => {
+    try {
+      const token = getAuthToken();
+      if (!token) return null;
+      const user = await axiosClient.get('/user/me', {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      setUser(user.data?.user);
+      console.log('Fetched user data:', user.data?.user);
+    } catch (err) {
+      console.error('Error fetching user data:', err);
+    }
+  };
 
+  useEffect(() => {
+    fetchUserData()
+  }, [checkAuth]);
   // Fetch user's teams
   const fetchTeams = useCallback(async () => {
     try {
@@ -2967,6 +3380,7 @@ const Projects = () => {
         }
       });
       const teamsData = response.data?.teams || [];
+
       setTeams(teamsData); 
       setAuthError(false);
     } catch (err) {
@@ -3238,130 +3652,241 @@ const Projects = () => {
         </Box>
 
         {/* Stats Cards */}
-        {!authError && projects.length > 0 && (
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: { xs: 'column', sm: 'row' },
-            gap: 3,
-            mb: 5
-          }}>
-            {[
-              { 
-                label: 'Total Projects', 
-                value: projects.length, 
-                icon: <Group />,
-                color: theme.palette.primary.main,
-                bgColor: alpha(theme.palette.primary.main, 0.1),
-                trend: '+12%'
-              },
-              { 
-                label: 'Active Projects', 
-                value: activeProjects, 
-                icon: <PlayCircle />,
-                color: theme.palette.success.main,
-                bgColor: alpha(theme.palette.success.main, 0.1),
-                trend: '+8%'
-              },
-              { 
-                label: 'At Risk', 
-                value: atRiskProjects, 
-                icon: <Assessment />,
-                color: theme.palette.warning.main,
-                bgColor: alpha(theme.palette.warning.main, 0.1),
-                trend: atRiskProjects > 0 ? 'Needs attention' : 'All good'
-              },
-              { 
-                label: 'Avg Progress', 
-                value: `${Math.round(totalProgress)}%`, 
-                icon: <TrendingUp />,
-                color: theme.palette.info.main,
-                bgColor: alpha(theme.palette.info.main, 0.1),
-                trend: '+5%'
-              }
-            ].map((stat, index) => (
-              <Card
-                key={stat.label}
-                sx={{
-                  flex: 1,
-                  minWidth: { xs: '100%', sm: 200 },
-                  p: 3,
-                  borderRadius: 3,
-                  backgroundColor: stat.bgColor,
-                  border: `1px solid ${alpha(stat.color, 0.2)}`,
-                  position: 'relative',
-                  overflow: 'hidden',
-                  transition: 'all 0.3s ease',
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: `0 12px 40px ${alpha(stat.color, 0.15)}`,
-                  }
-                }}
-              >
-                <Box sx={{ 
-                  position: 'absolute', 
-                  top: -20, 
-                  right: -20,
-                  opacity: 0.1
-                }}>
-                  <Box sx={{ 
-                    fontSize: 60,
-                    color: stat.color,
-                    transform: 'rotate(15deg)'
-                  }}>
-                    {stat.icon}
-                  </Box>
-                </Box>
-                
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2, position: 'relative' }}>
-                  <Box sx={{ 
-                    p: 1.5, 
-                    borderRadius: 2,
-                    backgroundColor: alpha(stat.color, 0.2),
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <Box sx={{ color: stat.color }}>
-                      {stat.icon}
-                    </Box>
-                  </Box>
-                  
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="h3" fontWeight="800" sx={{ color: stat.color, lineHeight: 1 }}>
-                      {stat.value}
-                    </Typography>
-                    <Typography variant="body2" sx={{ 
-                      color: theme.palette.text.secondary,
-                      fontWeight: 500,
-                      mt: 0.5
-                    }}>
-                      {stat.label}
-                    </Typography>
-                  </Box>
-                </Box>
-                
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between',
-                  mt: 2,
-                  pt: 2,
-                  borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`
-                }}>
-                  <Typography variant="caption" sx={{ 
-                    color: theme.palette.text.secondary,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 0.5
-                  }}>
-                    <TrendingUp fontSize="small" />
-                    {stat.trend}
-                  </Typography>
-                </Box>
-              </Card>
-            ))}
+{!authError && projects.length > 0 && (
+  <Box sx={{ 
+    mb: 5,
+    display: 'grid',
+    gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
+    gap: 2.5,
+    position: 'relative',
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      top: -10,
+      left: -10,
+      right: -10,
+      bottom: -10,
+      background: `linear-gradient(135deg, 
+        ${alpha(theme.palette.primary.main, 0.03)} 0%, 
+        ${alpha(theme.palette.secondary.main, 0.02)} 50%, 
+        ${alpha(theme.palette.background.paper, 0.01)} 100%)`,
+      borderRadius: 3,
+      zIndex: 0,
+    }
+  }}>
+    {[
+      { 
+        label: 'Total Projects', 
+        value: projects.length, 
+        icon: <Group fontSize="small" />,
+        color: theme.palette.primary.main,
+        gradient: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.15)}, ${alpha(theme.palette.primary.main, 0.05)})`,
+        hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.2)}, ${alpha(theme.palette.primary.main, 0.1)})`,
+        subtitle: 'All active projects',
+        progress: 100
+      },
+      { 
+        label: 'Active Projects', 
+        value: activeProjects, 
+        icon: <PlayCircle fontSize="small" />,
+        color: theme.palette.success.main,
+        gradient: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.12)}, ${alpha(theme.palette.success.main, 0.04)})`,
+        hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.18)}, ${alpha(theme.palette.success.main, 0.08)})`,
+        subtitle: 'Currently in progress',
+        progress: projects.length > 0 ? (activeProjects / projects.length) * 100 : 0
+      },
+      { 
+        label: 'At Risk', 
+        value: atRiskProjects, 
+        icon: <Assessment fontSize="small" />,
+        color: theme.palette.warning.main,
+        gradient: `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.12)}, ${alpha(theme.palette.warning.main, 0.04)})`,
+        hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.18)}, ${alpha(theme.palette.warning.main, 0.08)})`,
+        subtitle: atRiskProjects > 0 ? 'Needs attention' : 'All good',
+        progress: projects.length > 0 ? (atRiskProjects / projects.length) * 100 : 0
+      },
+      { 
+        label: 'Avg Progress', 
+        value: `${Math.round(totalProgress)}%`, 
+        icon: <TrendingUp fontSize="small" />,
+        color: theme.palette.info.main,
+        gradient: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.12)}, ${alpha(theme.palette.info.main, 0.04)})`,
+        hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.18)}, ${alpha(theme.palette.info.main, 0.08)})`,
+        subtitle: 'Overall completion',
+        progress: totalProgress
+      }
+    ].map((stat, index) => (
+      <Paper
+        key={stat.label}
+        elevation={0}
+        sx={{
+          p: 2.5,
+          borderRadius: 3,
+          background: stat.gradient,
+          border: `1.5px solid ${alpha(stat.color, 0.15)}`,
+          position: 'relative',
+          overflow: 'hidden',
+          cursor: 'default',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          '&:hover': {
+            transform: 'translateY(-4px)',
+            background: stat.hoverGradient,
+            border: `1.5px solid ${alpha(stat.color, 0.25)}`,
+            boxShadow: `0 8px 24px ${alpha(stat.color, 0.15)}`,
+            '& .stat-icon-wrapper': {
+              transform: 'scale(1.1) rotate(5deg)',
+            },
+            '& .stat-value': {
+              textShadow: `0 0 20px ${alpha(stat.color, 0.3)}`,
+            }
+          },
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 4,
+            background: `linear-gradient(90deg, ${stat.color}, ${alpha(stat.color, 0.7)})`,
+            borderRadius: '3px 3px 0 0',
+          },
+          '&::after': {
+            content: '""',
+            position: 'absolute',
+            bottom: -20,
+            right: -20,
+            width: 60,
+            height: 60,
+            background: `radial-gradient(circle, ${alpha(stat.color, 0.08)} 0%, transparent 70%)`,
+            borderRadius: '50%',
+          }
+        }}
+      >
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          mb: 1.5,
+          position: 'relative',
+          zIndex: 1
+        }}>
+          <Box 
+            className="stat-icon-wrapper"
+            sx={{
+              width: 48,
+              height: 48,
+              borderRadius: 2,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: alpha(stat.color, 0.1),
+              border: `1px solid ${alpha(stat.color, 0.2)}`,
+              transition: 'all 0.3s ease',
+              boxShadow: `0 4px 12px ${alpha(stat.color, 0.1)}`,
+            }}
+          >
+            <Box sx={{ 
+              color: stat.color,
+              fontSize: 22,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              {stat.icon}
+            </Box>
           </Box>
-        )}
+          
+          <Typography 
+            className="stat-value"
+            variant="h3"
+            sx={{
+              fontFamily: '"Alkatra", cursive',
+              fontWeight: 700,
+              fontSize: { xs: '2rem', sm: '2.5rem' },
+              color: stat.color,
+              lineHeight: 1,
+              transition: 'all 0.3s ease',
+              background: `linear-gradient(45deg, ${stat.color}, ${alpha(stat.color, 0.8)})`,
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              textShadow: `0 0 10px ${alpha(stat.color, 0.2)}`,
+            }}
+          >
+            {stat.value}
+          </Typography>
+        </Box>
+        
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 1,
+          position: 'relative',
+          zIndex: 1
+        }}>
+          <Box sx={{
+            flexShrink: 0,
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            backgroundColor: stat.color,
+            boxShadow: `0 0 8px ${alpha(stat.color, 0.5)}`,
+          }} />
+          
+          <Typography 
+            variant="h6"
+            sx={{
+              fontFamily: '"Adlam Display", serif',
+              fontWeight: 500,
+              color: theme.palette.mode === 'dark' ? alpha('#fff', 0.9) : alpha('#000', 0.8),
+              letterSpacing: '0.5px',
+              fontSize: { xs: '0.9rem', sm: '1rem' },
+            }}
+          >
+            {stat.label}
+          </Typography>
+        </Box>
+        
+        <Typography 
+          variant="caption"
+          sx={{
+            display: 'block',
+            mt: 0.5,
+            ml: 2,
+            color: theme.palette.mode === 'dark' ? alpha('#fff', 0.6) : alpha('#000', 0.6),
+            fontFamily: '"Inter", sans-serif',
+            fontWeight: 300,
+            fontSize: '0.75rem',
+            letterSpacing: '0.3px',
+          }}
+        >
+          {stat.subtitle}
+        </Typography>
+        
+        {/* Progress indicator */}
+        <Box sx={{
+          mt: 2,
+          height: 2,
+          background: alpha(theme.palette.mode === 'dark' ? '#fff' : '#000', 0.1),
+          borderRadius: 1,
+          overflow: 'hidden',
+          position: 'relative',
+          '&::after': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            height: '100%',
+            width: `${Math.min(100, stat.progress)}%`,
+            background: `linear-gradient(90deg, ${alpha(stat.color, 0.6)}, ${stat.color})`,
+            borderRadius: 1,
+            transition: 'width 0.8s ease',
+          }
+        }} />
+      </Paper>
+    ))}
+  </Box>
+)}
 
         {/* Search and Filter Bar */}
         {!authError && (
@@ -3799,6 +4324,7 @@ const Projects = () => {
                       teams={teams}
                       onCreateTask={() => handleCreateTask(project)}
                       onReviewProject={handleReviewProject}
+                      userId = {user?._id}
                     />
                   ))}
                 </TableBody>

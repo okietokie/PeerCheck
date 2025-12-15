@@ -231,8 +231,8 @@ export default function Dashboard() {
     navigate('/user-app/tasks');
   };
 
-  const handleViewProject = () => {
-    navigate(`/user-app/my-project`);
+  const handleViewProject = (projectId) => {
+    navigate(`/user-app/my-project/${projectId}`);
   };
 
   const handleViewAllProjects = () => {
@@ -299,7 +299,6 @@ export default function Dashboard() {
                 fontWeight: 700,
                 color: theme.palette.text.primary,
                 mb: 0.5,
-                fontFamily: '"Alkatra", cursive',
                 background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
@@ -366,46 +365,68 @@ export default function Dashboard() {
           </Box>
         </Box>
 
-        {/* Stats Cards - Horizontal Layout */}
+        {/* Stats Cards */}
         <Box sx={{ 
-          display: 'flex', 
-          gap: 2.5, 
           mb: 5,
-          overflowX: 'auto',
-          pb: 1,
-          '&::-webkit-scrollbar': { display: 'none' }
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
+          gap: 2.5,
+          position: 'relative',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: -10,
+            left: -10,
+            right: -10,
+            bottom: -10,
+            background: `linear-gradient(135deg, 
+              ${alpha(theme.palette.primary.main, 0.03)} 0%, 
+              ${alpha(theme.palette.secondary.main, 0.02)} 50%, 
+              ${alpha(theme.palette.background.paper, 0.01)} 100%)`,
+            borderRadius: 3,
+            zIndex: 0,
+          }
         }}>
           {[
             {
               title: 'Active Projects',
               value: stats.activeProjects,
-              icon: <FolderIcon />,
+              icon: <FolderIcon fontSize="small" />,
               color: theme.palette.primary.main,
-              trend: `${projects.filter(p => p.status === 'completed').length} completed`,
-              onClick: handleViewAllProjects
+              gradient: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.15)}, ${alpha(theme.palette.primary.main, 0.05)})`,
+              hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.2)}, ${alpha(theme.palette.primary.main, 0.1)})`,
+              subtitle: `${projects.filter(p => p.status === 'completed').length} completed`,
+              progress: projects.length > 0 ? (stats.activeProjects / projects.length) * 100 : 0
             },
             {
               title: 'Tasks In Progress',
               value: stats.activeTasks,
-              icon: <PlayCircleIcon />,
+              icon: <PlayCircleIcon fontSize="small" />,
               color: theme.palette.info.main,
-              trend: `${tasks.filter(t => t.status === 'completed').length} completed`,
-              onClick: handleViewTasks
+              gradient: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.12)}, ${alpha(theme.palette.info.main, 0.04)})`,
+              hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.18)}, ${alpha(theme.palette.info.main, 0.08)})`,
+              subtitle: `${tasks.filter(t => t.status === 'completed').length} completed`,
+              progress: tasks.length > 0 ? (stats.activeTasks / tasks.length) * 100 : 0
             },
             {
               title: 'Productivity',
               value: `${stats.productivity}%`,
-              icon: <TrendingUpIcon />,
+              icon: <TrendingUpIcon fontSize="small" />,
               color: theme.palette.success.main,
-              trend: stats.productivity > 80 ? 'On track' : 'Needs boost'
+              gradient: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.12)}, ${alpha(theme.palette.success.main, 0.04)})`,
+              hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.18)}, ${alpha(theme.palette.success.main, 0.08)})`,
+              subtitle: stats.productivity > 80 ? 'On track' : 'Needs boost',
+              progress: stats.productivity
             },
             {
               title: 'Alerts',
               value: stats.highPriorityAlerts,
-              icon: <WarningIcon />,
+              icon: <WarningIcon fontSize="small" />,
               color: theme.palette.error.main,
-              trend: 'Require attention',
-              onClick: () => navigate('/user-app/tasks?filter=high-priority')
+              gradient: `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.12)}, ${alpha(theme.palette.error.main, 0.04)})`,
+              hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.18)}, ${alpha(theme.palette.error.main, 0.08)})`,
+              subtitle: 'Require attention',
+              progress: stats.highPriorityAlerts > 0 ? Math.min(100, stats.highPriorityAlerts * 20) : 0
             }
           ].map((stat, index) => (
             <motion.div
@@ -413,79 +434,175 @@ export default function Dashboard() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              style={{ flexShrink: 0 }}
             >
-              <Card
+              <Paper
+                elevation={0}
+                onClick={stat.onClick}
                 sx={{
-                  minWidth: 240,
-                  background: theme.palette.mode === 'dark' 
-                    ? `linear-gradient(135deg, ${alpha(stat.color, 0.15)} 0%, ${alpha(stat.color, 0.05)} 100%)`
-                    : `linear-gradient(135deg, ${alpha(stat.color, 0.08)} 0%, ${alpha(stat.color, 0.02)} 100%)`,
-                  border: `1px solid ${alpha(stat.color, 0.15)}`,
+                  p: 2.5,
                   borderRadius: 3,
-                  transition: 'all 0.3s ease',
+                  background: stat.gradient,
+                  border: `1.5px solid ${alpha(stat.color, 0.15)}`,
+                  position: 'relative',
+                  overflow: 'hidden',
                   cursor: stat.onClick ? 'pointer' : 'default',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   '&:hover': {
                     transform: 'translateY(-4px)',
-                    boxShadow: `0 12px 30px ${alpha(stat.color, 0.15)}`,
-                    borderColor: stat.color,
+                    background: stat.hoverGradient,
+                    border: `1.5px solid ${alpha(stat.color, 0.25)}`,
+                    boxShadow: `0 8px 24px ${alpha(stat.color, 0.15)}`,
+                    '& .stat-icon-wrapper': {
+                      transform: 'scale(1.1) rotate(5deg)',
+                    },
+                    '& .stat-value': {
+                      textShadow: `0 0 20px ${alpha(stat.color, 0.3)}`,
+                    }
+                  },
+                  '&::before': {
+                    content: '""',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 4,
+                    background: `linear-gradient(90deg, ${stat.color}, ${alpha(stat.color, 0.7)})`,
+                    borderRadius: '3px 3px 0 0',
+                  },
+                  '&::after': {
+                    content: '""',
+                    position: 'absolute',
+                    bottom: -20,
+                    right: -20,
+                    width: 60,
+                    height: 60,
+                    background: `radial-gradient(circle, ${alpha(stat.color, 0.08)} 0%, transparent 70%)`,
+                    borderRadius: '50%',
                   }
                 }}
-                onClick={stat.onClick}
               >
-                <CardContent sx={{ p: 3 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Box
-                      sx={{
-                        width: 56,
-                        height: 56,
-                        background: `linear-gradient(135deg, ${stat.color} 0%, ${alpha(stat.color, 0.7)} 100%)`,
-                        borderRadius: 2,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: theme.palette.getContrastText(stat.color),
-                        boxShadow: `0 6px 15px ${alpha(stat.color, 0.3)}`
-                      }}
-                    >
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  mb: 1.5,
+                  position: 'relative',
+                  zIndex: 1
+                }}>
+                  <Box 
+                    className="stat-icon-wrapper"
+                    sx={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: alpha(stat.color, 0.1),
+                      border: `1px solid ${alpha(stat.color, 0.2)}`,
+                      transition: 'all 0.3s ease',
+                      boxShadow: `0 4px 12px ${alpha(stat.color, 0.1)}`,
+                    }}
+                  >
+                    <Box sx={{ 
+                      color: stat.color,
+                      fontSize: 22,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
                       {stat.icon}
                     </Box>
-                    <Box>
-                      <Typography 
-                        variant="h4" 
-                        sx={{ 
-                          fontWeight: 800, 
-                          color: stat.color,
-                          fontFamily: '"Inter", sans-serif',
-                          lineHeight: 1
-                        }}
-                      >
-                        {stat.value}
-                      </Typography>
-                      <Typography 
-                        variant="body2" 
-                        sx={{ 
-                          color: theme.palette.text.primary, 
-                          fontWeight: 600,
-                          mb: 0.5,
-                          fontFamily: '"Inter", sans-serif'
-                        }}
-                      >
-                        {stat.title}
-                      </Typography>
-                      <Typography 
-                        variant="caption" 
-                        sx={{ 
-                          color: theme.palette.text.secondary,
-                          fontFamily: '"Inter", sans-serif'
-                        }}
-                      >
-                        {stat.trend}
-                      </Typography>
-                    </Box>
                   </Box>
-                </CardContent>
-              </Card>
+                  
+                  <Typography 
+                    className="stat-value"
+                    variant="h3"
+                    sx={{
+                      fontFamily: '"Alkatra", cursive',
+                      fontWeight: 700,
+                      fontSize: { xs: '2rem', sm: '2.5rem' },
+                      color: stat.color,
+                      lineHeight: 1,
+                      transition: 'all 0.3s ease',
+                      background: `linear-gradient(45deg, ${stat.color}, ${alpha(stat.color, 0.8)})`,
+                      backgroundClip: 'text',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      textShadow: `0 0 10px ${alpha(stat.color, 0.2)}`,
+                    }}
+                  >
+                    {stat.value}
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 1,
+                  position: 'relative',
+                  zIndex: 1
+                }}>
+                  <Box sx={{
+                    flexShrink: 0,
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    backgroundColor: stat.color,
+                    boxShadow: `0 0 8px ${alpha(stat.color, 0.5)}`,
+                  }} />
+                  
+                  <Typography 
+                    variant="h6"
+                    sx={{
+                      fontFamily: '"Adlam Display", serif',
+                      fontWeight: 500,
+                      color: theme.palette.mode === 'dark' ? alpha('#fff', 0.9) : alpha('#000', 0.8),
+                      letterSpacing: '0.5px',
+                      fontSize: { xs: '0.9rem', sm: '1rem' },
+                    }}
+                  >
+                    {stat.title}
+                  </Typography>
+                </Box>
+                
+                <Typography 
+                  variant="caption"
+                  sx={{
+                    display: 'block',
+                    mt: 0.5,
+                    ml: 2,
+                    color: theme.palette.mode === 'dark' ? alpha('#fff', 0.6) : alpha('#000', 0.6),
+                    fontFamily: '"Inter", sans-serif',
+                    fontWeight: 300,
+                    fontSize: '0.75rem',
+                    letterSpacing: '0.3px',
+                  }}
+                >
+                  {stat.subtitle}
+                </Typography>
+                
+                {/* Progress indicator */}
+                <Box sx={{
+                  mt: 2,
+                  height: 2,
+                  background: alpha(theme.palette.mode === 'dark' ? '#fff' : '#000', 0.1),
+                  borderRadius: 1,
+                  overflow: 'hidden',
+                  position: 'relative',
+                  '&::after': {
+                    content: '""',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    height: '100%',
+                    width: `${Math.min(100, stat.progress)}%`,
+                    background: `linear-gradient(90deg, ${alpha(stat.color, 0.6)}, ${stat.color})`,
+                    borderRadius: 1,
+                    transition: 'width 0.8s ease',
+                  }
+                }} />
+              </Paper>
             </motion.div>
           ))}
         </Box>

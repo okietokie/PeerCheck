@@ -842,14 +842,14 @@ const AvatarUploadProgress = ({ uploading }) => {
                     STATUS
                   </Typography>
                   <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                    {user.user?.onlineStatus === 'online' ? 'Online' : 'Offline'}
+                    {user.user?.onlineStatus === 'active' ? 'Online' : 'Offline'}
                   </Typography>
                 </Box>
                 <Box sx={{ 
                   width: 12, 
                   height: 12, 
                   borderRadius: '50%',
-                  bgcolor: user.user?.onlineStatus === 'online' ? 'success.main' : 'error.main'
+                  bgcolor: user.user?.onlineStatus === 'active  ' ? 'success.main' : 'error.main'
                 }} />
               </Box>
             </Card>

@@ -15,7 +15,7 @@ const typographyConfig = {
   fontFamily: '"Inter", "Adlam Display", "Alkatra", cursive, sans-serif',
   h1: { fontFamily: '"Adlam Display", serif', fontWeight: 400 },
   h2: { fontFamily: '"Adlam Display", serif', fontWeight: 400 },
-  h3: { fontFamily: '"Alkatra", cursive', fontWeight: 600, fontSize: '2.5rem' },
+  h3: { fontFamily: '"Bree Serif", serif', fontWeight: 400, fontSize: '2.5rem' },
   h4: { fontFamily: '"Adlam Display", serif', fontWeight: 400 },
   h5: { fontFamily: '"Alkatra", cursive', fontWeight: 400, fontSize: '2.5rem' },
   h6: { fontFamily: '"Inter", sans-serif', fontWeight: 600 },

@@ -26,7 +26,19 @@ import {
   PersonAdd as PersonAddIcon,
   Add as AddIcon,
   GroupAdd as GroupAddIcon,
-  Launch as LaunchIcon
+  Launch as LaunchIcon,
+  People,
+  Schedule,
+  Group,
+  WorkOutline,
+  Star,
+  Visibility,
+  ExitToApp,
+  Groups,
+  Settings,
+  Analytics,
+  Chat,
+  Warning
 } from '@mui/icons-material';
 import axiosClient from '@/api/axiosClient';
 import TeamDetails from './PeerTeams/TeamDetails';
@@ -44,6 +56,8 @@ export default function PeerTeams() {
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [teamDetailsOpen, setTeamDetailsOpen] = useState(false);
   const [profileActive, setProfileActive] = useState(false);
+
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
 
 
 
@@ -104,19 +118,104 @@ export default function PeerTeams() {
       setCreatingTeam(false);
     }
   };
+const openLeaveDialog = (teamId, teamName) => {
+  setSelectedTeam({ id: teamId, name: teamName });
+  setLeaveDialogOpen(true);
+};
 
-  const leaveTeam = async (teamId) => {
-    try {
-      const token = localStorage.getItem("token");
-      await axiosClient.delete(`/user/leave-team/${teamId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      await fetchTeams(); // Refresh teams list
-    } catch (error) {
-      console.log(`Error leaving team: ${error}`);
-      setError('Failed to leave team');
-    }
-  };
+const handleCloseDialog = () => {
+  setLeaveDialogOpen(false);
+  setSelectedTeam(null);
+};
+
+const leaveTeam = async (teamId) => {
+  if (!teamId) return;
+  
+  try {
+    const token = localStorage.getItem("token");
+    await axiosClient.delete(`/user/leave-team/${teamId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    await fetchTeams(); // Refresh teams list
+    handleCloseDialog();
+  } catch (error) {
+    console.log(`Error leaving team: ${error}`);
+    setError('Failed to leave team');
+    handleCloseDialog();
+  }
+};
+
+// In your component render method:
+<>
+  {/* Your existing component code */}
+  <Button
+    variant="outlined"
+    color="error"
+    onClick={() => openLeaveDialog(team._id, team.name || team.teamName)}
+    startIcon={<ExitToApp />}
+    sx={{ 
+      borderRadius: 3,
+      minWidth: 'auto',
+      px: 3,
+      py: 1.5,
+      fontWeight: 600,
+      textTransform: 'none',
+      borderWidth: 2,
+      '&:hover': {
+        borderWidth: 2,
+        bgcolor: alpha(theme.palette.error.main, 0.04)
+      }
+    }}
+  >
+    Leave
+  </Button>
+
+  {/* Confirmation Dialog */}
+  <Dialog
+    open={leaveDialogOpen}
+    onClose={handleCloseDialog}
+    maxWidth="sm"
+    fullWidth
+  >
+    <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Warning color="warning" />
+      Leave Team Confirmation
+    </DialogTitle>
+    <DialogContent>
+      <Alert severity="warning" sx={{ mb: 2 }}>
+        <Typography variant="body1" sx={{ fontWeight: 600 }}>
+          Are you sure you want to leave the team?
+        </Typography>
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          You will lose access to all team resources and conversations.
+        </Typography>
+      </Alert>
+      {selectedTeam && (
+        <Typography variant="body2" color="text.secondary">
+          Team: <strong>{selectedTeam.name}</strong>
+        </Typography>
+      )}
+    </DialogContent>
+    <DialogActions sx={{ p: 3, pt: 0 }}>
+      <Button 
+        onClick={handleCloseDialog} 
+        variant="outlined"
+        sx={{ borderRadius: 2 }}
+      >
+        Cancel
+      </Button>
+      <Button 
+        onClick={leaveTeam} 
+        variant="contained" 
+        color="error"
+        sx={{ borderRadius: 2 }}
+      >
+        Leave Team
+      </Button>
+    </DialogActions>
+  </Dialog>
+</>
+
   
   const handleViewTeam = (team) => {
     setSelectedTeam(team);
@@ -465,138 +564,372 @@ export default function PeerTeams() {
       </Box>
 
       {/* Teams Grid */}
-      <Grid container spacing={4}>
-        {teams.map((team) => (
-          <Grid item xs={12} md={6} key={team._id}>
-            <Card
+<Box
+  sx={{
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 3,
+    width: '100%'
+  }}
+>
+  {teams.map((team) => (
+    <Card
+      key={team._id}
+      sx={{
+        p: 3,
+        borderRadius: 4,
+        bgcolor: theme.palette.background.paper,
+        border: `1px solid ${alpha(theme.palette.primary.main, 0.08)}`,
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        backgroundImage: `linear-gradient(to right, 
+          ${alpha(theme.palette.background.paper, 1)} 0%,
+          ${alpha(theme.palette.background.default, 0.3)} 30%,
+          ${alpha(theme.palette.background.default, 0.1)} 100%)`,
+        position: 'relative',
+        overflow: 'hidden',
+        '&:hover': {
+          transform: 'translateX(8px)',
+          boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.12)}`,
+          borderColor: alpha(theme.palette.primary.main, 0.2),
+          '&::before': {
+            width: '6px'
+          }
+        },
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: '4px',
+          background: `linear-gradient(to bottom, 
+            ${theme.palette.primary.main} 0%,
+            ${theme.palette.secondary.main} 100%)`,
+          borderTopLeftRadius: 4,
+          borderBottomLeftRadius: 4,
+          transition: 'width 0.3s ease'
+        }
+      }}
+    >
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'stretch',
+          gap: 4,
+          height: '180px'
+        }}
+      >
+        {/* Team Info Sidebar */}
+        <Box
+          sx={{
+            width: '280px',
+            minWidth: '280px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            pr: 3,
+            borderRight: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+          }}
+        >
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+              <Box
+                sx={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 3,
+                  bgcolor: alpha(theme.palette.primary.main, 0.1),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`
+                }}
+              >
+                <Groups sx={{ fontSize: 24, color: 'primary.main' }} />
+              </Box>
+              <Box>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: 700,
+                    mb: 0.5,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}
+                >
+                  {team.name || team.teamName}
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                  Team ID: {team._id?.slice(-8) || 'N/A'}
+                </Typography>
+              </Box>
+            </Box>
+
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <People sx={{ fontSize: 16, color: 'primary.main' }} />
+                <Typography variant="body2">
+                  <strong>{team.members?.length || 0}</strong> members
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Schedule sx={{ fontSize: 16, color: 'primary.main' }} />
+                <Typography variant="body2">
+                  Created {team.createdAt ? new Date(team.createdAt).toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric',
+                    year: 'numeric' 
+                  }) : 'N/A'}
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => handleViewTeam(team)}
+              startIcon={<Visibility />}
+              fullWidth
               sx={{
-                p: 4,
-                borderRadius: 4,
-                bgcolor: theme.palette.background.paper,
-                border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                transition: 'all 0.3s ease',
+                borderRadius: 2,
+                py: 1,
+                fontSize: '0.875rem',
+                fontWeight: 600
+              }}
+            >
+              Dashboard
+            </Button>
+            <Tooltip title="Leave team">
+              <Button
+                variant="outlined"
+                color="error"
+                onClick={() => leaveTeam(team._id)}
+                sx={{
+                  borderRadius: 2,
+                  minWidth: 'auto',
+                  px: 2,
+                  borderWidth: 2
+                }}
+              >
+                  
+                <ExitToApp />
+              </Button>
+            </Tooltip>
+
+          </Box>
+        </Box>
+
+        {/* Members Preview - Horizontal Scrolling */}
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography
+            variant="subtitle2"
+            sx={{
+              mb: 2,
+              color: 'text.secondary',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}
+          >
+            <Group sx={{ fontSize: 18 }} />
+            Team Members
+          </Typography>
+
+          <Box
+            sx={{
+              display: 'flex',
+              gap: 2,
+              overflowX: 'auto',
+              pb: 2,
+              '&::-webkit-scrollbar': {
+                height: '6px'
+              },
+              '&::-webkit-scrollbar-track': {
+                background: alpha(theme.palette.divider, 0.1),
+                borderRadius: 3
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: alpha(theme.palette.primary.main, 0.3),
+                borderRadius: 3,
                 '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.12)'
+                  background: alpha(theme.palette.primary.main, 0.5)
+                }
+              }
+            }}
+          >
+            {team.members?.map((member, index) => (
+              <Box
+                key={member._id || member.user?._id || index}
+                sx={{
+                  width: '140px',
+                  minWidth: '140px',
+                  p: 2,
+                  borderRadius: 3,
+                  bgcolor: alpha(theme.palette.background.default, 0.5),
+                  border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 1.5,
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    transform: 'translateY(-2px)',
+                    boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.15)}`,
+                    borderColor: alpha(theme.palette.primary.main, 0.3)
+                  }
+                }}
+              >
+                <Box sx={{ position: 'relative' }}>
+                  <Avatar
+                    sx={{
+                      width: 56,
+                      height: 56,
+                      fontSize: '1.25rem',
+                      fontWeight: 600,
+                      bgcolor: `hsl(${index * 60}, 70%, 50%)`,
+                      boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.2)}`
+                    }}
+                  >
+                    {member.user?.name?.[0]?.toUpperCase() || member.name?.[0]?.toUpperCase() || 'U'}
+                  </Avatar>
+                  {member.role === 'leader' && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        bottom: -4,
+                        right: -4,
+                        bgcolor: 'primary.main',
+                        color: 'white',
+                        borderRadius: '50%',
+                        width: 20,
+                        height: 20,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        border: `2px solid ${theme.palette.background.paper}`
+                      }}
+                    >
+                      <Star sx={{ fontSize: 12 }} />
+                    </Box>
+                  )}
+                </Box>
+
+                <Box sx={{ textAlign: 'center', width: '100%' }}>
+                  <Typography
+                    sx={{
+                      fontWeight: 600,
+                      fontSize: '0.9rem',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}
+                  >
+                    {member.user?.name || member.name || 'Unknown'}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: 'text.secondary',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 0.5,
+                      mt: 0.5
+                    }}
+                  >
+                    <WorkOutline sx={{ fontSize: 12 }} />
+                    {member.role || 'Member'}
+                  </Typography>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+
+        {/* Quick Actions Sidebar */}
+        <Box
+          sx={{
+            width: '120px',
+            minWidth: '120px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 2,
+            pl: 3,
+            borderLeft: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+          }}
+        >
+          <Tooltip title="Team Settings">
+            <IconButton
+              onClick={() => handleViewTeam(team)}
+              sx={{
+                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                width: 48,
+                height: 48,
+                '&:hover': {
+                  bgcolor: alpha(theme.palette.primary.main, 0.2),
+                  transform: 'scale(1.1)'
                 }
               }}
             >
-              {/* Team Header */}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
-                <Box>
-                  <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
-                    {team.name  || team.teamName}
-                  </Typography>
-                  <Chip
-                    label={`${team.members?.length || 0} members`}
-                    size="small"
-                    color="primary"
-                    variant="outlined"
-                  />
-                </Box>
-                
-                <Tooltip title="Team Settings">
-                  <IconButton size="small" onClick={() => handleViewTeam(team)}>
-                    <LaunchIcon />
-                  </IconButton>
-                </Tooltip>
-              </Box>
+              <Settings sx={{ color: 'primary.main' }} />
+            </IconButton>
+          </Tooltip>
 
-              {/* Team Members */}
-              <Box sx={{ mb: 4, flex: 1 }}>
-                <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary', fontWeight: 600 }}>
-                  TEAM MEMBERS
-                </Typography>
-                
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {team.members?.slice(0, 4).map((member, index) => (
-                  <Box
-                    key={member._id || member.user?._id || index}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 2,
-                      p: 2,
-                      borderRadius: 2,
-                      bgcolor: alpha(theme.palette.primary.main, 0.02),
-                      border: `1px solid ${alpha(theme.palette.divider, 0.1)}`
-                    }}
-                  >
-                    <Avatar
-                      sx={{
-                        bgcolor: 'primary.main',
-                        width: 40,
-                        height: 40,
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      {member.user?.name?.[0] || member.name?.[0] || 'U'}
-                    </Avatar>
-                    
-                    <Box sx={{ flex: 1 }}>
-                      <Typography sx={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                        {member.user?.name || member.name || 'Unknown Member'}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                        {member.role || 'Member'}
-                      </Typography>
-                    </Box>
-                    
-                    {member.role === 'leader' && (
-                      <Chip
-                        label="Leader"
-                        size="small"
-                        color="primary"
-                        sx={{ height: 20, fontSize: '0.7rem' }}
-                      />
-                    )}
-                  </Box>
-                ))}
-                  
-                  {team.members && team.members.length > 4 && (
-                    <Typography variant="body2" sx={{ textAlign: 'center', color: 'text.secondary', py: 1 }}>
-                      +{team.members.length - 4} more members
-                    </Typography>
-                  )}
-                </Box>
-              </Box>
+          <Tooltip title="Team Analytics">
+            <IconButton
+              onClick={() => handleViewTeam(team)}
+              sx={{
+                bgcolor: alpha(theme.palette.secondary.main, 0.1),
+                width: 48,
+                height: 48,
+                '&:hover': {
+                  bgcolor: alpha(theme.palette.secondary.main, 0.2),
+                  transform: 'scale(1.1)'
+                }
+              }}
+            >
+              <Analytics sx={{ color: 'secondary.main' }} />
+            </IconButton>
+          </Tooltip>
 
-              {/* Team Actions */}
-              <Box sx={{ display: 'flex', gap: 1, pt: 2, borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  fullWidth
-                  sx={{ borderRadius: 2 }}
-                  onClick={() => handleViewTeam(team)} 
-                >
-                  View Team
-                </Button>
-                
-                <Button
-                  variant="outlined"
-                  color="error"
-                  onClick={() => leaveTeam(team._id)}
-                  sx={{ borderRadius: 2, minWidth: 'auto', px: 2 }}
-                >
-                  Leave
-                </Button>
-              </Box>
+          <Tooltip title="Team Chat">
+            <IconButton
+              onClick={() => handleViewTeam(team)}
+              sx={{
+                bgcolor: alpha(theme.palette.success.main, 0.1),
+                width: 48,
+                height: 48,
+                '&:hover': {
+                  bgcolor: alpha(theme.palette.success.main, 0.2),
+                  transform: 'scale(1.1)'
+                }
+              }}
+            >
+              <Chat sx={{ color: 'success.main' }} />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+
+      <TeamDetails
+        open={teamDetailsOpen}
+        onClose={() => setTeamDetailsOpen(false)}
+        team={selectedTeam}
+        onTeamUpdate={refreshTeams}
+      />
+    </Card>
+  ))} 
+</Box>
 
 
-              <TeamDetails 
-                open={teamDetailsOpen}
-                onClose={() => setTeamDetailsOpen(false)}
-                team={selectedTeam}
-                onTeamUpdate={refreshTeams} // Pass refresh function
-              />
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
 
       {/* Create Team Dialog */}
       <Dialog 

@@ -90,12 +90,18 @@ import {
   PlayCircleOutline,
   Comment,
   Attachment,
+  Title,
+  Circle,
+  CalendarMonth,
+  Task,
+  Settings,
   
 } from '@mui/icons-material';
-import { motion } from 'framer-motion';
+import { inView, motion } from 'framer-motion';
 import axiosClient from '@/api/axiosClient';
 import { useNavigate, useParams  } from 'react-router-dom';
 import { getAuthToken } from './utils/auth';
+import { useInView } from 'react-intersection-observer';
 
 
 
@@ -2452,7 +2458,7 @@ const TaskTableRow = ({
   onViewDetails,
   onStatusChange,
   userTeacher,
-  
+  ref
 }) => {
   const [actionsAnchorEl, setActionsAnchorEl] = useState(null);
 
@@ -2768,6 +2774,12 @@ const Tasks = () => {
   const [uploadProofModalOpen, setUploadProofModalOpen] = useState(false);
   const [selectedTaskForProof, setSelectedTaskForProof] = useState(null);
   const [liveTimers, setLiveTimers] = useState({}); 
+
+  const { ref, inView } = useInView({
+    threshold: 0.5,
+  });
+
+
   
 
   if (isTeacher(userRole)) {
@@ -2845,7 +2857,6 @@ const Tasks = () => {
       });
       
       setTasks(enrichedTasks);
- ;
 
       setFilteredTasks(enrichedTasks);
 
@@ -3091,6 +3102,7 @@ const handleFetchError = (err) => {
           }
         }
       );
+      
 
 
       console.log("handlestatuschange/response.data", response.data);
@@ -3101,6 +3113,7 @@ const handleFetchError = (err) => {
         setTasks(prevTasks => prevTasks.map(t =>
           t._id === taskId ? updatedTask  : t
         ));
+  
         
         // Show success message
         setError('');
@@ -3658,122 +3671,307 @@ const handleDeleteSelected = async () => {
           )}
         </Paper>
       ) : (
-        // Tasks Table
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <TableContainer 
-            component={Paper}
-            sx={{
-              borderRadius: 1,
-              backgroundColor: theme.palette.background.paper,
-              border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-              overflow: 'auto'
-            }}
-          >
-            <Table sx={{ minWidth: 800 }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell padding="checkbox">
-                    <Checkbox
-                      checked={allSelected}
-                      indeterminate={selectedTasks.size > 0 && !allSelected}
-                      onChange={(e) => handleSelectAll(e.target.checked)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="subtitle2" fontWeight="600">
-                      TASK TITLE
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="subtitle2" fontWeight="600">
-                      ASSIGNEE
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="subtitle2" fontWeight="600">
-                      STATUS
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="subtitle2" fontWeight="600">
-                      DEADLINE
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="subtitle2" fontWeight="600">
-                      EFFICIENCY
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="subtitle2" fontWeight="600">
-                      RISK LEVEL
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="subtitle2" fontWeight="600">
-                      PROOF
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="subtitle2" fontWeight="600">
-                      ACTIONS
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredTasks.map((task) => (
-                  <TaskTableRow
-                    key={task._id}
-                    task={task}
-                    isSelected={selectedTasks.has(task._id)}
-                    onSelect={handleSelectTask}
-                    theme={theme}
-                    userRole={userRole}
-                    onLogTime={handleLogTime}
-                    onUploadProof={handleUploadProof}
-                    onViewDetails={handleViewDetails}
-                    onStatusChange={handleStatusChange}
-                    userTeacher={userTeacher}
-
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-          
-          {/* Table Footer */}
-          {selectedTasks.size > 0 && (
-            <Paper
+// Tasks Table
+<motion.div
+  initial={{ opacity: 0, y: 20 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.3 }}
+>
+  <Paper
+    sx={{
+      borderRadius: 3,
+      background: theme.palette.mode === 'dark' 
+        ? `linear-gradient(135deg, 
+            ${alpha(theme.palette.background.paper, 0.95)} 0%, 
+            ${alpha(theme.palette.background.paper, 0.9)} 100%)`
+        : `linear-gradient(135deg, 
+            ${alpha(theme.palette.background.paper, 1)} 0%, 
+            ${alpha(theme.palette.background.default, 0.3)} 100%)`,
+      border: `1.5px solid ${alpha(theme.palette.primary.main, 0.08)}`,
+      overflow: 'hidden',
+      position: 'relative',
+      boxShadow: `0 4px 24px ${alpha(theme.palette.mode === 'dark' ? '#000' : theme.palette.primary.main, 0.08)}`,
+      '&::before': {
+        content: '""',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 4,
+        background: `linear-gradient(90deg, 
+          ${theme.palette.primary.main}, 
+          ${theme.palette.secondary.main})`,
+        borderRadius: '12px 12px 0 0',
+        zIndex: 1,
+      }
+    }}
+  >
+    <TableContainer 
+      sx={{
+        borderRadius: 3,
+        backgroundColor: 'transparent',
+        maxHeight: 600,
+        '&::-webkit-scrollbar': {
+          width: '8px',
+          height: '8px',
+        },
+        '&::-webkit-scrollbar-track': {
+          background: alpha(theme.palette.divider, 0.1),
+          borderRadius: 4,
+        },
+        '&::-webkit-scrollbar-thumb': {
+          background: alpha(theme.palette.primary.main, 0.3),
+          borderRadius: 4,
+          '&:hover': {
+            background: alpha(theme.palette.primary.main, 0.5),
+          }
+        }
+      }}
+    >
+      <Table 
+        stickyHeader
+        sx={{ 
+          minWidth: 800,
+          borderCollapse: 'separate',
+          borderSpacing: 0,
+        }}
+      >
+        <TableHead>
+          <TableRow sx={{ backgroundColor: 'transparent' }}>
+            <TableCell 
+              padding="checkbox"
               sx={{
-                mt: 2,
-                p: 2,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                borderRadius: 1,
-                backgroundColor: alpha(theme.palette.primary.main, 0.05),
-                border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                backgroundColor: theme.palette.mode === 'dark' 
+                  ? alpha(theme.palette.background.paper, 0.8)
+                  : alpha(theme.palette.background.paper, 0.9),
+                backdropFilter: 'blur(10px)',
+                position: 'sticky',
+                top: 0,
+                zIndex: 2,
+                borderRadius: '12px 0 0 0',
               }}
             >
-              <Typography variant="body2" color="primary">
-                {selectedTasks.size} task(s) selected
-              </Typography>
-              <Button
-                startIcon={<Delete />}
-                color="error"
-                size="small"
-                onClick={() => handleDeleteSelected(Array.from(selectedTasks))}
+              <Checkbox
+                checked={allSelected}
+                indeterminate={selectedTasks.size > 0 && !allSelected}
+                onChange={(e) => handleSelectAll(e.target.checked)}
+                sx={{
+                  color: theme.palette.primary.main,
+                  '&.Mui-checked': {
+                    color: theme.palette.primary.main,
+                  },
+                  '&.MuiCheckbox-indeterminate': {
+                    color: theme.palette.primary.main,
+                  }
+                }}
+              />
+            </TableCell>
+            {[
+              { label: 'TASK TITLE', width: '25%' },
+              { label: 'ASSIGNEE', width: '15%' },
+              { label: 'STATUS', width: '12%' },
+              { label: 'DEADLINE', width: '12%' },
+              { label: 'EFFICIENCY', width: '10%' },
+              { label: 'RISK LEVEL', width: '10%' },
+              { label: 'PROOF', width: '8%' },
+              { label: 'ACTIONS', width: '8%' },
+            ].map((header, index) => (
+              <TableCell 
+                key={header.label}
+                sx={{
+                  width: header.width,
+                  borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                  backgroundColor: theme.palette.mode === 'dark' 
+                    ? alpha(theme.palette.background.paper, 0.8)
+                    : alpha(theme.palette.background.paper, 0.9),
+                  backdropFilter: 'blur(10px)',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 2,
+                  ...(index === 7 && { borderRadius: '0 12px 0 0' })
+                }}
               >
-                Delete Selected
-              </Button>
-            </Paper>
-          )}
-        </motion.div>
+                <Typography 
+                  variant="subtitle2" 
+                  sx={{
+                    fontWeight: 700,
+                    color: theme.palette.primary.main,
+                    fontFamily: '"Inter", sans-serif',
+                    letterSpacing: '0.05em',
+                    textTransform: 'uppercase',
+                    fontSize: '0.8rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                  }}
+                >
+                  {index === 0 && <Title fontSize="small" />}
+                  {index === 1 && <Person fontSize="small" />}
+                  {index === 2 && <Circle fontSize="small" />}
+                  {index === 3 && <CalendarMonth fontSize="small" />}
+                  {index === 4 && <TrendingUp fontSize="small" />}
+                  {index === 5 && <Warning fontSize="small" />}
+                  {index === 6 && <Task fontSize="small" />}
+                  {index === 7 && <Settings fontSize="small" />}
+                  {header.label}
+                </Typography>
+              </TableCell>
+            ))}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {filteredTasks.map((task, index) => (
+            <TaskTableRow
+              key={task._id}
+              task={task}
+              ref={ref}
+              isSelected={selectedTasks.has(task._id)}
+              onSelect={handleSelectTask}
+              theme={theme}
+              userRole={userRole}
+              onLogTime={handleLogTime}
+              onUploadProof={handleUploadProof}
+              onViewDetails={handleViewDetails}
+              onStatusChange={handleStatusChange}
+              userTeacher={userTeacher}
+              index={index}
+            />
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+    
+    {/* Empty State */}
+    {filteredTasks.length === 0 && (
+      <Box
+        sx={{
+          p: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 2,
+          background: `linear-gradient(135deg, 
+            ${alpha(theme.palette.background.default, 0.5)} 0%, 
+            ${alpha(theme.palette.background.paper, 0.3)} 100%)`,
+        }}
+      >
+        <Box
+          sx={{
+            width: 80,
+            height: 80,
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: `linear-gradient(135deg, 
+              ${alpha(theme.palette.primary.main, 0.1)} 0%, 
+              ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
+            border: `2px dashed ${alpha(theme.palette.primary.main, 0.2)}`,
+            mb: 2,
+          }}
+        >
+          <Task sx={{ fontSize: 40, color: theme.palette.primary.main, opacity: 0.5 }} />
+        </Box>
+        <Typography variant="h6" sx={{ color: theme.palette.text.secondary, fontWeight: 600 }}>
+          No tasks found
+        </Typography>
+        <Typography variant="body2" sx={{ color: theme.palette.text.secondary, maxWidth: 400, textAlign: 'center' }}>
+          Try adjusting your filters or create a new task to get started
+        </Typography>
+      </Box>
+    )}
+    
+    {/* Table Footer with Selection */}
+    {selectedTasks.size > 0 && (
+      <Paper
+        sx={{
+          p: 3,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          borderRadius: '0 0 12px 12px',
+          background: `linear-gradient(135deg, 
+            ${alpha(theme.palette.primary.main, 0.08)} 0%, 
+            ${alpha(theme.palette.primary.main, 0.04)} 100%)`,
+          borderTop: `1.5px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+          borderLeft: `1.5px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+          borderRight: `1.5px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+          borderBottom: `1.5px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+          position: 'relative',
+          overflow: 'hidden',
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 2,
+            background: `linear-gradient(90deg, 
+              ${theme.palette.primary.main}, 
+              ${theme.palette.secondary.main})`,
+          }
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box
+            sx={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: `linear-gradient(135deg, 
+                ${alpha(theme.palette.primary.main, 0.2)} 0%, 
+                ${alpha(theme.palette.primary.main, 0.1)} 100%)`,
+              border: `1.5px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+            }}
+          >
+            <CheckCircle sx={{ fontSize: 20, color: theme.palette.primary.main }} />
+          </Box>
+          <Typography 
+            variant="body1" 
+            sx={{ 
+              color: theme.palette.primary.main, 
+              fontWeight: 600,
+              fontFamily: '"Inter", sans-serif',
+            }}
+          >
+            {selectedTasks.size} task{selectedTasks.size !== 1 ? 's' : ''} selected
+          </Typography>
+        </Box>
+        <Button
+          startIcon={<Delete />}
+          variant="contained"
+          color="error"
+          onClick={() => handleDeleteSelected(Array.from(selectedTasks))}
+          sx={{
+            borderRadius: 2,
+            px: 3,
+            py: 1,
+            fontWeight: 600,
+            textTransform: 'none',
+            background: `linear-gradient(135deg, 
+              ${theme.palette.error.main} 0%, 
+              ${alpha(theme.palette.error.main, 0.8)} 100%)`,
+            boxShadow: `0 4px 12px ${alpha(theme.palette.error.main, 0.3)}`,
+            '&:hover': {
+              transform: 'translateY(-1px)',
+              boxShadow: `0 6px 16px ${alpha(theme.palette.error.main, 0.4)}`,
+            },
+            transition: 'all 0.2s ease',
+          }}
+        > 
+          Delete Selected
+        </Button>
+          
+      </Paper>
+      
+    )}
+  </Paper>
+</motion.div>
       )}
 
       {/* Modals */}

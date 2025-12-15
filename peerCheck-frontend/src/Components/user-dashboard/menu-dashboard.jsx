@@ -21,6 +21,7 @@ import {
   ArrowDropDown as ArrowDropDownIcon
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
+import axiosClient from '@/api/axiosClient';
 
 export default function MenuBar({ switchTheme }) {
   const navigate = useNavigate();
@@ -69,10 +70,20 @@ export default function MenuBar({ switchTheme }) {
     navigate('/help');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     handleProfileClose();
-    localStorage.removeItem('token');
-    navigate('/login');
+    const token = localStorage.getItem('token');
+    const res = await axiosClient.get("/auth/log-out", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      }
+    });
+    console.log("res.data", res.data)
+    if (res.data?.success){
+      localStorage.removeItem('token');
+      navigate('/login');
+    }
+    
   };
 
   const handleProfile = () => {

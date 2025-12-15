@@ -456,7 +456,7 @@ const calculateAllProjectMetrics = (tasks, teamMembers) => {
 };
 
 
-const updateProjectMetricsInDB = async (projectId) => {
+export const updateProjectMetricsInDB = async (projectId) => {
   try {
     const tasks = await Task.find({ projectId }).lean();
     const project = await Project.findById(projectId).select('team');
@@ -465,21 +465,27 @@ const updateProjectMetricsInDB = async (projectId) => {
     
     const metrics = calculateAllProjectMetrics(tasks, project.team || []);
     
-    // Update project with new metrics
-    await Project.findByIdAndUpdate(projectId, {
-      'metrics.lastCalculated': new Date(),
-      'metrics.weightedProgress': metrics.progress.progress,
-      'metrics.timeEfficiency': metrics.timeEfficiency.projectEfficiency,
-      'metrics.projectRiskScore': metrics.projectRisk.projectRiskScore,
-      'metrics.proofCompliance': metrics.proofCompliance.complianceRate,
-      'metrics.overdueRate': metrics.deadlineHealth.overdueRate,
-      'metrics.healthScore': metrics.health.healthScore,
-      'metrics.statusBreakdown': metrics.progress.statusBreakdown,
-      'metrics.efficiencyStatus': metrics.timeEfficiency.status,
-      'metrics.riskLevel': metrics.projectRisk.riskLevel,
-      'metrics.healthLevel': metrics.health.healthLevel,
-      progress: metrics.progress.progress // Update main progress field
-    });
+const mapEfficiencyToStatus = (efficiency) => {
+  if (efficiency < 40) return 'low';
+  if (efficiency < 70) return 'warning';
+  if (efficiency < 90) return 'good';
+  return 'high';
+};
+
+await Project.findByIdAndUpdate(projectId, {
+  'metrics.lastCalculated': new Date(),
+  'metrics.weightedProgress': metrics.progress.progress,
+  'metrics.timeEfficiency.value': metrics.timeEfficiency.projectEfficiency,
+  'metrics.timeEfficiency.status': mapEfficiencyToStatus(metrics.timeEfficiency.projectEfficiency),
+  'metrics.projectRiskScore': metrics.projectRisk.projectRiskScore,
+  'metrics.proofCompliance': metrics.proofCompliance.complianceRate,
+  'metrics.overdueRate': metrics.deadlineHealth.overdueRate,
+  'metrics.healthScore': metrics.health.healthScore,
+  'metrics.statusBreakdown': metrics.progress.statusBreakdown,
+  'metrics.riskLevel': metrics.projectRisk.riskLevel,
+  'metrics.healthLevel': metrics.health.healthLevel,
+  progress: metrics.progress.progress
+});
     
     return metrics;
   } catch (error) {
@@ -676,6 +682,33 @@ export const deleteProject = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const updateProject = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const updateData = req.body;
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+    // Check permissions
+    const isCreator = project.createdBy.toString() === req.user.id;
+    const isAdmin = req.user.role === 'admin';
+    if (!isCreator && !isAdmin) {
+      return res.status(403).json({ error: "Not authorized to update this project" });
+    }
+    // Update project fields
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] !== undefined && updateData[key] !== project[key]) { //means only update if value is provided and different
+        project[key] = updateData[key];
+      }
+    });
+    await project.save();
+    res.json(project);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
 export const getAllProjects = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -691,6 +724,8 @@ export const getAllProjects = async (req, res) => {
       .populate("teamId", 'name members')
       .populate("createdBy", 'name email')
       .sort({ 'metrics.healthScore': -1, createdAt: -1 });
+      
+
 
     projects = [
       ...projects,
@@ -729,7 +764,7 @@ export const getProjectById = async (req, res) => {
         select: "name",
         populate: {
           path: "members",
-          select: "name email avatar username"
+          select: "name email avatar username skills status onlineStatus"
         }
       });
     

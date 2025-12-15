@@ -9,7 +9,8 @@ import {
   getProjectMetrics, 
   getTaskMetrics, 
   refreshProjectMetrics, 
-  searchProjects 
+  searchProjects, 
+  updateProject
 } from '../controllers/projectController.js';
 import { authMiddleware as protect } from '../middleware/authMiddleware.js';
 
@@ -28,6 +29,7 @@ router.route('/search')
 
 router.route('/:projectId')
   .get(getProjectById)
+  .patch(updateProject)
   .delete(deleteProject);
 // Project metrics routes
 router.get('/:projectId/metrics', getProjectMetrics);

@@ -73,10 +73,13 @@ export const loginUser = async (req, res) => {
     //save into login_logs
     
     const loginLog = new userData({email, ipAddress, status: "Success"});
+  
     await loginLog.save();
     
 
     const loggedInUser = await User.findById(user._id).select('-password')
+
+
 
     res.json({ message: "Login successful", token, role: user.role, user: loggedInUser });
 
@@ -158,11 +161,16 @@ export const resetPassword = async (req, res) => {
 
 export const logoutUser = async (req, res) => {
   try {
-    await User.findByIdAndUpdate(req.user.id, {
-      $set: { onlineStatus: "offline"}
-    });
+    const userId  = req.userId;
+    const user = await User.findById(userId);
 
-    res.json({ message: "Logged out successfully" });
+    await User.findByIdAndUpdate(userId, 
+      {
+        $set: { onlineStatus: "offline"}
+      }
+    );
+
+    res.json({ success: true, message: "Logged out successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -8,6 +8,8 @@ import DeletedProjects from '../models/deletedProjectInfo.js';
 import DeletedTaskInfo from '../models/deletedTaskInfo.js';
 import fs from 'fs';
 import path from 'path';
+import { updateProjectMetricsInDB } from './projectController.js';
+import Team from '../models/peergroup_log.js';
 
 //individual task risk score
 /**
@@ -149,19 +151,27 @@ const calculateDaysUntilDeadline = (task) => {
 //explanation: what enrichtaskwithmetrics does function: This function takes a task object as input and calculates various performance metrics for that task, such as efficiency, risk score, status weight, and whether the task is overdue. It then returns a new task object that includes these calculated metrics in a structured format under a "metrics" property.
 const enrichTaskWithMetrics = (task) => {
   if (!task) return null;
-  
-  const efficiency = calculateTaskEfficiency(task);
-  const riskScore = calculateTaskMetrics(task);
+
+  const efficiency = calculateTaskEfficiency(task); // returns a number
+  const riskScore = calculateTaskMetrics(task); // returns risk object
   const statusWeight = getStatusWeight(task.status);
   const isOverdue = calculateIsOverdue(task);
   const daysUntilDeadline = calculateDaysUntilDeadline(task);
-  
+
+  // Map efficiency number to enum string
+  const efficiencyStatus = (efficiency) => {
+    if (efficiency < 40) return 'low';
+    if (efficiency < 70) return 'medium';
+    return 'high';
+  };
+
   return {
     ...task,
     _id: task._id,
     metrics: {
       efficiency: Number(efficiency.toFixed(2)),
       riskScore: riskScore.risk.riskScore,
+      efficiencyStatus: efficiencyStatus(efficiency), 
       statusWeight,
       statusWeightPercentage: statusWeight * 100,
       hasProof: task.proofUploads && task.proofUploads.length > 0,
@@ -228,9 +238,11 @@ export const getTasks = async (req, res) => {
         message: "Project not found"
       });
     }
-    
+    const team = await Team.findById(project.teamId).select("members")
+    console.log("gettasks/team: ", team);
+
     if (project.createdBy.toString() !== userId && 
-        !project.team.some(member => member.toString() === userId)) {
+        !team.members.some(member => member.toString() === userId)) {
       return res.status(403).json({
         success: false,
         message: "Access denied to project"
@@ -239,6 +251,7 @@ export const getTasks = async (req, res) => {
     
     const tasks = await Task.find({ projectId })
       .populate('assignedTo', 'name email avatar')
+      .populate('assignedBy', 'name email avatar')
       .sort({ deadline: 1 })
       .lean();
 
@@ -1015,7 +1028,9 @@ export const deleteTask = async (req, res) => {
         });
       }
     }
-    
+
+
+    updateProjectMetricsInDB(project._id);
 
     // Save deleted task info
     await DeletedTaskInfo.create({
@@ -1288,7 +1303,7 @@ export const updateTaskDetails = async (req, res) => {
 export const getTaskActivityLogs = async (req, res) => {
   try {
     const { taskId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user.id || req.userId;
 
     // Check task access
     const task = await Task.findById(taskId)
@@ -1301,12 +1316,15 @@ export const getTaskActivityLogs = async (req, res) => {
       });
     }
 
+
     // Check permissions
     const project = task.projectId;
+    const team = await Team.findById(project.teamId).select("members");
+
     const hasAccess = 
       task.assignedTo.toString() === userId ||
       project.createdBy.toString() === userId ||
-      project.teamId?.members.includes(userId);
+      team.members.includes(userId);
     
     if (!hasAccess) {
       return res.status(403).json({
@@ -2145,8 +2163,8 @@ export const getProofFileDirect = async (req, res) => {
 // Export all functions 
 export default {
   getTasks,
-  getAllTasks,           // ADDED
-  getAllTasksWithFilters, // ADDED
+  getAllTasks,           
+  getAllTasksWithFilters, 
   createTask,
   updateTaskStatus,
   updateTaskTime,

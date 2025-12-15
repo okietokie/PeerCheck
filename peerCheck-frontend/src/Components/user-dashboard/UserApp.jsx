@@ -22,6 +22,7 @@ import Tasks from './Tasks';
 import PeerTeams from './PeerTeams';
 import Profile from './Profile';
 import MyProject from './MyProject';
+import axiosClient from '@/api/axiosClient';
 
 export default function UserApp() {
   const navigate = useNavigate();
@@ -69,9 +70,18 @@ export default function UserApp() {
   }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate('/login');
+  const handleLogout = async () => {
+    const token = localStorage.getItem('token');
+    const res = await axiosClient.put('/auth/log-out', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      }
+    });
+    console.log("res.data", res.data);
+    if (res.data?.success){
+      localStorage.removeItem('token');
+      navigate('/login');
+    }
   };
 
   return (

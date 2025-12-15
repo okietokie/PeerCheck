@@ -314,6 +314,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
       
+      
       setMessage({ type: 'success', text: 'Invitation sent successfully!' });
       setShowInvite(false);
       setInviteData({ email: '', username: '', inviteMethod: 'email' });

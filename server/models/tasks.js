@@ -23,7 +23,15 @@ const taskSchema = new mongoose.Schema(
       {
         filename: String,
         fileUrl: String,
-        uploadedAt: Date
+        uploadedAt: Date,
+        fileSize: Number,
+        apiUrl: String,
+        downloadUrl: String,
+        filepath: String,
+        description: String,
+        uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        fileType: String,
+        serverFilename: String
       }
     ],
 
