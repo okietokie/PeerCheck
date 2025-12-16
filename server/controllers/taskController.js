@@ -1009,28 +1009,25 @@ export const deleteTask = async (req, res) => {
       });
     }
     console.log("to be deleteTask", task);
-
-    const project = await Project.findById(task.projectId._id);
-    if (!project) {
-      return res.status(404).json({
-        success: false,
-        message: "Project not found"
-      });
-    }
-
-    // Check if user is project creator or admin
-    if (project.createdBy.toString() !== userId) {
-      const user = await User.findById(userId);
-      if (user.role !== 'admin') {
-        return res.status(403).json({
-          success: false,
-          message: "Notice: Only project creator can delete tasks"
-        });
+    let projectFound;
+    const project = await Project.findById(task.projectId);
+    if (project) {
+      // Check if user is project creator or admin
+      projectFound = true;
+      if (project.createdBy.toString() !== userId) {
+        const user = await User.findById(userId);
+        if (user.role !== 'admin') {
+          return res.status(403).json({
+            success: false,
+            message: "Notice: Only project creator can delete tasks"
+          });
+        }
       }
+      updateProjectMetricsInDB(project._id);
+
+    }else{
+      projectFound = false;
     }
-
-
-    updateProjectMetricsInDB(project._id);
 
     // Save deleted task info
     await DeletedTaskInfo.create({
@@ -1039,6 +1036,7 @@ export const deleteTask = async (req, res) => {
       projectID: task.projectId,
       assignedTo: task.assignedTo
     });
+
 
     // Delete the task
     await Task.findByIdAndDelete(taskId);

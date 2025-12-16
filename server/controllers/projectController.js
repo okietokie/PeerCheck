@@ -589,12 +589,72 @@ export const createProject = async (req, res) => {
         teacherReviewWeight: 30,
         allowPeerReview: true
       },
-      metrics: {
-        lastCalculated: new Date(),
-        weightedProgress: 0,
-        healthScore: 0,
-        healthLevel: 'healthy'
-      }
+metrics: {
+  lastCalculated: new Date(),
+
+  progress: {
+    completedTasks: 0,
+    progress: 0,
+    statusBreakdown: {
+      not_started: 0,
+      active: 0,
+      paused: 0,
+      completed: 0
+    },
+    totalTasks: 0
+  },
+
+  timeEfficiency: {
+    label: 'Low',
+    projectEfficiency: 0,
+    status: 'low',
+    totalEstimatedTime: 0,
+    totalFocusTime: 0
+  },
+
+  projectRisk: {
+    averageRiskScore: 0,
+    highRiskTasks: 0,
+    mediumRiskTasks: 0,
+    riskyTasks: 0,
+    totalTasks: 0,
+    projectRiskScore: 0,
+    riskLabel: 'Low Risk',
+    riskLevel: 'low'
+  },
+
+  proofCompliance: {
+    complianceRate: 0,
+    tasksWithProof: 0,
+    totalTasks: 0
+  },
+
+  deadlineHealth: {
+    overdueRate: 0,
+    overdueTasks: 0,
+    upcomingDeadlines: 0,
+    totalTasks: 0
+  },
+
+  health: {
+    componentScores: {
+      deadlineAdjusted: 0,
+      progress: 0,
+      proofCompliance: 0,
+      riskAdjusted: 0
+    },
+    healthScore: 0,
+    healthLabel: 'Healthy',
+    healthLevel: 'healthy'
+  },
+
+  contributorFairness: {
+    contributors: {},
+    teamMemberCount: 0,
+    freeRiderRisk: false
+  }
+}
+
     };
 
     const newProject = new Project(projectData);

@@ -2457,8 +2457,8 @@ const TaskTableRow = ({
   onUploadProof,
   onViewDetails,
   onStatusChange,
-  userTeacher,
-  ref
+  userTeacher
+
 }) => {
   const [actionsAnchorEl, setActionsAnchorEl] = useState(null);
 
@@ -3825,7 +3825,6 @@ const handleDeleteSelected = async () => {
             <TaskTableRow
               key={task._id}
               task={task}
-              ref={ref}
               isSelected={selectedTasks.has(task._id)}
               onSelect={handleSelectTask}
               theme={theme}

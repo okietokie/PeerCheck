@@ -856,6 +856,7 @@ export default function Home() {
       {/* Interactive Stats Section */}
       <Box sx={{ 
         py: { xs: 8, md: 12 }, 
+        px: { xs: 5, md: 15},
         background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
         position: "relative",
         overflow: "hidden"
