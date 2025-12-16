@@ -38,96 +38,20 @@ const projectSchema = new mongoose.Schema(
       default: 0
     },
 
+metrics: {
+  type: Object,
+  default: () => ({
+    peerReviewPerMember: [],
+    progress: { completedTasks: 0, progress: 0, statusBreakdown: { not_started: 0, active: 0, paused: 0, completed: 0 }, totalTasks: 0 },
+    timeEfficiency: { label: 'Low', projectEfficiency: 0, status: 'low', totalEstimatedTime: 0, totalFocusTime: 0 },
+    projectRisk: { averageRiskScore: 0, highRiskTasks: 0, mediumRiskTasks: 0, riskyTasks: 0, totalTasks: 0, projectRiskScore: 0, riskLabel: 'Low Risk', riskLevel: 'low' },
+    proofCompliance: { complianceRate: 0, tasksWithProof: 0, totalTasks: 0 },
+    deadlineHealth: { overdueRate: 0, overdueTasks: 0, upcomingDeadlines: 0, totalTasks: 0 },
+    health: { componentScores: { deadlineAdjusted: 0, progress: 0, proofCompliance: 0, riskAdjusted: 0 }, healthScore: 0, healthLabel: 'Healthy', healthLevel: 'healthy' },
+    contributorFairness: { contributors: {}, teamMemberCount: 0, freeRiderRisk: false }
+  })
+},
 
-    metrics: {
-      timestamp: { type: Date },
-
-      progress: {
-        completedTasks: { type: Number, default: 0 },
-        progress: { type: Number, default: 0 },
-        statusBreakdown: {
-          not_started: { type: Number, default: 0 },
-          active: { type: Number, default: 0 },
-          paused: { type: Number, default: 0 },
-          completed: { type: Number, default: 0 }
-        },
-        totalTasks: { type: Number, default: 0 }
-      },
-
-      timeEfficiency: {
-        label: { type: String },
-        projectEfficiency: { type: Number, default: 0 },
-        status: {
-          type: String,
-          enum: ['low', 'warning', 'good', 'high'],
-          default: 'low'
-        },
-        totalEstimatedTime: { type: Number, default: 0 },
-        totalFocusTime: { type: Number, default: 0 }
-      },
-
-      projectRisk: {
-        averageRiskScore: { type: Number, default: 0 },
-        highRiskTasks: { type: Number, default: 0 },
-        mediumRiskTasks: { type: Number, default: 0 },
-        riskyTasks: { type: Number, default: 0 },
-        totalTasks: { type: Number, default: 0 },
-        projectRiskScore: { type: Number, default: 0 },
-        riskLabel: { type: String },
-        riskLevel: {
-          type: String,
-          enum: ['low', 'medium', 'high'],
-          default: 'low'
-        }
-      },
-
-      proofCompliance: {
-        complianceRate: { type: Number, default: 0 },
-        tasksWithProof: { type: Number, default: 0 },
-        totalTasks: { type: Number, default: 0 }
-      },
-
-      deadlineHealth: {
-        overdueRate: { type: Number, default: 0 },
-        overdueTasks: { type: Number, default: 0 },
-        upcomingDeadlines: { type: Number, default: 0 },
-        totalTasks: { type: Number, default: 0 }
-      },
-
-      health: {
-        componentScores: {
-          deadlineAdjusted: { type: Number, default: 0 },
-          progress: { type: Number, default: 0 },
-          proofCompliance: { type: Number, default: 0 },
-          riskAdjusted: { type: Number, default: 0 }
-        },
-        healthScore: { type: Number, default: 0 },
-        healthLabel: { type: String },
-        healthLevel: {
-          type: String,
-          enum: ['critical', 'warning', 'good', 'excellent', 'healthy'],
-          default: 'healthy'
-        }
-      },
-
-      contributorFairness: {
-        contributors: {
-          type: Map,
-          of: new mongoose.Schema(
-            {
-              assignedTasks: { type: Number, default: 0 },
-              completedTasks: { type: Number, default: 0 },
-              assignedPercentage: { type: Number, default: 0 },
-              completedPercentage: { type: Number, default: 0 },
-              isFreeRider: { type: Boolean, default: false }
-            },
-            { _id: false }
-          )
-        },
-        teamMemberCount: { type: Number, default: 0 },
-        freeRiderRisk: { type: Boolean, default: false }
-      }
-    },
 
     gradingCriteria: {
       taskCompletionWeight: { type: Number, default: 40 },

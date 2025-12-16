@@ -31,6 +31,7 @@ import MyProject from "./Components/user-dashboard/MyProject.jsx";
 import PeerTeams from "./Components/user-dashboard/PeerTeams.jsx";
 import Profile from "./Components/user-dashboard/Profile.jsx";
 import Dashboard from "./Components/user-dashboard/Dashboard.jsx";
+import { useInView } from "react-intersection-observer";
 
 // Extract theme names dynamically
 const themeNames = Object.keys(themes);
@@ -61,6 +62,8 @@ export default function App() {
   const [expanded, setExpanded] = useState(false);
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
+  const { ref, inView } = useInView();
+
 
   useEffect(() => {
     const theme = themes[themeName];
@@ -108,7 +111,7 @@ export default function App() {
   return (
     <ThemeProvider theme={themes[themeName]}>
       {/* Main App Content */}
-      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }} ref={ref}>
         <Router>
           <Routes>
             <Route path="/" element={<Home />} />

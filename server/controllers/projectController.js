@@ -563,7 +563,7 @@ export const calculateTaskMetrics = (task) => {
 export const createProject = async (req, res) => {
   try {
     const { projectName, description, startDate, endDate, teamId, teamName, tags, gradingCriteria, mentorId} = req.body;
-
+    const userId = req.user.id;
     // Basic validation
     if (!projectName || !description || !startDate || !endDate || !teamId) {
       return res.status(400).json({ error: "Missing required fields" });
@@ -574,88 +574,66 @@ export const createProject = async (req, res) => {
     if (!team) return res.status(404).json({ error: "Team not found" });
 
     // Create project with creator ID from authenticated user
-    const projectData = {
-      projectName,
-      description,
-      startDate,
-      endDate,
-      teamName: teamName || team.name || 'Unnamed Team',
-      tags: tags || [],
-      teamId: team._id,
-      createdBy: req.user.id,
-      gradingCriteria: gradingCriteria || {
-        taskCompletionWeight: 40,
-        peerReviewWeight: 30,
-        teacherReviewWeight: 30,
-        allowPeerReview: true
-      },
-metrics: {
-  lastCalculated: new Date(),
+const projectData = {
+  projectName,
+  description,
+  startDate,
+  endDate,
+  teamName: teamName || team.name || 'Unnamed Team',
+  tags: tags || [],
+  teamId: team._id,
+  createdBy: userId,
+  gradingCriteria: gradingCriteria || { taskCompletionWeight: 40, peerReviewWeight: 30, teacherReviewWeight: 30, allowPeerReview: true },
 
-  progress: {
-    completedTasks: 0,
-    progress: 0,
-    statusBreakdown: {
-      not_started: 0,
-      active: 0,
-      paused: 0,
-      completed: 0
-    },
-    totalTasks: 0
-  },
-
-  timeEfficiency: {
-    label: 'Low',
-    projectEfficiency: 0,
-    status: 'low',
-    totalEstimatedTime: 0,
-    totalFocusTime: 0
-  },
-
-  projectRisk: {
-    averageRiskScore: 0,
-    highRiskTasks: 0,
-    mediumRiskTasks: 0,
-    riskyTasks: 0,
-    totalTasks: 0,
-    projectRiskScore: 0,
-    riskLabel: 'Low Risk',
-    riskLevel: 'low'
-  },
-
-  proofCompliance: {
-    complianceRate: 0,
-    tasksWithProof: 0,
-    totalTasks: 0
-  },
-
-  deadlineHealth: {
-    overdueRate: 0,
-    overdueTasks: 0,
-    upcomingDeadlines: 0,
-    totalTasks: 0
-  },
-
-  health: {
-    componentScores: {
-      deadlineAdjusted: 0,
+  metrics: {
+    peerReviewPerMember: [],
+    progress: {
+      completedTasks: 0,
       progress: 0,
-      proofCompliance: 0,
-      riskAdjusted: 0
+      statusBreakdown: { not_started: 0, active: 0, paused: 0, completed: 0 },
+      totalTasks: 0
     },
-    healthScore: 0,
-    healthLabel: 'Healthy',
-    healthLevel: 'healthy'
-  },
-
-  contributorFairness: {
-    contributors: {},
-    teamMemberCount: 0,
-    freeRiderRisk: false
+    timeEfficiency: {
+      label: 'Low',
+      projectEfficiency: 0,
+      status: 'low',
+      totalEstimatedTime: 0,
+      totalFocusTime: 0
+    },
+    projectRisk: {
+      averageRiskScore: 0,
+      highRiskTasks: 0,
+      mediumRiskTasks: 0,
+      riskyTasks: 0,
+      totalTasks: 0,
+      projectRiskScore: 0,
+      riskLabel: 'Low Risk',
+      riskLevel: 'low'
+    },
+    proofCompliance: {
+      complianceRate: 0,
+      tasksWithProof: 0,
+      totalTasks: 0
+    },
+    deadlineHealth: {
+      overdueRate: 0,
+      overdueTasks: 0,
+      upcomingDeadlines: 0,
+      totalTasks: 0
+    },
+    health: {
+      componentScores: { deadlineAdjusted: 0, progress: 0, proofCompliance: 0, riskAdjusted: 0 },
+      healthScore: 0,
+      healthLabel: 'Healthy',
+      healthLevel: 'healthy'
+    },
+    contributorFairness: {
+      contributors: {},
+      teamMemberCount: 0,
+      freeRiderRisk: false
+    }
   }
-}
-
-    };
+};
 
     const newProject = new Project(projectData);
     await newProject.save();

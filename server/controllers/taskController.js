@@ -1816,7 +1816,6 @@ export const updateTaskStatus = async (req, res) => {
     task.taskMetrics.label = metrics.efficiency.label;
     task.taskMetrics.status = metrics.efficiency.status;
 
-    task.lastEventTime = new Date(); //stores current time as lastEventTime update
     task.flags = metrics.flags; //update flags based on current task state
     console.log("task.flags", task.flags);
     console.log("task.estimatedTime", task.estimatedTime);

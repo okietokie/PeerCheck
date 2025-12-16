@@ -44,7 +44,13 @@ import {
   MenuItem,
   Autocomplete,
   Alert,
-  Snackbar
+  Snackbar,
+  Checkbox,
+  Stack,
+  FormControl,
+  InputLabel,
+  Select,
+  Skeleton
 } from '@mui/material';
 import {
   Edit,
@@ -105,13 +111,1642 @@ import {
   Man,
   Person,
   AddTask,
+  PlayArrow as PlayArrowIcon,
+  Security,
+  History,
+  Settings,
+  Lock,
+  RateReview
 } from '@mui/icons-material';
+import StarIcon from '@mui/icons-material/Star';
+import RateReviewIcon from '@mui/icons-material/RateReview';
+import LockIcon from '@mui/icons-material/Lock';
+import LockOpenIcon from '@mui/icons-material/LockOpen';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import axiosClient from '@/api/axiosClient';
 import useInView from '@/hooks/useInView.js';
 import { format, differenceInDays, isBefore } from 'date-fns';
 import { CreateTaskModal } from './Projects';
+
+// Helper functions from Tasks.jsx
+const getUserData = () => {
+  try {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) return null;
+    const user = JSON.parse(userStr);
+    return user;
+  } catch (err) {
+    console.error('Error parsing user data:', err);
+    return null;
+  }
+};
+
+const getAuthToken = () => {
+  return localStorage.getItem('token');
+};
+
+const formatTime = (seconds) => {
+  if (!seconds) return '0m';
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
+};
+
+// Task Table Row Component
+const TaskTableRow = ({ 
+  task, 
+  isSelected, 
+  onSelect, 
+  theme,
+  userRole,
+  onLogTime,
+  onUploadProof,
+  onViewDetails,
+  onStatusChange,
+  userTeacher
+}) => {
+  const [actionsAnchorEl, setActionsAnchorEl] = useState(null);
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed': return 'success';
+      case 'active': return 'info';
+      case 'paused': return 'warning';
+      default: return 'default';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'completed': return <CheckCircle fontSize="small" />;
+      case 'active': return <PlayArrowIcon fontSize="small" />;
+      case 'paused': return <Pause fontSize="small" />;
+      default: return null;
+    }
+  };
+
+  const getRiskColor = (riskScore) => {
+    if (riskScore >= 4) return 'error';
+    if (riskScore >= 2) return 'warning';
+    return 'success';
+  };
+
+  const getEfficiencyColor = (efficiency) => {
+    if (efficiency < 50) return 'error';
+    if (efficiency < 80) return 'warning';
+    if (efficiency > 120) return 'warning';
+    return 'success';
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      if (date.toDateString() === today.toDateString()) return 'Today';
+      if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+      
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch (err) {
+      return 'Invalid';
+    }
+  };
+
+  const isAssignedUser = task.assignedTo?._id === userRole?.userId;
+  const canEdit = isAssignedUser || userRole?.role === 'teacher' || userRole?.role === 'admin';
+
+  return (
+    <TableRow
+      hover
+      selected={isSelected}
+      sx={{
+        '&:hover': {
+          backgroundColor: alpha(theme.palette.primary.main, 0.04),
+        },
+        '&.Mui-selected': {
+          backgroundColor: alpha(theme.palette.primary.main, 0.08),
+        },
+        cursor: 'pointer'
+      }}
+      onClick={() => onViewDetails(task)}
+    >
+      {/* Checkbox */}
+      <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
+        <Checkbox
+          checked={isSelected}
+          onChange={(e) => onSelect(task._id, e.target.checked)}
+        />
+      </TableCell>
+
+      {/* Task Title */}
+      <TableCell>
+        <Box>
+          <Typography variant="body2" fontWeight="medium">
+            {task.taskTitle}
+          </Typography>
+          {task.metrics?.isOverdue && (
+            <Chip
+              label="OVERDUE"
+              size="small"
+              color="error"
+              sx={{ mt: 0.5 }}
+            />
+          )}
+        </Box>
+      </TableCell>
+
+      {/* Assignee */}
+      <TableCell>
+        <Box display="flex" alignItems="center" gap={1}>
+          <Avatar 
+            src={task.assignedTo?.avatar}
+            sx={{ width: 32, height: 32, fontSize: 14 }}
+          >
+            {task.assignedTo?.name?.charAt(0)}
+          </Avatar>
+          <Typography variant="body2">
+            {task.assignedTo?.name?.split(' ')[0] || 'Unassigned'}
+          </Typography>
+        </Box>
+      </TableCell>
+
+      {/* Status */}
+      <TableCell>
+        <Chip
+          icon={getStatusIcon(task.status)}
+          label={task.status.replace('_', ' ').toUpperCase()}
+          color={getStatusColor(task.status)}
+          size="small"
+          sx={{ minWidth: 100 }}
+        />
+      </TableCell>
+
+      {/* Deadline */}
+      <TableCell>
+        <Box>
+          <Typography variant="body2" fontWeight="medium">
+            {formatDate(task.deadline)}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {task.metrics?.daysUntilDeadline > 0 
+              ? `${task.metrics.daysUntilDeadline} days left`
+              : task.metrics?.isOverdue ? 'Overdue' : 'Due soon'}
+          </Typography>
+        </Box>
+      </TableCell>
+
+      {/* Efficiency */}
+      <TableCell>
+        <Box display="flex" alignItems="center" gap={1}>
+          <Speed fontSize="small" color={getEfficiencyColor(task.metrics?.efficiency)} />
+          <Typography 
+            variant="body2" 
+            fontWeight="medium"
+            color={getEfficiencyColor(task.taskMetrics?.efficiency)}
+          >
+            {task.status === "active" ? (
+                <CircularProgress size={18} />
+              ) : (
+                `${task.taskMetrics?.efficiency?.toFixed(1) || 0}%`
+              )} 
+          </Typography>
+        </Box>
+      </TableCell>
+
+      {/* Risk Level */}
+      <TableCell>
+        <Chip
+          label={task.metrics?.riskScore >= 4 ? 'HIGH' : 
+                 task.metrics?.riskScore >= 2 ? 'MEDIUM' : 'LOW'}
+          color={getRiskColor(task.metrics?.riskScore)}
+          size="small"
+          icon={<Security fontSize="small" />}
+        />
+      </TableCell>
+
+      {/* Proof Indicator */}
+      <TableCell>
+        <Badge 
+          badgeContent={task.metrics?.proofCount} 
+          color={task.metrics?.hasProof ? "success" : "error"}
+        >
+          {task.metrics?.hasProof ? (
+            <CheckCircle color="success" fontSize="small" />
+          ) : (
+            <Warning color="error" fontSize="small" />
+          )}
+        </Badge>
+      </TableCell>
+
+      {/* Actions */}
+      <TableCell onClick={(e) => e.stopPropagation()}>
+        <Stack direction="row" spacing={0.5}>
+          {isAssignedUser && task.status !== 'completed' && (
+            <>
+              {task.status === 'not_started' && (
+                <Tooltip title="Start Task">
+                  <IconButton 
+                    size="small"
+                    color="primary"
+                    onClick={() => onStatusChange(task._id, 'active')}
+                  >
+                    <PlayArrowIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+              
+              {task.status === 'active' && (
+                <>
+                  <Tooltip title="Pause Task">
+                    <IconButton 
+                      size="small"
+                      color="warning"
+                      onClick={() => onStatusChange(task._id, 'paused')}
+                    >
+                      <Pause fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Complete Task">
+                    <IconButton 
+                      size="small"
+                      color="success"
+                      onClick={() => onStatusChange(task._id, 'completed')}
+                    >
+                      <CheckCircle fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              )}
+              
+              {task.status === 'paused' && (
+                <Tooltip title="Resume Task">
+                  <IconButton 
+                    size="small"
+                    color="primary"
+                    onClick={() => onStatusChange(task._id, 'active')}
+                  >
+                    <PlayArrowIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+              
+              <Tooltip title="Log Focus Time">
+                <IconButton 
+                  size="small"
+                  color="info"
+                  onClick={() => onLogTime(task)}
+                >
+                  <Timer fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              
+              <Tooltip title="Upload Proof">
+                <IconButton 
+                  size="small"
+                  color="secondary"
+                  onClick={() => onUploadProof(task)}
+                >
+                  <Upload fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
+          
+          {userTeacher && (
+            <Tooltip title="Review Task">
+              <IconButton 
+                size="small"
+                color="warning"
+                onClick={() => onViewDetails(task)}
+              >
+                <Assessment fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          
+          {userTeacher && (
+            <IconButton 
+            size="small"
+            onClick={(e) => setActionsAnchorEl(e.currentTarget)}
+          >
+            <MoreHoriz fontSize="small" />
+          </IconButton>)}
+        </Stack>
+      </TableCell>
+    </TableRow>
+  );
+};
+
+// Task Details Modal Component
+const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, onLogTime, userTeacher, onUploadProof }) => {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [loadingActivity, setLoadingActivity] = useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [projectTeam, setProjectTeam] = useState([]);
+  const [commentDialogOpen, setCommentDialogOpen] = useState(false);
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed': return 'success';
+      case 'active': return 'info';
+      case 'paused': return 'warning';
+      default: return 'default';
+    }
+  };
+
+  const getRiskColor = (riskScore) => {
+    if (riskScore >= 4) return 'error';
+    if (riskScore >= 2) return 'warning';
+    return 'success';
+  };
+
+  const getEfficiencyColor = (efficiency) => {
+    if (efficiency < 50) return 'error';
+    if (efficiency < 80) return 'warning';
+    if (efficiency > 120) return 'warning';
+    return 'success';
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (err) {
+      return 'Invalid date';
+    }
+  };
+
+  const handleStatusChange = async (newStatus) => {
+    try {
+      setLoading(true);
+      const token = getAuthToken();
+      if (!token) {
+        setError('Authentication required');
+        return;
+      }
+
+      const now = new Date();
+      let additionalTime = 0;
+
+      if (task.status === 'active' && task.lastEventTime) {
+        additionalTime = Math.floor((now - new Date(task.lastEventTime)) / 1000);
+      }
+      
+      const response = await axiosClient.put(
+        `/user/task/${task._id}/status`,
+        { status: newStatus, additionalTime },
+        {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.data?.success) {
+        onTaskUpdate?.();
+        onClose();
+      } else {
+        setError(response.data?.error || 'Failed to update status');
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to update status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReassignTask = async () => {
+    setAssignDialogOpen(true);
+  };
+
+  if (!task) return null;
+
+  return (
+    <Dialog 
+      open={open} 
+      onClose={!loading ? onClose : undefined}
+      maxWidth="md" 
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 4,
+          backgroundColor: theme.palette.background.paper,
+          border: `2px solid ${alpha(theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[200], 0.5)}`,
+          overflow: 'hidden',
+          maxHeight: '92vh',
+          boxShadow: `0 25px 60px ${alpha(theme.palette.mode === 'dark' ? '#000' : theme.palette.primary.main, 0.15)}`,
+        }
+      }}
+    >
+      <Box sx={{ 
+        position: 'relative',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 4,
+          background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+        }
+      }}>
+        <DialogTitle sx={{ 
+          pb: 2.5,
+          pt: 3.5,
+          px: 4,
+        }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Box sx={{ maxWidth: 'calc(100% - 48px)' }}>
+              <Typography variant="h4" fontWeight="800" gutterBottom sx={{ 
+                fontFamily: '"Alkatra", cursive',
+                color: theme.palette.text.primary,
+                lineHeight: 1.2,
+                wordBreak: 'break-word',
+              }}>
+                {task.taskTitle}
+              </Typography>
+              
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mt: 1 }}>
+                <Chip
+                  label={task.status.replace('_', ' ').toUpperCase()}
+                  color={getStatusColor(task.status)}
+                  size="medium"
+                  sx={{
+                    fontWeight: 700,
+                    borderRadius: 1.5,
+                    height: 28,
+                    fontSize: '0.75rem',
+                  }}
+                />
+                
+                {task.metrics?.isOverdue && (
+                  <Chip
+                    label="OVERDUE"
+                    color="error"
+                    size="medium"
+                    icon={<Warning fontSize="small" />}
+                    sx={{
+                      fontWeight: 700,
+                      borderRadius: 1.5,
+                      height: 28,
+                      fontSize: '0.75rem',
+                    }}
+                  />
+                )}
+                
+                {task.metrics?.riskScore >= 4 && (
+                  <Chip
+                    label="HIGH RISK"
+                    color="error"
+                    size="medium"
+                    icon={<Security fontSize="small" />}
+                    sx={{
+                      fontWeight: 700,
+                      borderRadius: 1.5,
+                      height: 28,
+                      fontSize: '0.75rem',
+                    }}
+                  />
+                )}
+              </Box>
+            </Box>
+            
+            <IconButton 
+              onClick={onClose} 
+              disabled={loading} 
+              size="medium"
+              sx={{
+                color: theme.palette.text.secondary,
+                backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                '&:hover': {
+                  backgroundColor: alpha(theme.palette.primary.main, 0.15),
+                  color: theme.palette.primary.main,
+                  transform: 'rotate(90deg)',
+                  borderColor: alpha(theme.palette.primary.main, 0.4),
+                },
+                transition: 'all 0.3s ease',
+                width: 44,
+                height: 44,
+                borderRadius: 2,
+              }}
+            >
+              <Close />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+      </Box>
+      
+      {/* Minimalist Tab Navigation */}
+      <Box sx={{ 
+        borderBottom: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+        px: 4,
+        pt: 1,
+        pb: 1,
+      }}>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          {[
+            { key: 'overview', label: 'Overview', icon: <Assessment fontSize="small" /> },
+            { key: 'metrics', label: 'Metrics', icon: <Analytics fontSize="small" /> },
+            { key: 'proof', label: 'Proof', icon: <Upload fontSize="small" /> },
+            { key: 'activity', label: 'Activity', icon: <History fontSize="small" /> }
+          ].map((tab) => (
+            <Button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              variant={activeTab === tab.key ? 'contained' : 'text'}
+              size="medium"
+              startIcon={tab.icon}
+              sx={{ 
+                textTransform: 'capitalize',
+                borderRadius: 2,
+                px: 3,
+                py: 1,
+                fontWeight: 600,
+                fontSize: '0.875rem',
+                minWidth: 'auto',
+                '&.MuiButton-contained': {
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                  boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+                },
+                '&.MuiButton-text': {
+                  color: theme.palette.text.secondary,
+                  '&:hover': {
+                    color: theme.palette.primary.main,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                  }
+                }
+              }}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </Box>
+      </Box>
+
+      <DialogContent dividers sx={{ 
+        p: 0, 
+        '&.MuiDialogContent-dividers': {
+          border: 'none',
+        }
+      }}>
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <Box sx={{ p: 4 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              
+              {/* Task Description Card */}
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  p: 3.5, 
+                  borderRadius: 3,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.03),
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2.5 }}>
+                  <Box sx={{ 
+                    p: 2, 
+                    borderRadius: 2.5,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                    border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    width: 56,
+                    height: 56,
+                  }}>
+                    <Description sx={{ 
+                      color: theme.palette.primary.main, 
+                      fontSize: 28 
+                    }} />
+                  </Box>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="h6" fontWeight="700" gutterBottom sx={{ 
+                      fontFamily: '"Adlam Display", serif',
+                      color: theme.palette.text.primary,
+                    }}>
+                      Task Description
+                    </Typography>
+                    <Typography variant="body1" sx={{ 
+                      color: theme.palette.text.secondary,
+                      lineHeight: 1.6,
+                      whiteSpace: 'pre-wrap',
+                    }}>
+                      {task.description || 'No description provided.'}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Paper>
+
+              {/* Key Information Row */}
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: { xs: 'column', sm: 'row' },
+                gap: 3,
+              }}>
+                {/* Assignee */}
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    flex: 1,
+                    p: 3,
+                    borderRadius: 3,
+                    backgroundColor: theme.palette.background.paper,
+                    border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    minWidth: 280,
+                  }}
+                >
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 2, 
+                    mb: 2.5,
+                    pb: 2,
+                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                  }}>
+                    <Person sx={{ 
+                      color: theme.palette.primary.main, 
+                      fontSize: 24 
+                    }} />
+                    <Typography variant="body1" fontWeight="600" sx={{ 
+                      fontFamily: '"Adlam Display", serif',
+                      color: theme.palette.text.primary,
+                    }}>
+                      Assigned To
+                    </Typography>
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
+                    <Avatar 
+                      src={task.assignedTo?.avatar}
+                      sx={{ 
+                        width: 52, 
+                        height: 52,
+                        fontSize: 18,
+                        fontWeight: 'bold',
+                        border: `3px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                      }}
+                    >
+                      {task.assignedTo?.name?.charAt(0) || 'U'}
+                    </Avatar>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="body1" fontWeight="600" sx={{ 
+                        mb: 0.5,
+                      }}>
+                        {task.assignedTo?.name || 'Unassigned'}
+                      </Typography>
+                      {task.assignedTo?.email && (
+                        <Typography variant="caption" sx={{ 
+                          color: theme.palette.text.secondary,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.5,
+                        }}>
+                          {task.assignedTo.email}
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+                </Paper>
+
+                {/* Deadline */}
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    flex: 1,
+                    p: 3,
+                    borderRadius: 3,
+                    backgroundColor: task.metrics?.isOverdue 
+                      ? alpha(theme.palette.error.main, 0.05)
+                      : theme.palette.background.paper,
+                    border: `1px solid ${task.metrics?.isOverdue 
+                      ? alpha(theme.palette.error.main, 0.2)
+                      : alpha(theme.palette.divider, 0.3)}`,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    minWidth: 280,
+                  }}
+                >
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    gap: 2, 
+                    mb: 2.5,
+                    pb: 2,
+                    borderBottom: `1px solid ${task.metrics?.isOverdue 
+                      ? alpha(theme.palette.error.main, 0.2)
+                      : alpha(theme.palette.divider, 0.2)}`,
+                  }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <CalendarToday sx={{ 
+                        color: task.metrics?.isOverdue 
+                          ? theme.palette.error.main
+                          : theme.palette.primary.main, 
+                        fontSize: 24 
+                      }} />
+                      <Typography variant="body1" fontWeight="600" sx={{ 
+                        fontFamily: '"Adlam Display", serif',
+                        color: task.metrics?.isOverdue 
+                          ? theme.palette.error.main
+                          : theme.palette.text.primary,
+                      }}>
+                        Deadline
+                      </Typography>
+                    </Box>
+                    {task.metrics?.isOverdue && (
+                      <Chip
+                        label="OVERDUE"
+                        color="error"
+                        size="small"
+                        sx={{ fontWeight: 600 }}
+                      />
+                    )}
+                  </Box>
+                  
+                  <Box>
+                    <Typography variant="h4" fontWeight="800" gutterBottom sx={{ 
+                      fontFamily: '"Alkatra", cursive',
+                      color: task.metrics?.isOverdue 
+                        ? theme.palette.error.main
+                        : theme.palette.text.primary,
+                    }}>
+                      {formatDate(task.deadline)}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1 }}>
+                      <AccessTime sx={{ 
+                        fontSize: 18, 
+                        color: theme.palette.text.secondary 
+                      }} />
+                      <Typography variant="body2" sx={{ 
+                        color: theme.palette.text.secondary,
+                      }}>
+                        {task.metrics?.daysUntilDeadline > 0 
+                          ? `${task.metrics.daysUntilDeadline} days remaining`
+                          : task.metrics?.isOverdue 
+                            ? 'Past deadline' 
+                            : 'Due soon'}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Paper>
+              </Box>
+
+              {/* Time Tracking & Efficiency */}
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: { xs: 'column', sm: 'row' },
+                gap: 3,
+              }}>
+                {/* Time Tracking */}
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    flex: 1,
+                    p: 3,
+                    borderRadius: 3,
+                    backgroundColor: theme.palette.background.paper,
+                    border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    minWidth: 280,
+                  }}
+                >
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 2, 
+                    mb: 3,
+                    pb: 2,
+                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                  }}>
+                    <Timer sx={{ 
+                      color: theme.palette.info.main, 
+                      fontSize: 24 
+                    }} />
+                    <Typography variant="body1" fontWeight="600" sx={{ 
+                      fontFamily: '"Adlam Display", serif',
+                      color: theme.palette.text.primary,
+                    }}>
+                      Time Tracking
+                    </Typography>
+                  </Box>
+                  
+                  <Box sx={{ mb: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 2, mb: 2 }}>
+                      <Typography variant="h3" fontWeight="800" sx={{ 
+                        fontFamily: '"Alkatra", cursive',
+                        color: theme.palette.info.main,
+                        lineHeight: 1,
+                      }}>
+                        {formatTime(task.totalFocusTime)}
+                      </Typography>
+                      <Typography variant="body2" sx={{ 
+                        color: theme.palette.text.secondary,
+                      }}>
+                        of {formatTime(task.estimatedTime)} estimated
+                      </Typography>
+                    </Box>
+                    
+                    {/* Progress Bar */}
+                    <Box sx={{ 
+                      position: 'relative', 
+                      height: 8, 
+                      borderRadius: 4, 
+                      backgroundColor: alpha(theme.palette.info.main, 0.1),
+                      overflow: 'hidden',
+                      mb: 1.5,
+                    }}>
+                      <Box 
+                        sx={{ 
+                          position: 'absolute',
+                          height: '100%',
+                          borderRadius: 4,
+                          background: `linear-gradient(90deg, ${theme.palette.info.main}, ${theme.palette.info.light})`,
+                          width: `${Math.min((task.totalFocusTime / (task.estimatedTime || 1)) * 100, 100)}%`,
+                          transition: 'width 0.5s ease',
+                        }}
+                      />
+                    </Box>
+                    
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Typography variant="caption" sx={{ 
+                        color: theme.palette.text.secondary,
+                      }}>
+                        Time spent
+                      </Typography>
+                      <Typography variant="caption" sx={{ 
+                        color: theme.palette.text.secondary,
+                        fontWeight: 600,
+                      }}>
+                        {((task.totalFocusTime / (task.estimatedTime || 1)) * 100).toFixed(1)}%
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Paper>
+
+                {/* Efficiency */}
+                <Paper 
+                  elevation={0}
+                  sx={{ 
+                    flex: 1,
+                    p: 3,
+                    borderRadius: 3,
+                    backgroundColor: theme.palette.background.paper,
+                    border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    minWidth: 280,
+                  }}
+                >
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 2, 
+                    mb: 3,
+                    pb: 2,
+                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                  }}>
+                    <TrendingUp sx={{ 
+                      color: theme.palette.success.main, 
+                      fontSize: 24 
+                    }} />
+                    <Typography variant="body1" fontWeight="600" sx={{ 
+                      fontFamily: '"Adlam Display", serif',
+                      color: theme.palette.text.primary,
+                    }}>
+                      Efficiency
+                    </Typography>
+                  </Box>
+                  
+                  <Box sx={{ mb: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 2, mb: 2 }}>
+                      <Typography variant="h3" fontWeight="800" sx={{ 
+                        fontFamily: '"Alkatra", cursive',
+                        color: getEfficiencyColor(task.taskMetrics?.efficiency),
+                        lineHeight: 1,
+                      }}>
+                        {task.taskMetrics?.efficiency?.toFixed(1) || '0.0'}%
+                      </Typography>
+                      <Chip
+                        label={task.taskMetrics?.efficiency > 120 ? 'High' : 
+                              task.taskMetrics?.efficiency < 50 ? 'Low' : 
+                              'Optimal'}
+                        color={getEfficiencyColor(task.taskMetrics?.efficiency)}
+                        size="small"
+                        sx={{ fontWeight: 600 }}
+                      />
+                    </Box>
+                    
+                    <LinearProgress 
+                      variant="determinate" 
+                      value={Math.min(task.taskMetrics?.efficiency || 0, 100)}
+                      color={getEfficiencyColor(task.taskMetrics?.efficiency)}
+                      sx={{ 
+                        height: 8, 
+                        borderRadius: 4, 
+                        mb: 1.5,
+                        backgroundColor: alpha(getEfficiencyColor(task.taskMetrics?.efficiency) === 'success' 
+                          ? theme.palette.success.main 
+                          : getEfficiencyColor(task.taskMetrics?.efficiency) === 'warning'
+                            ? theme.palette.warning.main
+                            : theme.palette.error.main, 0.1),
+                      }}
+                    />
+                    
+                    <Typography variant="caption" sx={{ 
+                      color: theme.palette.text.secondary,
+                      fontStyle: 'italic',
+                    }}>
+                      {task.taskMetrics?.efficiency > 120 
+                        ? 'Above expected efficiency' 
+                        : task.taskMetrics?.efficiency < 50 
+                          ? 'Below expected efficiency'
+                          : 'Within optimal range'}
+                    </Typography>
+                  </Box>
+                </Paper>
+              </Box>
+            </Box>
+          </Box>
+        )}
+
+        {/* Metrics Tab */}
+        {activeTab === 'metrics' && (
+          <Box sx={{ p: 4 }}>
+            <Typography variant="h5" fontWeight="700" gutterBottom sx={{ 
+              fontFamily: '"Adlam Display", serif',
+              mb: 3,
+            }}>
+              Task Metrics
+            </Typography>
+            
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 3 }}>
+              {/* Risk Score Card */}
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  flex: 1,
+                  p: 3.5,
+                  borderRadius: 3,
+                  backgroundColor: theme.palette.background.paper,
+                  border: `1px solid ${alpha(getRiskColor(task.metrics?.riskScore) === 'error' 
+                    ? theme.palette.error.main 
+                    : getRiskColor(task.metrics?.riskScore) === 'warning'
+                      ? theme.palette.warning.main
+                      : theme.palette.success.main, 0.2)}`,
+                  minWidth: 280,
+                }}
+              >
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  mb: 3,
+                  pb: 2,
+                  borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                }}>
+                  <Typography variant="body1" fontWeight="600" sx={{ 
+                    fontFamily: '"Adlam Display", serif',
+                    color: theme.palette.text.primary,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
+                  }}>
+                    <Security sx={{ color: getRiskColor(task.metrics?.riskScore) === 'error' 
+                      ? theme.palette.error.main 
+                      : getRiskColor(task.metrics?.riskScore) === 'warning'
+                        ? theme.palette.warning.main
+                        : theme.palette.success.main }} />
+                    Risk Score
+                  </Typography>
+                  <Chip
+                    label={task.metrics?.riskScore >= 4 ? 'High' : 
+                          task.metrics?.riskScore >= 2 ? 'Medium' : 
+                          'Low'}
+                    color={getRiskColor(task.metrics?.riskScore)}
+                    size="small"
+                    sx={{ fontWeight: 700 }}
+                  />
+                </Box>
+                
+                <Box sx={{ textAlign: 'center', mb: 3 }}>
+                  <Typography variant="h1" fontWeight="800" sx={{ 
+                    fontFamily: '"Alkatra", cursive',
+                    color: getRiskColor(task.metrics?.riskScore) === 'error' 
+                      ? theme.palette.error.main 
+                      : getRiskColor(task.metrics?.riskScore) === 'warning'
+                        ? theme.palette.warning.main
+                        : theme.palette.success.main,
+                    lineHeight: 1,
+                    mb: 1,
+                  }}>
+                    {task.metrics?.riskScore || 0}
+                  </Typography>
+                  <Typography variant="body2" sx={{ 
+                    color: theme.palette.text.secondary,
+                  }}>
+                    out of 8
+                  </Typography>
+                </Box>
+              </Paper>
+
+              {/* Efficiency Details Card */}
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  flex: 1,
+                  p: 3.5,
+                  borderRadius: 3,
+                  backgroundColor: theme.palette.background.paper,
+                  border: `1px solid ${alpha(getEfficiencyColor(task.taskMetrics?.efficiency) === 'success' 
+                    ? theme.palette.success.main 
+                    : getEfficiencyColor(task.taskMetrics?.efficiency) === 'warning'
+                      ? theme.palette.warning.main
+                      : theme.palette.error.main, 0.2)}`,
+                  minWidth: 280,
+                }}
+              >
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  mb: 3,
+                  pb: 2,
+                  borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                }}>
+                  <Typography variant="body1" fontWeight="600" sx={{ 
+                    fontFamily: '"Adlam Display", serif',
+                    color: theme.palette.text.primary,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
+                  }}>
+                    <TrendingUp sx={{ color: getEfficiencyColor(task.taskMetrics?.efficiency) }} />
+                    Efficiency Analysis
+                  </Typography>
+                </Box>
+                
+                {/* Efficiency Score */}
+                <Box sx={{ textAlign: 'center', mb: 4 }}>
+                  <Typography variant="h1" fontWeight="800" sx={{ 
+                    fontFamily: '"Alkatra", cursive',
+                    color: getEfficiencyColor(task.taskMetrics?.efficiency),
+                    lineHeight: 1,
+                    mb: 1,
+                  }}>
+                    {task.taskMetrics?.efficiency?.toFixed(1) || '0.0'}%
+                  </Typography>
+                  <Typography variant="body2" sx={{ 
+                    color: theme.palette.text.secondary,
+                  }}>
+                    {task.taskMetrics?.efficiency > 120 
+                      ? 'Above expected range' 
+                      : task.taskMetrics?.efficiency < 50 
+                        ? 'Below expected range'
+                        : 'Within optimal range'}
+                  </Typography>
+                </Box>
+              </Paper>
+            </Box>
+          </Box>
+        )}
+
+        {/* Proof Tab */}
+        {activeTab === 'proof' && (
+          <Box sx={{ p: 4 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              mb: 4,
+              pb: 2,
+              borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+            }}>
+              <Box>
+                <Typography variant="h5" fontWeight="700" gutterBottom sx={{ 
+                  fontFamily: '"Adlam Display", serif',
+                }}>
+                  Proof of Work
+                </Typography>
+                <Typography variant="body2" sx={{ 
+                  color: theme.palette.text.secondary,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                }}>
+                  <Upload fontSize="small" />
+                  {task.proofUploads?.length || 0} file(s) uploaded
+                </Typography>
+              </Box>
+              {task.assignedTo?._id === userRole?.userId && (
+                <Button
+                  variant="contained"
+                  startIcon={<Upload />}
+                  size="medium"
+                  onClick={() => onUploadProof(task)}
+                  sx={{ 
+                    borderRadius: 2,
+                    px: 3,
+                    py: 1,
+                    fontWeight: 600,
+                    background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                    '&:hover': {
+                      boxShadow: `0 6px 20px ${alpha(theme.palette.primary.main, 0.4)}`,
+                    }
+                  }}
+                >
+                  Add Proof
+                </Button>
+              )}
+            </Box>
+            
+            {task.proofUploads?.length > 0 ? (
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: 2.5 
+              }}>
+                {task.proofUploads.map((proof, index) => (
+                  <Paper 
+                    key={index}
+                    elevation={0}
+                    sx={{ 
+                      p: 3, 
+                      borderRadius: 3,
+                      backgroundColor: theme.palette.background.paper,
+                      border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        borderColor: alpha(theme.palette.primary.main, 0.3),
+                        backgroundColor: alpha(theme.palette.primary.main, 0.02),
+                        transform: 'translateX(4px)',
+                      }
+                    }}
+                  >
+                    <Box sx={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'flex-start',
+                      gap: 2,
+                    }}>
+                      <Box sx={{ flex: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1.5 }}>
+                          <Box sx={{ 
+                            p: 1.5,
+                            borderRadius: 2,
+                            backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}>
+                            <AttachFile sx={{ color: theme.palette.primary.main }} />
+                          </Box>
+                          <Box>
+                            <Typography variant="body1" fontWeight="600">
+                              {proof.filename}
+                            </Typography>
+                            <Typography variant="caption" sx={{ 
+                              color: theme.palette.text.secondary,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5,
+                              mt: 0.5,
+                            }}>
+                              <CalendarToday fontSize="inherit" />
+                              Uploaded {formatDate(proof.uploadedAt)}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <IconButton
+                          size="small"
+                          onClick={() => window.open(proof.fileUrl, '_blank')}
+                          sx={{ 
+                            color: theme.palette.primary.main,
+                            backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                            '&:hover': {
+                              backgroundColor: alpha(theme.palette.primary.main, 0.2),
+                            }
+                          }}
+                        >
+                          <Visibility />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            const token = getAuthToken();
+                            window.open(proof.fileUrl, '_blank');
+                          }}
+                          sx={{ 
+                            color: theme.palette.info.main,
+                            backgroundColor: alpha(theme.palette.info.main, 0.1),
+                            '&:hover': {
+                              backgroundColor: alpha(theme.palette.info.main, 0.2),
+                            }
+                          }}
+                        >
+                          <Download />
+                        </IconButton>
+                      </Box>
+                    </Box>
+                  </Paper>
+                ))}
+              </Box>
+            ) : (
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  p: 6, 
+                  textAlign: 'center', 
+                  borderRadius: 3,
+                  backgroundColor: alpha(theme.palette.background.default, 0.5),
+                  border: `2px dashed ${alpha(theme.palette.divider, 0.3)}`,
+                }}
+              >
+                <Upload sx={{ 
+                  fontSize: 56, 
+                  color: alpha(theme.palette.text.secondary, 0.3),
+                  mb: 3,
+                }} />
+                <Typography variant="h6" gutterBottom sx={{ 
+                  color: theme.palette.text.secondary,
+                  fontFamily: '"Adlam Display", serif',
+                  mb: 1.5,
+                }}>
+                  No Proof Uploaded
+                </Typography>
+                <Typography variant="body2" sx={{ 
+                  color: theme.palette.text.secondary,
+                  maxWidth: 400,
+                  mx: 'auto',
+                  lineHeight: 1.6,
+                }}>
+                  Upload proof of work to reduce risk score and provide verification for completed tasks.
+                </Typography>
+              </Paper>
+            )}
+          </Box>
+        )}
+        
+        {/* Activity Tab */}
+        {activeTab === 'activity' && (
+          <Box sx={{ p: 4 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              mb: 4,
+              pb: 2,
+              borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+            }}>
+              <Box>
+                <Typography variant="h5" fontWeight="700" gutterBottom sx={{ 
+                  fontFamily: '"Adlam Display", serif',
+                }}>
+                  Activity Log
+                </Typography>
+                <Typography variant="body2" sx={{ 
+                  color: theme.palette.text.secondary,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                }}>
+                  <History fontSize="small" />
+                  {activityLogs.length} activities recorded
+                </Typography>
+              </Box>
+            </Box>
+            
+            {loadingActivity ? (
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                p: 6,
+              }}>
+                <CircularProgress size={48} sx={{ mb: 3, color: theme.palette.primary.main }} />
+                <Typography variant="body2" sx={{ 
+                  color: theme.palette.text.secondary,
+                }}>
+                  Loading activities...
+                </Typography>
+              </Box>
+            ) : activityLogs.length === 0 ? (
+              <Paper 
+                elevation={0}
+                sx={{ 
+                  p: 6, 
+                  textAlign: 'center', 
+                  borderRadius: 3,
+                  backgroundColor: alpha(theme.palette.background.default, 0.5),
+                  border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+                }}
+              >
+                <History sx={{ 
+                  fontSize: 56, 
+                  color: alpha(theme.palette.text.secondary, 0.3),
+                  mb: 3,
+                }} />
+                <Typography variant="h6" gutterBottom sx={{ 
+                  color: theme.palette.text.secondary,
+                  fontFamily: '"Adlam Display", serif',
+                  mb: 1.5,
+                }}>
+                  No Activity Yet
+                </Typography>
+                <Typography variant="body2" sx={{ 
+                  color: theme.palette.text.secondary,
+                  maxWidth: 400,
+                  mx: 'auto',
+                  lineHeight: 1.6,
+                }}>
+                  Activities will appear here when changes are made to this task or when users interact with it.
+                </Typography>
+              </Paper>
+            ) : (
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: 'column',
+                gap: 2 
+              }}>
+                {activityLogs.map((log, index) => (
+                  <Paper 
+                    key={log.id || index}
+                    elevation={0}
+                    sx={{
+                      p: 3,
+                      borderRadius: 3,
+                      backgroundColor: theme.palette.background.paper,
+                      border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+                      position: 'relative',
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        backgroundColor: alpha(theme.palette.primary.main, 0.02),
+                        borderColor: alpha(theme.palette.primary.main, 0.2),
+                      }
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', gap: 2.5 }}>
+                      <Avatar
+                        sx={{
+                          width: 44,
+                          height: 44,
+                          backgroundColor: log.isSystemEvent 
+                            ? theme.palette.grey[500]
+                            : theme.palette.primary.main,
+                        }}
+                      >
+                        {log.isSystemEvent ? (
+                          <Settings />
+                        ) : (
+                          log.user?.name?.charAt(0) || 'U'
+                        )}
+                      </Avatar>
+                      
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body1" sx={{ 
+                          fontWeight: 600,
+                          mb: 1,
+                        }}>
+                          {log.action}
+                        </Typography>
+                        
+                        <Box sx={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: 2,
+                          flexWrap: 'wrap',
+                          mb: 1.5,
+                        }}>
+                          <Typography 
+                            variant="caption" 
+                            sx={{ 
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5,
+                              color: theme.palette.text.secondary,
+                            }}
+                          >
+                            <Person fontSize="inherit" />
+                            {log.user?.name || 'System'}
+                          </Typography>
+                          
+                          <Typography 
+                            variant="caption" 
+                            sx={{ 
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5,
+                              color: theme.palette.text.secondary,
+                            }}
+                          >
+                            <AccessTime fontSize="inherit" />
+                            {log.time}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+                  </Paper>
+                ))}
+              </Box>
+            )}
+          </Box>
+        )}
+      </DialogContent>
+      
+      {/* Dialog Actions */}
+      <DialogActions sx={{ 
+        p: 2.5, 
+        justifyContent: 'space-between',
+        borderTop: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+        backgroundColor: alpha(theme.palette.background.default, 0.3),
+      }}>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+          {userRole?.role === 'teacher' || userRole?.role === 'admin' ? (
+            <>
+              <Button
+                startIcon={<Security />}
+                color="warning"
+                disabled={loading}
+                onClick={handleReassignTask}
+                size="small"
+                sx={{ 
+                  borderRadius: 2,
+                  px: 2.5,
+                  py: 1,
+                  fontWeight: 600,
+                }}
+              >
+                Edit Flags
+              </Button>
+              <Button
+                startIcon={<Grade />}
+                color="primary"
+                disabled={loading}
+                onClick={() => {}}
+                size="small"
+                sx={{ 
+                  borderRadius: 2,
+                  px: 2.5,
+                  py: 1,
+                  fontWeight: 600,
+                }}
+              >
+                Override Grade
+              </Button>
+              <Button
+                startIcon={<Edit />}
+                color="info"
+                disabled={loading}
+                onClick={() => {}}
+                size="small"
+                sx={{ 
+                  borderRadius: 2,
+                  px: 2.5,
+                  py: 1,
+                  fontWeight: 600,
+                }}
+              >
+                Edit Task
+              </Button>
+              {task.assignedTo && (
+                <Button
+                  startIcon={<Person />}
+                  color="secondary"
+                  disabled={loading}
+                  onClick={handleReassignTask}
+                  size="small"
+                  sx={{ 
+                    borderRadius: 2,
+                    px: 2.5,
+                    py: 1,
+                    fontWeight: 600,
+                  }}
+                >
+                  Reassign
+                </Button>
+              )}
+            </>
+          ) : task.assignedTo?._id === userRole?.userId && (
+            <>
+              {task.status !== 'completed' && (
+                <Button
+                  variant="contained"
+                  startIcon={<CheckCircle />}
+                  onClick={() => handleStatusChange('completed')}
+                  disabled={loading}
+                  size="small"
+                  sx={{ 
+                    borderRadius: 2,
+                    px: 2.5,
+                    py: 1,
+                    fontWeight: 600,
+                    background: `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.success.dark})`,
+                  }}
+                >
+                  Mark Complete
+                </Button>
+              )}
+              {task.status === 'completed' && (
+                <Button
+                  variant="outlined"
+                  onClick={() => handleStatusChange('active')}
+                  disabled={loading}
+                  size="small"
+                  sx={{ 
+                    borderRadius: 2,
+                    px: 2.5,
+                    py: 1,
+                    fontWeight: 600,
+                  }}
+                >
+                  Reopen
+                </Button>
+              )}
+              <Button
+                startIcon={<Edit />}
+                onClick={() => {}}
+                disabled={loading}
+                size="small"
+                sx={{ 
+                  borderRadius: 2,
+                  px: 2.5,
+                  py: 1,
+                  fontWeight: 600,
+                }}
+              >
+                Edit
+              </Button>
+              <Button
+                startIcon={<Comment />}
+                onClick={() => setCommentDialogOpen(true)}
+                disabled={loading}
+                size="small"
+                sx={{ 
+                  borderRadius: 2,
+                  px: 2.5,
+                  py: 1,
+                  fontWeight: 600,
+                }}
+              >
+                Add Comment
+              </Button>
+            </>
+          )}
+        </Box>
+        <Button 
+          onClick={onClose} 
+          disabled={loading}
+          size="medium"
+          sx={{ 
+            borderRadius: 2,
+            px: 3,
+            py: 1,
+            fontWeight: 600,
+            fontFamily: '"Adlam Display", serif',
+            color: theme.palette.text.secondary,
+            '&:hover': {
+              color: theme.palette.primary.main,
+              backgroundColor: alpha(theme.palette.primary.main, 0.05),
+            }
+          }}
+        >
+          Close
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
 
 const MyProject = () => {
   const { projectId } = useParams();
@@ -132,6 +1767,19 @@ const MyProject = () => {
   const [createTaskModalOpen, setCreateTaskModalOpen] = useState(false);
   const [teams, setTeams] = useState(null);
 
+  const [peerReviews, setPeerReviews] = useState([]);
+  const [aggregatedScores, setAggregatedScores] = useState(null);
+  const [userPeerScore, setUserPeerScore] = useState(null);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [selectedReviewee, setSelectedReviewee] = useState(null);
+  const [reviewScores, setReviewScores] = useState({
+    contribution: 5,
+    collaboration: 5,
+    quality: 5,
+    punctuality: 5
+  });
+  const [reviewComment, setReviewComment] = useState('');
+
   const [activeTab, setActiveTab] = useState(0);
   const [addMemberDialog, setAddMemberDialog] = useState(false);
   const [projectFiles, setProjectFiles] = useState([]);
@@ -145,7 +1793,114 @@ const MyProject = () => {
   const [memberEfficiencies, setMemberEfficiencies] = useState({});
   const [overallEfficiency, setOverallEfficiency] = useState(null);
 
+  // Task table specific states from Tasks.jsx
+  const [selectedTasks, setSelectedTasks] = useState(new Set());
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [logTimeOpen, setLogTimeOpen] = useState(false);
+  const [uploadProofOpen, setUploadProofOpen] = useState(false);
+  const [sortBy, setSortBy] = useState('deadline');
+  const [filters, setFilters] = useState({
+    status: 'all',
+    riskLevel: 'all',
+    hasProof: 'all',
+    isOverdue: false
+  });
+  const [userRole, setUserRole] = useState(null);
+  const [userTeacher, setUserTeacher] = useState(false);
+
   const isMobile = useMediaQuery('(max-width: 900px)');
+  // Fetch peer reviews data
+useEffect(() => {
+  const fetchPeerReviewsData = async () => {
+    if (!projectId || !user) return;
+    
+    try {
+      const token = getAuthToken();
+      
+      // 1. Get all peer reviews for the project
+      const reviewsResponse = await axiosClient.get(`/peer-review/project/${projectId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (reviewsResponse.data?.success) {
+        setPeerReviews(reviewsResponse.data.data || reviewsResponse.data.reviews || []);
+      }
+      
+      // 2. Get aggregated scores
+      const aggregatedResponse = await axiosClient.get(`/peer-review/aggregated/${projectId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (aggregatedResponse.data?.success) {
+        setAggregatedScores(aggregatedResponse.data.data);
+      }
+      
+      // 3. Get user's personal score
+      const userScoreResponse = await axiosClient.get(`/peer-review/my-score/${projectId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (userScoreResponse.data?.success) {
+        setUserPeerScore(userScoreResponse.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching peer review data:', error);
+    }
+  };
+  
+  if (activeTab === 6) { // Peer Reviews tab is active
+    fetchPeerReviewsData();
+  }
+}, [projectId, user, activeTab, refresh]);
+
+// Add function to handle submitting a review
+const handleSubmitReview = async () => {
+  try {
+        console.log("selectedReviewee", selectedReviewee);
+
+    const token = localStorage.getItem("token");
+    
+    const response = await axiosClient.post('/peer-review/submit', {
+      projectId,
+      revieweeId: selectedReviewee._id,
+      scores: reviewScores,
+      comment: reviewComment
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    if (response.data?.success) {
+      showSnackbar('Review submitted successfully!', 'success');
+      setReviewDialogOpen(false);
+      setReviewScores({
+        contribution: 5,
+        collaboration: 5,
+        quality: 5,
+        punctuality: 5
+      });
+      setReviewComment('');
+      setSelectedReviewee(null);
+      setRefresh(true); // Refresh data
+    }
+  } catch (error) {
+    showSnackbar(error.response?.data?.message || 'Failed to submit review', 'error');
+  }
+};
+
+// Add function to check if user can review someone
+const canReviewMember = (memberId) => {
+  if (!user || !peerReviews) return false;
+  
+  // User can't review themselves
+  if (memberId === user.id || memberId === user._id) return false;
+  
+  // Check if user has already reviewed this member
+  const existingReview = peerReviews.find(review => 
+    review.reviewer === user.id && review.reviewee === memberId
+  );
+  
+  return !existingReview;
+};
 
   // Enhanced color system that works with all themes
   const getThemeColor = (colorType = 'primary', variant = 'main') => {
@@ -753,6 +2508,7 @@ const MyProject = () => {
       showSnackbar('Error loading tasks', 'error');
     }
   };
+
   // Fetch user's teams
   useEffect(() => {
     const fetchUserTeams = async () => {
@@ -776,11 +2532,9 @@ const MyProject = () => {
       }
     };
 
-    if (open) {
-      fetchUserTeams();
-
-    }
+    fetchUserTeams();
   }, []);
+
   // Fetch activity logs
   const fetchActivityLogs = async () => {
     try {
@@ -924,12 +2678,142 @@ const MyProject = () => {
     setCreateTaskModalOpen(true);
   };
 
+  // Task table handlers from Tasks.jsx
+  const handleSelectTask = (taskId, checked) => {
+    const newSelected = new Set(selectedTasks);
+    if (checked) {
+      newSelected.add(taskId);
+    } else {
+      newSelected.delete(taskId);
+    }
+    setSelectedTasks(newSelected);
+  };
+
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedTasks(new Set(tasks.map(t => t._id)));
+    } else {
+      setSelectedTasks(new Set());
+    }
+  };
+
+  const handleStatusChange = async (taskId, newStatus) => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        showSnackbar('Authentication required', 'error');
+        return;
+      }
+
+      const task = tasks.find(t => t._id === taskId);
+      if (!task) return;
+
+      const now = new Date();
+
+      const response = await axiosClient.put(`/user/task/${taskId}/status`,
+        { status: newStatus, timestamp: now.toISOString() },
+        {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.data?.success) {
+        const updatedTask = response.data?.task;
+        
+        setTasks(prevTasks => prevTasks.map(t =>
+          t._id === taskId ? updatedTask : t
+        ));
+        
+        showSnackbar('Task status updated successfully', 'success');
+        
+        if (selectedTask && selectedTask._id === taskId) {
+          setSelectedTask(prev => ({
+            ...prev,
+            status: newStatus,
+            lastEventTime: updatedTask.lastEventTime
+          }));
+        }
+      } else {
+        showSnackbar(response.data?.error || 'Failed to update task status', 'error');
+      }
+    } catch (err) {
+      console.error('Failed to update status:', err);
+      showSnackbar(err.response?.data?.error || 'Failed to update task status', 'error');
+    }
+  };
+
+  const handleLogTime = (task) => {
+    setSelectedTask(task);
+    setLogTimeOpen(true);
+  };
+
+  const handleUploadProof = (task) => {
+    setSelectedTask(task);
+    setUploadProofOpen(true);
+  };
+
+  const handleViewDetails = (task) => {
+    setSelectedTask(task);
+    setDetailsOpen(true);
+  };
+
+  const handleTaskUpdate = () => {
+    fetchTasks();
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedTasks.size === 0) return;
+
+    if (!window.confirm(`Delete ${selectedTasks.size} selected task(s)?`)) return;
+
+    const token = getAuthToken();
+    if (!token) {
+      showSnackbar("Authentication required", "error");
+      return;
+    }
+
+    try {
+      const ids = Array.from(selectedTasks);
+      
+      // Delete each task one by one
+      for (const id of ids) {
+        await axiosClient.delete(`/user/task/${id}`, {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
+
+      // Update UI after deletion
+      setTasks(prev => prev.filter(task => !selectedTasks.has(task._id)));
+      setSelectedTasks(new Set());
+      showSnackbar(`${ids.length} task(s) deleted successfully`, 'success');
+    } catch (err) {
+      console.error("Failed bulk delete:", err);
+      showSnackbar('Failed to delete tasks', 'error');
+    }
+  };
+
   // Initialize
   useEffect(() => {
     if (projectId) {
       fetchUserData();
       fetchProjectDetails();
       fetchTasks();
+      
+      // Set user role
+      const user = getUserData();
+      if (user) {
+        setUserRole({
+          role: user.role || 'peer',
+          userId: user.id || user._id
+        });
+        setUserTeacher(user.role === 'teacher');
+      }
     }
   }, [projectId, refresh]);
 
@@ -992,6 +2876,8 @@ const MyProject = () => {
       </Box>
     );
   }
+
+  const allSelected = tasks.length > 0 && selectedTasks.size === tasks.length;
 
   return (
     <>
@@ -1525,48 +3411,49 @@ const MyProject = () => {
                     transparent 100%
                   )`,
                 }}>
-                  <Tabs 
-                    value={activeTab} 
-                    onChange={(e, newValue) => setActiveTab(newValue)}
-                    variant="scrollable"
-                    scrollButtons="auto"
-                    sx={{
-                      '& .MuiTab-root': {
-                        textTransform: 'capitalize',
-                        borderRadius: 2,
-                        mx: 0.5,
-                        minHeight: 48,
-                        fontFamily: '"Adlam Display", serif',
-                        fontWeight: 500,
-                        transition: 'all 0.3s ease',
-                        '&:hover': {
-                          backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                        },
-                        '&.Mui-selected': {
-                          color: theme.palette.primary.main,
-                          backgroundColor: alpha(theme.palette.primary.main, 0.15),
-                        }
+                <Tabs 
+                  value={activeTab} 
+                  onChange={(e, newValue) => setActiveTab(newValue)}
+                  variant="scrollable"
+                  scrollButtons="auto"
+                  sx={{
+                    '& .MuiTab-root': {
+                      textTransform: 'capitalize',
+                      borderRadius: 2,
+                      mx: 0.5,
+                      minHeight: 48,
+                      fontFamily: '"Adlam Display", serif',
+                      fontWeight: 500,
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        backgroundColor: alpha(theme.palette.primary.main, 0.1),
                       },
-                      '& .MuiTabs-indicator': {
-                        backgroundColor: theme.palette.primary.main,
-                        height: 3,
-                        borderRadius: 1.5,
-                        boxShadow: `0 0 8px ${alpha(theme.palette.primary.main, 0.5)}`,
+                      '&.Mui-selected': {
+                        color: theme.palette.primary.main,
+                        backgroundColor: alpha(theme.palette.primary.main, 0.15),
                       }
-                    }}
-                  >
-                    <Tab icon={<Task />} label="Tasks" />
-                    <Tab icon={<Group />} label="Team" />
-                    <Tab icon={<Timeline />} label="Activity" />
-                    <Tab icon={<AttachFile />} label="Files" />
-                    <Tab icon={<Analytics />} label="Analytics" />
-                    <Tab icon={<Note />} label="Notes" />
-                  </Tabs>
+                    },
+                    '& .MuiTabs-indicator': {
+                      backgroundColor: theme.palette.primary.main,
+                      height: 3,
+                      borderRadius: 1.5,
+                      boxShadow: `0 0 8px ${alpha(theme.palette.primary.main, 0.5)}`,
+                    }
+                  }}
+                >
+                  <Tab icon={<Task />} label="Tasks" />
+                  <Tab icon={<Group />} label="Team" />
+                  <Tab icon={<Timeline />} label="Activity" />
+                  <Tab icon={<AttachFile />} label="Files" />
+                  <Tab icon={<Analytics />} label="Analytics" />
+                  <Tab icon={<RateReviewIcon />} label="Peer Reviews" /> 
+                  <Tab icon={<Note />} label="Notes" />
+                </Tabs>
                 </Box>
 
                 {/* Tab Content */}
                 <Box sx={{ p: { xs: 2, sm: 3 } }}>
-                  {/* Tasks Tab */}
+                  
                   <TabContent value={activeTab} index={0}>
                     <Box sx={{ mb: 3 }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 2 }}>
@@ -1583,7 +3470,7 @@ const MyProject = () => {
                         }}>
                           <Task /> Task Board ({tasks.length} tasks)
                         </Typography>
-                        {/* tasks tab */}
+
                         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                           <TextField
                             size="small"
@@ -1602,366 +3489,728 @@ const MyProject = () => {
                               }
                             }}
                           />
+                          
+                          {/* Filter controls */}
+                          <FormControl size="small" sx={{ minWidth: 120 }}>
+                            <InputLabel>Status</InputLabel>
+                            <Select
+                              value={filters.status}
+                              onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                              label="Status"
+                            >
+                              <MenuItem value="all">All Status</MenuItem>
+                              <MenuItem value="not_started">Not Started</MenuItem>
+                              <MenuItem value="active">Active</MenuItem>
+                              <MenuItem value="paused">Paused</MenuItem>
+                              <MenuItem value="completed">Completed</MenuItem>
+                            </Select>
+                          </FormControl>
+
+                          <Tooltip title="Overdue Only">
+                            <IconButton 
+                              size="small"
+                              color={filters.isOverdue ? "error" : "default"}
+                              onClick={() => setFilters(prev => ({ ...prev, isOverdue: !prev.isOverdue }))}
+                            >
+                              <Warning />
+                            </IconButton>
+                          </Tooltip>
                         </Box>
                       </Box>
 
-                      <TableContainer 
-                        component={Paper} 
-                        sx={{ 
-                          borderRadius: 3,
-                          ...getGlassEffect(),
-                          border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
-                        }}
-                      >
-                        <Table>
-                          <TableHead>
-                            <TableRow>
-                              <TableCell width="40px"></TableCell>
-                              <TableCell>Task Name</TableCell>
-                              <TableCell>Assigned To</TableCell>
-                              <TableCell>Status</TableCell>
-                              <TableCell>Time (Focus/Est.)</TableCell>
-                              <TableCell>Efficiency</TableCell>
-                              <TableCell>Risk</TableCell>
-                              <TableCell align="right">Actions</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {tasks
-                              .filter(task => {
-                                if (!task) return false;
-                                const query = searchQuery.toLowerCase();
-                                return (
-                                  task.taskTitle?.toLowerCase().includes(query) ||
-                                  task.description?.toLowerCase().includes(query) ||
-                                  task.assignedTo?.name?.toLowerCase().includes(query)
-                                );
-                              })
-                              .map((task) => {
-                                if (!task) return null;
-                                
-                                // Get efficiency value
-                                const efficiency = task.taskEfficiency || 0;
-                                
-                                // Get risk level
-                                const riskLevel = task.riskLevel || 'low';
-                                
-                                // Get status
-                                const status = task.status || 'not_started';
-                                
-                                return (
-                                  <motion.tr 
-                                    key={task._id}
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    whileHover={{ 
-                                      backgroundColor: alpha(theme.palette.primary.main, 0.08),
-                                      transform: 'translateX(8px)'
-                                    }}
-                                    style={{ 
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s ease',
-                                    }}
-                                  >
-                                    <TableCell>
-                                      <DragIndicator sx={{ 
-                                        color: theme.palette.text.disabled,
-                                        transition: 'all 0.3s ease',
-                                      }} />
-                                    </TableCell>
-                                    <TableCell>
-                                      <Typography variant="body1" fontWeight="500">
-                                        {task.taskTitle || 'Untitled Task'}
-                                      </Typography>
-                                      <Typography variant="caption" color="text.secondary">
-                                        {task.description ? 
-                                          (task.description.length > 50 ? 
-                                            `${task.description.substring(0, 50)}...` : 
-                                            task.description) : 
-                                          'No description'}
-                                      </Typography>
-                                    </TableCell>
-                                    <TableCell>
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <Avatar sx={{ 
-                                          width: 32, 
-                                          height: 32, 
-                                          fontSize: 14,
-                                          background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                                          color: getContrastColor(theme.palette.primary.main),
-                                        }}>
-                                          {task.assignedTo?.name?.charAt(0).toUpperCase() || 'U'}
-                                        </Avatar>
-                                        <Box>
-                                          <Typography variant="body2">
-                                            {task.assignedTo?.name || 'Unassigned'}
-                                          </Typography>
-                                          <Typography variant="caption" color="text.secondary">
-                                            {task.assignedTo?.email || ''}
-                                          </Typography>
-                                        </Box>
-                                      </Box>
-                                    </TableCell>
-                                    <TableCell>
-                                      <Chip 
-                                        label={status.replace('_', ' ').toUpperCase()} 
-                                        size="small" 
-                                        color={getStatusColor(status)}
-                                        sx={{ 
-                                          fontWeight: 600,
-                                          borderRadius: 1.5,
-                                          minWidth: 100,
-                                          boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.2)}`,
-                                        }}
-                                      />
-                                    </TableCell>
-                                    <TableCell>
-                                      <Box>
-                                        <Typography variant="body2" fontWeight="500">
-                                          {Math.round((task.totalFocusTime || 0) / 60)}m
-                                        </Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                          of {Math.round((task.estimatedTime || 0) / 60)}m
-                                        </Typography>
-                                      </Box>
-                                    </TableCell>
-                                    <TableCell>
-                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        <TrendingUp sx={{ 
-                                          fontSize: 16,
-                                          color: getThemeColor(getEfficiencyColor(efficiency))
-                                        }} />
-                                        <Typography 
-                                          variant="body2" 
-                                          fontWeight="600"
-                                          sx={{ 
-                                            color: getThemeColor(getEfficiencyColor(efficiency))
-                                          }}
-                                        >
-                                          {efficiency.toFixed(1)}%
-                                        </Typography>
-                                      </Box>
-                                    </TableCell>
-                                    <TableCell>
-                                      <Chip 
-                                        label={riskLevel.toUpperCase()} 
-                                        size="small" 
-                                        color={getRiskColor(riskLevel)}
-                                        variant="outlined"
-                                        sx={{ 
-                                          fontWeight: 600,
-                                          borderWidth: 2,
-                                        }}
-                                      />
-                                    </TableCell>
-                                    <TableCell align="right">
-                                      <IconButton 
-                                        size="small"
-                                        onClick={(e) => {
-                                          setSelectedTask(task);
-                                          setTaskActionsAnchor(e.currentTarget);
-                                        }}
-                                        sx={{
-                                          backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                                          '&:hover': {
-                                            backgroundColor: alpha(theme.palette.primary.main, 0.2),
-                                          }
-                                        }}
-                                      >
-                                        <MoreHoriz />
-                                      </IconButton>
-                                    </TableCell>
-                                  </motion.tr>
-                                );
-                              })}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    </Box>
-                  </TabContent>
-
-                  {/* Team Tab */}
-                  <TabContent value={activeTab} index={1}>
-                    <Box sx={{ mb: 3 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                        <Typography variant="h5" sx={{ 
-                          fontFamily: '"Adlam Display", serif',
-                          fontWeight: 500,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1,
-                          background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                          backgroundClip: 'text',
-                          WebkitBackgroundClip: 'text',
-                          WebkitTextFillColor: 'transparent',
+                      {/* Stats Cards */}
+                      {tasks.length > 0 && (
+                        <Box sx={{ 
+                          mb: 3,
+                          display: 'grid',
+                          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
+                          gap: 2,
                         }}>
-                          <Group /> Team Members ({members.length})
-                        </Typography>
-                        <Button
-                          variant="contained"
-                          startIcon={<PersonAdd />}
-                          onClick={() => setAddMemberDialog(true)}
-                          sx={{ 
-                            borderRadius: 2,
-                            px: 3,
-                            py: 1,
-                            fontFamily: '"Adlam Display", serif',
-                            background: `linear-gradient(135deg, ${getThemeColor('primary')}, ${alpha(getThemeColor('primary'), 0.8)})`,
-                            color: getContrastColor(getThemeColor('primary')),
-                            boxShadow: `0 4px 20px ${alpha(getThemeColor('primary'), 0.4)}`,
-                            '&:hover': {
-                              boxShadow: `0 8px 25px ${alpha(getThemeColor('primary'), 0.6)}`,
-                              transform: 'translateY(-2px)',
+                          {[
+                            { 
+                              label: 'Total Tasks', 
+                              value: tasks.length, 
+                              icon: <Assessment fontSize="small" />,
+                              color: theme.palette.primary.main
                             },
-                            transition: 'all 0.3s ease',
+                            { 
+                              label: 'High Risk', 
+                              value: tasks.filter(t => t.metrics?.riskScore >= 4).length, 
+                              icon: <Security fontSize="small" />,
+                              color: theme.palette.error.main
+                            },
+                            { 
+                              label: 'Completed', 
+                              value: tasks.filter(t => t.status === 'completed').length, 
+                              icon: <CheckCircle fontSize="small" />,
+                              color: theme.palette.success.main
+                            },
+                            { 
+                              label: 'Need Proof', 
+                              value: tasks.filter(t => !t.metrics?.hasProof).length, 
+                              icon: <Warning fontSize="small" />,
+                              color: theme.palette.warning.main
+                            }
+                          ].map((stat) => (
+                            <Paper
+                              key={stat.label}
+                              elevation={0}
+                              sx={{
+                                p: 2,
+                                borderRadius: 2,
+                                backgroundColor: alpha(stat.color, 0.05),
+                                border: `1px solid ${alpha(stat.color, 0.1)}`,
+                              }}
+                            >
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ 
+                                  p: 1,
+                                  borderRadius: 1,
+                                  backgroundColor: alpha(stat.color, 0.1),
+                                }}>
+                                  {stat.icon}
+                                </Box>
+                                <Box>
+                                  <Typography variant="h6" sx={{ color: stat.color }}>
+                                    {stat.value}
+                                  </Typography>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                    {stat.label}
+                                  </Typography>
+                                </Box>
+                              </Box>
+                            </Paper>
+                          ))}
+                        </Box>
+                      )}
+
+                      {/* Enhanced Tasks Table from Tasks.jsx */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <Paper
+                          sx={{
+                            borderRadius: 3,
+                            background: theme.palette.mode === 'dark' 
+                              ? `linear-gradient(135deg, 
+                                  ${alpha(theme.palette.background.paper, 0.95)} 0%, 
+                                  ${alpha(theme.palette.background.paper, 0.9)} 100%)`
+                              : `linear-gradient(135deg, 
+                                  ${alpha(theme.palette.background.paper, 1)} 0%, 
+                                  ${alpha(theme.palette.background.default, 0.3)} 100%)`,
+                            border: `1.5px solid ${alpha(theme.palette.primary.main, 0.08)}`,
+                            overflow: 'hidden',
+                            position: 'relative',
+                            boxShadow: `0 4px 24px ${alpha(theme.palette.mode === 'dark' ? '#000' : theme.palette.primary.main, 0.08)}`,
+                            '&::before': {
+                              content: '""',
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              height: 4,
+                              background: `linear-gradient(90deg, 
+                                ${theme.palette.primary.main}, 
+                                ${theme.palette.secondary.main})`,
+                              borderRadius: '12px 12px 0 0',
+                              zIndex: 1,
+                            }
                           }}
                         >
-                          Add Member
-                        </Button>
-                      </Box>
-
-                      <Grid container spacing={3}>
-                        {members.map((member) => {
-                          const memberEff = memberEfficiencies[member._id] || { efficiency: 0, taskCount: 0 };
-                          const memberTasks = tasks.filter(task => {
-                            const assigneeId = task.assignedTo?._id || task.assignedTo;
-                            return assigneeId === member._id;
-                          });
-                          const completedTasks = memberTasks.filter(task => task.status === 'completed').length;
-
-                          return (
-                            <Grid item xs={12} sm={6} md={4} key={member._id}>
-                              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                                <Paper
-                                  elevation={0}
+                          <TableContainer 
+                            sx={{
+                              borderRadius: 3,
+                              backgroundColor: 'transparent',
+                              maxHeight: 600,
+                              '&::-webkit-scrollbar': {
+                                width: '8px',
+                                height: '8px',
+                              },
+                              '&::-webkit-scrollbar-track': {
+                                background: alpha(theme.palette.divider, 0.1),
+                                borderRadius: 4,
+                              },
+                              '&::-webkit-scrollbar-thumb': {
+                                background: alpha(theme.palette.primary.main, 0.3),
+                                borderRadius: 4,
+                                '&:hover': {
+                                  background: alpha(theme.palette.primary.main, 0.5),
+                                }
+                              }
+                            }}
+                          >
+                            <Table 
+                              stickyHeader
+                              sx={{ 
+                                minWidth: 800,
+                                borderCollapse: 'separate',
+                                borderSpacing: 0,
+                              }}
+                            >
+                              <TableHead>
+                                <TableRow sx={{ backgroundColor: 'transparent' }}>
+                                  <TableCell 
+                                    padding="checkbox"
+                                    sx={{
+                                      borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                                      backgroundColor: theme.palette.mode === 'dark' 
+                                        ? alpha(theme.palette.background.paper, 0.8)
+                                        : alpha(theme.palette.background.paper, 0.9),
+                                      backdropFilter: 'blur(10px)',
+                                      position: 'sticky',
+                                      top: 0,
+                                      zIndex: 2,
+                                      borderRadius: '12px 0 0 0',
+                                    }}
+                                  >
+                                    <Checkbox
+                                      checked={allSelected}
+                                      indeterminate={selectedTasks.size > 0 && !allSelected}
+                                      onChange={(e) => handleSelectAll(e.target.checked)}
+                                      sx={{
+                                        color: theme.palette.primary.main,
+                                        '&.Mui-checked': {
+                                          color: theme.palette.primary.main,
+                                        },
+                                        '&.MuiCheckbox-indeterminate': {
+                                          color: theme.palette.primary.main,
+                                        }
+                                      }}
+                                    />
+                                  </TableCell>
+                                  {[
+                                    { label: 'TASK TITLE', width: '25%' },
+                                    { label: 'ASSIGNEE', width: '15%' },
+                                    { label: 'STATUS', width: '12%' },
+                                    { label: 'DEADLINE', width: '12%' },
+                                    { label: 'EFFICIENCY', width: '10%' },
+                                    { label: 'RISK LEVEL', width: '10%' },
+                                    { label: 'PROOF', width: '8%' },
+                                    { label: 'ACTIONS', width: '8%' },
+                                  ].map((header, index) => (
+                                    <TableCell 
+                                      key={header.label}
+                                      sx={{
+                                        width: header.width,
+                                        borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                                        backgroundColor: theme.palette.mode === 'dark' 
+                                          ? alpha(theme.palette.background.paper, 0.8)
+                                          : alpha(theme.palette.background.paper, 0.9),
+                                        backdropFilter: 'blur(10px)',
+                                        position: 'sticky',
+                                        top: 0,
+                                        zIndex: 2,
+                                        ...(index === 7 && { borderRadius: '0 12px 0 0' })
+                                      }}
+                                    >
+                                      <Typography 
+                                        variant="subtitle2" 
+                                        sx={{
+                                          fontWeight: 700,
+                                          color: theme.palette.primary.main,
+                                          letterSpacing: '0.05em',
+                                          textTransform: 'uppercase',
+                                          fontSize: '0.8rem',
+                                        }}
+                                      >
+                                        {header.label}
+                                      </Typography>
+                                    </TableCell>
+                                  ))}
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {tasks
+                                  .filter(task => {
+                                    if (!task) return false;
+                                    const query = searchQuery.toLowerCase();
+                                    return (
+                                      task.taskTitle?.toLowerCase().includes(query) ||
+                                      task.description?.toLowerCase().includes(query) ||
+                                      task.assignedTo?.name?.toLowerCase().includes(query)
+                                    );
+                                  })
+                                  .filter(task => {
+                                    if (filters.status !== 'all' && task.status !== filters.status) return false;
+                                    if (filters.isOverdue && !task.metrics?.isOverdue) return false;
+                                    return true;
+                                  })
+                                  .map((task) => (
+                                    <TaskTableRow
+                                      key={task._id}
+                                      task={task}
+                                      isSelected={selectedTasks.has(task._id)}
+                                      onSelect={handleSelectTask}
+                                      theme={theme}
+                                      userRole={userRole}
+                                      onLogTime={handleLogTime}
+                                      onUploadProof={handleUploadProof}
+                                      onViewDetails={handleViewDetails}
+                                      onStatusChange={handleStatusChange}
+                                      userTeacher={userTeacher}
+                                    />
+                                  ))}
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
+                          
+                          {/* Empty State */}
+                          {tasks.length === 0 && (
+                            <Box
+                              sx={{
+                                p: 8,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 2,
+                                background: `linear-gradient(135deg, 
+                                  ${alpha(theme.palette.background.default, 0.5)} 0%, 
+                                  ${alpha(theme.palette.background.paper, 0.3)} 100%)`,
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  width: 80,
+                                  height: 80,
+                                  borderRadius: '50%',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  background: `linear-gradient(135deg, 
+                                    ${alpha(theme.palette.primary.main, 0.1)} 0%, 
+                                    ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
+                                  border: `2px dashed ${alpha(theme.palette.primary.main, 0.2)}`,
+                                  mb: 2,
+                                }}
+                              >
+                                <Task sx={{ fontSize: 40, color: theme.palette.primary.main, opacity: 0.5 }} />
+                              </Box>
+                              <Typography variant="h6" sx={{ color: theme.palette.text.secondary, fontWeight: 600 }}>
+                                No tasks found
+                              </Typography>
+                              <Typography variant="body2" sx={{ color: theme.palette.text.secondary, maxWidth: 400, textAlign: 'center' }}>
+                                Try adjusting your filters or create a new task to get started
+                              </Typography>
+                            </Box>
+                          )}
+                          
+                          {/* Table Footer with Selection */}
+                          {selectedTasks.size > 0 && (
+                            <Paper
+                              sx={{
+                                p: 3,
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                borderRadius: '0 0 12px 12px',
+                                background: `linear-gradient(135deg, 
+                                  ${alpha(theme.palette.primary.main, 0.08)} 0%, 
+                                  ${alpha(theme.palette.primary.main, 0.04)} 100%)`,
+                                borderTop: `1.5px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+                                borderLeft: `1.5px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+                                borderRight: `1.5px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+                                borderBottom: `1.5px solid ${alpha(theme.palette.primary.main, 0.15)}`,
+                                position: 'relative',
+                                overflow: 'hidden',
+                                '&::before': {
+                                  content: '""',
+                                  position: 'absolute',
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  height: 2,
+                                  background: `linear-gradient(90deg, 
+                                    ${theme.palette.primary.main}, 
+                                    ${theme.palette.secondary.main})`,
+                                }
+                              }}
+                            >
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Box
                                   sx={{
-                                    p: 3,
-                                    borderRadius: 3,
-                                    ...getGlassEffect(),
-                                    height: '100%',
-                                    position: 'relative',
-                                    overflow: 'hidden',
-                                    '&:hover': {
-                                      borderColor: getBorderColor('primary', 0.5),
-                                      boxShadow: `0 8px 32px ${alpha(getThemeColor('primary'), 0.2)}`,
-                                      transform: 'translateY(-4px)',
-                                    },
-                                    transition: 'all 0.3s ease',
+                                    width: 36,
+                                    height: 36,
+                                    borderRadius: '50%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    background: `linear-gradient(135deg, 
+                                      ${alpha(theme.palette.primary.main, 0.2)} 0%, 
+                                      ${alpha(theme.palette.primary.main, 0.1)} 100%)`,
+                                    border: `1.5px solid ${alpha(theme.palette.primary.main, 0.3)}`,
                                   }}
                                 >
-                                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
-                                    <Badge
-                                      overlap="circular"
-                                      anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                                      variant="dot"
-                                      color={member.onlineStatus === 'active' ? 'success' : 'warning'}
-                                    >
-                                      <Avatar 
-                                        sx={{ 
-                                          width: 56, 
-                                          height: 56,
-                                          fontSize: 20,
-                                          fontWeight: 'bold',
-                                          background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                                          color: getContrastColor(theme.palette.primary.main),
-                                          boxShadow: `0 4px 15px ${alpha(theme.palette.primary.main, 0.3)}`,
-                                        }}
-                                      >
-                                        {member.avatar || member.name?.charAt(0).toUpperCase() || 'U'}
-                                      </Avatar>
-                                    </Badge>
-                                    <Box sx={{ flex: 1 }}>
-                                      <Typography variant="h6" fontWeight="600">
-                                        {member.name || 'Unknown'}
-                                      </Typography>
-                                      <Typography variant="body2" color="text.secondary">
-                                        {member.email || 'No email'}
-                                      </Typography>
-                                    </Box>
-                                  </Box>
-
-                                  {/* Skills */}
-                                  {member.skills && member.skills.length > 0 && (
-                                    <Box sx={{ mb: 2 }}>
-                                      <Typography variant="caption" color="text.secondary" display="block" mb={1}>
-                                        Skills
-                                      </Typography>
-                                      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                                        {member.skills.slice(0, 3).map((skill, idx) => (
-                                          <Chip
-                                            key={idx}
-                                            label={skill}
-                                            size="small"
-                                            variant="outlined"
-                                            sx={{ 
-                                              fontSize: '0.7rem',
-                                              height: 22,
-                                              borderRadius: 1,
-                                              borderColor: getBorderColor('primary', 0.3),
-                                              backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                                              color: theme.palette.text.primary,
-                                            }}
-                                          />
-                                        ))}
-                                        {member.skills.length > 3 && (
-                                          <Chip
-                                            label={`+${member.skills.length - 3}`}
-                                            size="small"
-                                            variant="outlined"
-                                            sx={{ 
-                                              fontSize: '0.7rem',
-                                              height: 22,
-                                              borderRadius: 1,
-                                            }}
-                                          />
-                                        )}
-                                      </Box>
-                                    </Box>
-                                  )}
-
-                                  <Divider sx={{ my: 2, borderColor: alpha(theme.palette.divider, 0.3) }} />
-
-                                  {/* Efficiency Stats */}
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <Box>
-                                      <Typography variant="caption" color="text.secondary" display="block">
-                                        Tasks
-                                      </Typography>
-                                      <Typography variant="body2" fontWeight="600">
-                                        {memberEff.taskCount}
-                                      </Typography>
-                                    </Box>
-                                    <Box>
-                                      <Typography variant="caption" color="text.secondary" display="block">
-                                        Completed
-                                      </Typography>
-                                      <Typography variant="body2" fontWeight="600">
-                                        {completedTasks}
-                                      </Typography>
-                                    </Box>
-                                    <Box>
-                                      <Typography variant="caption" color="text.secondary" display="block">
-                                        Efficiency
-                                      </Typography>
-                                      <Typography 
-                                        variant="body2" 
-                                        fontWeight="600"
-                                        sx={{ 
-                                          color: getThemeColor(getEfficiencyColor(memberEff.efficiency))
-                                        }}
-                                      >
-                                        {memberEff.efficiency.toFixed(1)}%
-                                      </Typography>
-                                    </Box>
-                                  </Box>
-                                </Paper>
-                              </motion.div>
-                            </Grid>
-                          );
-                        })}
-                      </Grid>
+                                  <CheckCircle sx={{ fontSize: 20, color: theme.palette.primary.main }} />
+                                </Box>
+                                <Typography 
+                                  variant="body1" 
+                                  sx={{ 
+                                    color: theme.palette.primary.main, 
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  {selectedTasks.size} task{selectedTasks.size !== 1 ? 's' : ''} selected
+                                </Typography>
+                              </Box>
+                              <Button
+                                startIcon={<Delete />}
+                                variant="contained"
+                                color="error"
+                                onClick={() => handleDeleteSelected(Array.from(selectedTasks))}
+                                sx={{
+                                  borderRadius: 2,
+                                  px: 3,
+                                  py: 1,
+                                  fontWeight: 600,
+                                  textTransform: 'none',
+                                  background: `linear-gradient(135deg, 
+                                    ${theme.palette.error.main} 0%, 
+                                    ${alpha(theme.palette.error.main, 0.8)} 100%)`,
+                                  boxShadow: `0 4px 12px ${alpha(theme.palette.error.main, 0.3)}`,
+                                  '&:hover': {
+                                    transform: 'translateY(-1px)',
+                                    boxShadow: `0 6px 16px ${alpha(theme.palette.error.main, 0.4)}`,
+                                  },
+                                  transition: 'all 0.2s ease',
+                                }}
+                              > 
+                                Delete Selected
+                              </Button>
+                            </Paper>
+                          )}
+                        </Paper>
+                      </motion.div>
                     </Box>
                   </TabContent>
+
+{/* Team Tab */}
+<TabContent value={activeTab} index={1}>
+  <Box sx={{ mb: 3 }}>
+    {/* Header */}
+    <Box sx={{ 
+      display: 'flex', 
+      justifyContent: 'space-between', 
+      alignItems: 'center', 
+      mb: 3,
+      flexWrap: 'wrap',
+      gap: 2
+    }}>
+      <Typography variant="h5" sx={{ 
+        fontWeight: 600,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1,
+        color: theme.palette.primary.main,
+      }}>
+        <Group /> Team Members ({members.length})
+      </Typography>
+      <Button
+        variant="contained"
+        startIcon={<PersonAdd />}
+        onClick={() => setAddMemberDialog(true)}
+        sx={{ 
+          borderRadius: 2,
+          px: 3,
+          py: 1,
+          backgroundColor: theme.palette.primary.main,
+          color: '#ffffff',
+          '&:hover': {
+            backgroundColor: theme.palette.primary.dark,
+            transform: 'translateY(-2px)',
+            boxShadow: `0 8px 25px ${alpha(theme.palette.primary.main, 0.3)}`,
+          },
+          transition: 'all 0.3s ease',
+        }}
+      >
+        Add Member
+      </Button>
+    </Box>
+
+    {/* Members Grid */}
+    <Box sx={{ 
+      display: 'flex', 
+      flexWrap: 'wrap', 
+      gap: 3,
+      '& > *': { 
+        flex: '1 1 calc(33.333% - 16px)', 
+        minWidth: 280,
+        maxWidth: '100%'
+      }
+    }}>
+      {members.map((member) => {
+        const memberEff = memberEfficiencies[member._id] || { efficiency: 0, taskCount: 0 };
+        const memberTasks = tasks.filter(task => {
+          const assigneeId = task.assignedTo?._id || task.assignedTo;
+          return assigneeId === member._id;
+        });
+        const completedTasks = memberTasks.filter(task => task.status === 'completed').length;
+
+        const getEfficiencyColor = (efficiency) => {
+          if (efficiency < 50) return theme.palette.error.main;
+          if (efficiency < 80) return theme.palette.warning.main;
+          return theme.palette.success.main;
+        };
+
+        return (
+          <motion.div 
+            key={member._id}
+            whileHover={{ scale: 1.02 }} 
+            whileTap={{ scale: 0.98 }}
+            style={{ width: '100%' }}
+          >
+            <Paper
+              sx={{
+                p: 3,
+                borderRadius: 3,
+                backgroundColor: alpha(theme.palette.background.paper, 0.8),
+                border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                position: 'relative',
+                overflow: 'hidden',
+                backdropFilter: 'blur(10px)',
+                '&:hover': {
+                  borderColor: alpha(theme.palette.primary.main, 0.3),
+                  boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.1)}`,
+                  transform: 'translateY(-4px)',
+                },
+                transition: 'all 0.3s ease',
+              }}
+            >
+              {/* Member Info */}
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
+                <Box sx={{ position: 'relative' }}>
+                  <Avatar 
+                    sx={{ 
+                      width: 56, 
+                      height: 56,
+                      fontSize: 20,
+                      fontWeight: 'bold',
+                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                      color: theme.palette.primary.main,
+                      border: `2px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                    }}
+                  >
+                    {member.avatar || member.name?.charAt(0).toUpperCase() || 'U'}
+                  </Avatar>
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      bottom: 0,
+                      right: 0,
+                      width: 12,
+                      height: 12,
+                      borderRadius: '50%',
+                      backgroundColor: member.onlineStatus === 'active' 
+                        ? theme.palette.success.main 
+                        : theme.palette.warning.main,
+                      border: `2px solid ${theme.palette.background.paper}`,
+                    }}
+                  />
+                </Box>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="h6" fontWeight="600">
+                    {member.name || 'Unknown'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    {member.email || 'No email'}
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* Skills */}
+              {member.skills && member.skills.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="caption" color="text.secondary" display="block" mb={1}>
+                    Skills
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                    {member.skills.slice(0, 3).map((skill, idx) => (
+                      <Chip
+                        key={idx}
+                        label={skill}
+                        size="small"
+                        variant="outlined"
+                        sx={{ 
+                          fontSize: '0.7rem',
+                          height: 22,
+                          borderRadius: 1,
+                          borderColor: alpha(theme.palette.primary.main, 0.3),
+                          backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                          color: theme.palette.text.primary,
+                        }}
+                      />
+                    ))}
+                    {member.skills.length > 3 && (
+                      <Chip
+                        label={`+${member.skills.length - 3}`}
+                        size="small"
+                        variant="outlined"
+                        sx={{ 
+                          fontSize: '0.7rem',
+                          height: 22,
+                          borderRadius: 1,
+                        }}
+                      />
+                    )}
+                  </Box>
+                </Box>
+              )}
+
+              <Divider sx={{ 
+                my: 2, 
+                borderColor: alpha(theme.palette.divider, 0.3) 
+              }} />
+
+              {/* Efficiency Stats */}
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                gap: 2
+              }}>
+                <Box sx={{ textAlign: 'center', flex: 1 }}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    Tasks
+                  </Typography>
+                  <Typography variant="h6" fontWeight="700" color={theme.palette.primary.main}>
+                    {memberEff.taskCount}
+                  </Typography>
+                </Box>
+                <Box sx={{ textAlign: 'center', flex: 1 }}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    Completed
+                  </Typography>
+                  <Typography variant="h6" fontWeight="700" color={theme.palette.success.main}>
+                    {completedTasks}
+                  </Typography>
+                </Box>
+                <Box sx={{ textAlign: 'center', flex: 1 }}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    Efficiency
+                  </Typography>
+                  <Typography 
+                    variant="h6" 
+                    fontWeight="700"
+                    sx={{ 
+                      color: getEfficiencyColor(memberEff.efficiency)
+                    }}
+                  >
+                    {memberEff.efficiency.toFixed(1)}%
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* Additional Info */}
+              {memberTasks.length > 0 && (
+                <Box sx={{ 
+                  mt: 2, 
+                  pt: 2, 
+                  borderTop: `1px solid ${alpha(theme.palette.divider, 0.2)}` 
+                }}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    Recent Tasks:
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                    {memberTasks.slice(0, 2).map((task, idx) => (
+                      <Chip
+                        key={idx}
+                        label={task.taskTitle?.substring(0, 20) + (task.taskTitle?.length > 20 ? '...' : '')}
+                        size="small"
+                        sx={{ 
+                          fontSize: '0.65rem',
+                          height: 20,
+                          backgroundColor: 
+                            task.status === 'completed' ? alpha(theme.palette.success.main, 0.1) :
+                            task.status === 'active' ? alpha(theme.palette.info.main, 0.1) :
+                            alpha(theme.palette.warning.main, 0.1),
+                          color: 
+                            task.status === 'completed' ? theme.palette.success.main :
+                            task.status === 'active' ? theme.palette.info.main :
+                            theme.palette.warning.main,
+                        }}
+                      />
+                    ))}
+                    {memberTasks.length > 2 && (
+                      <Chip
+                        label={`+${memberTasks.length - 2} more`}
+                        size="small"
+                        sx={{ 
+                          fontSize: '0.65rem',
+                          height: 20,
+                        }}
+                      />
+                    )}
+                  </Box>
+                </Box>
+              )}
+
+              {/* View Profile Button */}
+              <Button
+                variant="outlined"
+                size="small"
+                fullWidth
+                sx={{ 
+                  mt: 2,
+                  borderRadius: 2,
+                  borderColor: alpha(theme.palette.primary.main, 0.3),
+                  color: theme.palette.primary.main,
+                  '&:hover': {
+                    borderColor: theme.palette.primary.main,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.04),
+                  }
+                }}
+                onClick={() => {
+                  // Add view profile functionality
+                  showSnackbar(`Viewing ${member.name}'s profile`, 'info');
+                }}
+              >
+                View Profile
+              </Button>
+            </Paper>
+          </motion.div>
+        );
+      })}
+    </Box>
+
+    {/* Empty State */}
+    {members.length === 0 && (
+      <Paper
+        sx={{
+          p: 6,
+          borderRadius: 3,
+          backgroundColor: alpha(theme.palette.background.paper, 0.6),
+          border: `2px dashed ${alpha(theme.palette.divider, 0.3)}`,
+          textAlign: 'center',
+        }}
+      >
+        <Group sx={{ 
+          fontSize: 64, 
+          color: alpha(theme.palette.text.secondary, 0.3),
+          mb: 2 
+        }} />
+        <Typography variant="h6" color="text.secondary" gutterBottom>
+          No Team Members Yet
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: 400, mx: 'auto' }}>
+          Add team members to collaborate on this project
+        </Typography>
+        <Button
+          variant="contained"
+          startIcon={<PersonAdd />}
+          onClick={() => setAddMemberDialog(true)}
+          sx={{ borderRadius: 2 }}
+        >
+          Add First Member
+        </Button>
+      </Paper>
+    )}
+  </Box>
+</TabContent>
 
                   {/* Activity Tab */}
                   <TabContent value={activeTab} index={2}>
@@ -2383,8 +4632,530 @@ const MyProject = () => {
                     </Box>
                   </TabContent>
 
+<TabContent value={activeTab} index={5}>
+  <Box sx={{ mb: 3 }}>
+    {/* Header */}
+    <Box sx={{ 
+      display: 'flex', 
+      justifyContent: 'space-between', 
+      alignItems: 'center', 
+      mb: 3,
+      flexWrap: 'wrap',
+      gap: 2
+    }}>
+      <Typography variant="h5" sx={{ 
+        fontWeight: 600,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1,
+        color: theme.palette.primary.main,
+      }}>
+        <RateReview /> Peer Reviews
+      </Typography>
+      
+      {/* Lock/Unlock button for teachers */}
+      {(userTeacher || user?.role === 'teacher') && (
+        <Button
+          variant="outlined"
+          startIcon={project?.peerReviewLocked ? <LockOpen /> : <Lock />}
+          onClick={async () => {
+            try {
+              const token = getAuthToken();
+              const response = await axiosClient.patch(
+                `/peer-review/lock/${projectId}`,
+                { lock: !project?.peerReviewLocked },
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+              
+              if (response.data?.success) {
+                showSnackbar(
+                  project?.peerReviewLocked 
+                    ? 'Peer reviews unlocked' 
+                    : 'Peer reviews locked',
+                  'success'
+                );
+                setRefresh(true);
+              }
+            } catch (error) {
+              showSnackbar('Error updating lock status', 'error');
+            }
+          }}
+          sx={{ 
+            borderRadius: 2,
+            px: 3,
+            py: 1,
+          }}
+        >
+          {project?.peerReviewLocked ? 'Unlock Reviews' : 'Lock Reviews'}
+        </Button>
+      )}
+    </Box>
+
+    {/* Lock Warning */}
+    {project?.peerReviewLocked && (
+      <Alert 
+        severity="warning" 
+        sx={{ 
+          mb: 3,
+          borderRadius: 2,
+          backgroundColor: alpha(theme.palette.warning.main, 0.1),
+          border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`,
+        }}
+      >
+        Peer reviews are currently locked. No new reviews can be submitted.
+      </Alert>
+    )}
+
+    {/* User's Personal Score Card */}
+    {userPeerScore && (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <Paper
+          sx={{
+            p: 3,
+            mb: 3,
+            borderRadius: 3,
+            backgroundColor: alpha(theme.palette.primary.main, 0.05),
+            border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'flex-start', 
+            mb: 2,
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: 2
+          }}>
+            <Box>
+              <Typography variant="h6" sx={{ 
+                mb: 1, 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 1,
+                color: theme.palette.primary.main
+              }}>
+                <Star /> Your Peer Review Score
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Based on reviews from your teammates
+              </Typography>
+            </Box>
+            <Box sx={{ textAlign: { xs: 'left', sm: 'center' } }}>
+              <Typography variant="h2" fontWeight="800" sx={{ 
+                color: theme.palette.primary.main,
+                lineHeight: 1,
+              }}>
+                {userPeerScore.userScore?.averageScore?.toFixed(1) || '0.0'}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                / 5.0
+              </Typography>
+            </Box>
+          </Box>
+          
+          {/* Criteria Breakdown */}
+          {userPeerScore.userScore?.criteriaScores && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
+                Criteria Breakdown:
+              </Typography>
+              <Box sx={{ 
+                display: 'flex', 
+                flexWrap: 'wrap', 
+                gap: 2,
+                '& > *': { flex: '1 1 calc(25% - 16px)', minWidth: 120 }
+              }}>
+                {Object.entries(userPeerScore.userScore.criteriaScores).map(([criteria, score]) => (
+                  <Box key={criteria} sx={{ 
+                    p: 1.5, 
+                    borderRadius: 2,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                    border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                  }}>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      {criteria.charAt(0).toUpperCase() + criteria.slice(1)}
+                    </Typography>
+                    <Typography variant="body1" fontWeight="600">
+                      {score.toFixed(1)}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+          )}
+          
+          {/* Reviews Received */}
+          {userPeerScore.userScore?.reviews && userPeerScore.userScore.reviews.length > 0 && (
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
+                Reviews from teammates:
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {userPeerScore.userScore.reviews.slice(0, 3).map((review, index) => (
+                  <Box key={index} sx={{ 
+                    p: 1.5, 
+                    borderRadius: 2,
+                    backgroundColor: alpha(theme.palette.background.paper, 0.5),
+                    border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                  }}>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: 1
+                    }}>
+                      <Typography variant="body2" fontWeight="600">
+                        {review.reviewer?.name || 'Anonymous'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Score: {review.scores ? (
+                          Object.values(review.scores).reduce((a, b) => a + b, 0) / 4
+                        ).toFixed(1) : 'N/A'}
+                      </Typography>
+                    </Box>
+                    {review.comment && (
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                        "{review.comment}"
+                      </Typography>
+                    )}
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+          )}
+        </Paper>
+      </motion.div>
+    )}
+
+    {/* Team Members Grid with Review Status */}
+    <Box sx={{ 
+      display: 'flex', 
+      flexWrap: 'wrap', 
+      gap: 3,
+      '& > *': { 
+        flex: '1 1 calc(33.333% - 16px)', 
+        minWidth: 280,
+        maxWidth: '100%'
+      }
+    }}>
+      {members.map((member) => {
+        if (!member || !member._id) return null;
+        
+        const memberScore = aggregatedScores?.members?.[member._id];
+        const canReview = canReviewMember(member._id);
+        const hasReviewed = !canReview && member._id !== user?.id;
+        const isSelf = member._id === user?.id || member._id === user?._id;
+        
+        return (
+          <motion.div 
+            key={member._id}
+            whileHover={{ scale: 1.02 }} 
+            whileTap={{ scale: 0.98 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            style={{ width: '100%' }}
+          >
+            <Paper
+              sx={{
+                p: 3,
+                borderRadius: 3,
+                backgroundColor: alpha(theme.palette.background.paper, 0.8),
+                border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                position: 'relative',
+                overflow: 'hidden',
+                '&:hover': {
+                  borderColor: alpha(theme.palette.primary.main, 0.3),
+                  boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.1)}`,
+                },
+                transition: 'all 0.3s ease',
+              }}
+            >
+              {/* Review Status Badge */}
+              <Box sx={{ position: 'absolute', top: 12, right: 12 }}>
+                {isSelf ? (
+                  <Chip
+                    label="You"
+                    size="small"
+                    sx={{
+                      backgroundColor: alpha(theme.palette.info.main, 0.1),
+                      color: theme.palette.info.main,
+                      fontWeight: 600,
+                    }}
+                  />
+                ) : hasReviewed ? (
+                  <Chip
+                    label="Reviewed"
+                    size="small"
+                    icon={<CheckCircle fontSize="small" />}
+                    sx={{
+                      backgroundColor: alpha(theme.palette.success.main, 0.1),
+                      color: theme.palette.success.main,
+                      fontWeight: 600,
+                    }}
+                  />
+                ) : canReview ? (
+                  <Chip
+                    label="Needs Review"
+                    size="small"
+                    icon={<RateReview fontSize="small" />}
+                    sx={{
+                      backgroundColor: alpha(theme.palette.warning.main, 0.1),
+                      color: theme.palette.warning.main,
+                      fontWeight: 600,
+                    }}
+                  />
+                ) : null}
+              </Box>
+              
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                <Avatar 
+                  sx={{ 
+                    width: 56, 
+                    height: 56,
+                    fontSize: 20,
+                    fontWeight: 'bold',
+                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                    color: theme.palette.primary.main,
+                    border: `2px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                  }}
+                >
+                  {member.avatar || member.name?.charAt(0).toUpperCase() || '?'}
+                </Avatar>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="h6" fontWeight="600">
+                    {member.name || 'Unknown'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {member.email || 'No email'}
+                  </Typography>
+                </Box>
+              </Box>
+              
+              {/* Peer Score Display */}
+              {memberScore ? (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Peer Score
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Box sx={{ flex: 1 }}>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={(memberScore.averageScore / 5) * 100}
+                        sx={{
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                          '& .MuiLinearProgress-bar': {
+                            backgroundColor: theme.palette.primary.main,
+                          }
+                        }}
+                      />
+                    </Box>
+                    <Typography variant="h5" fontWeight="800" sx={{ 
+                      color: theme.palette.primary.main,
+                    }}>
+                      {memberScore.averageScore.toFixed(1)}
+                    </Typography>
+                  </Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                    Based on {memberScore.reviewCount} review{memberScore.reviewCount !== 1 ? 's' : ''}
+                  </Typography>
+                </Box>
+              ) : (
+                <Box sx={{ 
+                  mb: 2, 
+                  p: 2, 
+                  borderRadius: 2, 
+                  backgroundColor: alpha(theme.palette.divider, 0.1),
+                  textAlign: 'center'
+                }}>
+                  <Typography variant="body2" color="text.secondary">
+                    No peer reviews yet
+                  </Typography>
+                </Box>
+              )}
+              
+              {/* Review Button */}
+              {!isSelf && !project?.peerReviewLocked && (
+                <Button
+                  fullWidth
+                  variant={canReview ? "contained" : "outlined"}
+                  startIcon={canReview ? <RateReview /> : <Visibility />}
+                  onClick={() => {
+                    if (canReview) {
+                      setSelectedReviewee(member);
+                      setReviewDialogOpen(true);
+                    }
+                  }}
+                  disabled={!canReview && !hasReviewed}
+                  sx={{
+                    mt: 'auto',
+                    borderRadius: 2,
+                    py: 1,
+                    fontWeight: 600,
+                    ...(canReview ? {
+                      backgroundColor: theme.palette.primary.main,
+                      color: '#ffffff',
+                      '&:hover': {
+                        backgroundColor: theme.palette.primary.dark,
+                        transform: 'translateY(-2px)',
+                      }
+                    } : {}),
+                    transition: 'all 0.3s ease',
+                  }}
+                >
+                  {canReview ? 'Review Teammate' : hasReviewed ? 'Already Reviewed' : 'View Details'}
+                </Button>
+              )}
+            </Paper>
+          </motion.div>
+        );
+      })}
+    </Box>
+    
+    {/* Aggregated Scores Summary */}
+    {aggregatedScores && (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.2 }}
+      >
+        <Paper
+          sx={{
+            p: 3,
+            mt: 3,
+            borderRadius: 3,
+            backgroundColor: alpha(theme.palette.secondary.main, 0.05),
+            border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`,
+          }}
+        >
+          <Typography variant="h6" sx={{ 
+            mb: 3, 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 1,
+            color: theme.palette.secondary.main
+          }}>
+            <Assessment /> Project Peer Review Summary
+          </Typography>
+          
+          <Box sx={{ 
+            display: 'flex', 
+            flexWrap: 'wrap', 
+            gap: 3,
+            '& > *': { 
+              flex: '1 1 calc(50% - 12px)', 
+              minWidth: 280 
+            }
+          }}>
+            <Box sx={{ 
+              p: 2, 
+              borderRadius: 2, 
+              backgroundColor: alpha(theme.palette.background.paper, 0.5),
+              border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+            }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Average Team Score
+              </Typography>
+              <Typography variant="h3" fontWeight="800" sx={{ 
+                color: theme.palette.primary.main,
+              }}>
+                {aggregatedScores.projectSummary?.projectAverage?.toFixed(1) || '0.0'}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                out of 5.0
+              </Typography>
+            </Box>
+            
+            <Box sx={{ 
+              p: 2, 
+              borderRadius: 2, 
+              backgroundColor: alpha(theme.palette.background.paper, 0.5),
+              border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+            }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Total Reviews Submitted
+              </Typography>
+              <Typography variant="h3" fontWeight="800" sx={{ 
+                color: theme.palette.secondary.main,
+              }}>
+                {aggregatedScores.projectSummary?.totalReviews || 0}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                by {aggregatedScores.projectSummary?.membersReviewed || 0} team members
+              </Typography>
+            </Box>
+          </Box>
+          
+          {/* Free Rider Detection */}
+          {project?.metrics?.freeRiders && project.metrics.freeRiders.length > 0 && (
+            <Box sx={{ 
+              mt: 3, 
+              pt: 2, 
+              borderTop: `1px solid ${alpha(theme.palette.divider, 0.3)}` 
+            }}>
+              <Typography variant="subtitle1" sx={{ 
+                mb: 2, 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 1,
+                color: theme.palette.warning.main
+              }}>
+                <Warning /> Potential Free Riders Detected
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {project.metrics.freeRiders.map((rider, index) => (
+                  <Box key={index} sx={{ 
+                    p: 1.5, 
+                    borderRadius: 2,
+                    backgroundColor: alpha(theme.palette.error.main, 0.05),
+                    border: `1px solid ${alpha(theme.palette.error.main, 0.1)}`,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 1
+                  }}>
+                    <Box>
+                      <Typography variant="body2" fontWeight="600">
+                        {rider.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {rider.reason}
+                      </Typography>
+                    </Box>
+                    <Chip
+                      label="Flagged"
+                      size="small"
+                      sx={{
+                        backgroundColor: alpha(theme.palette.error.main, 0.1),
+                        color: theme.palette.error.main,
+                      }}
+                    />
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+          )}
+        </Paper>
+      </motion.div>
+    )}
+  </Box>
+</TabContent>
                   {/* Notes Tab */}
-                  <TabContent value={activeTab} index={5}>
+                  <TabContent value={activeTab} index={6}>
                     <Paper
                       elevation={0}
                       sx={{
@@ -2737,13 +5508,204 @@ const MyProject = () => {
           </MenuItem>
         </Menu>
       </Box>
+
+      {/* Task Details Modal */}
+      <TaskDetailsModal
+        open={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+        task={selectedTask}
+        theme={theme}
+        userRole={userRole}
+        onTaskUpdate={handleTaskUpdate}
+        onLogTime={handleLogTime}
+        userTeacher={userTeacher}
+        onUploadProof={handleUploadProof}
+      />
+  
+      {/* Create Task Modal */}
       <CreateTaskModal
-        open={createTaskModalOpen}
+        open={createTaskModalOpen} 
         onClose={() => setCreateTaskModalOpen(false)}
         project={project}
         teams={teams}
         theme={theme}
       />
+      {/* Review Dialog */}
+      <Dialog 
+        open={reviewDialogOpen} 
+        onClose={() => setReviewDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 4,
+            background: theme.palette.primary.color,
+            border: `1.5px solid ${getBorderColor('primary', 0.3)}`,
+          }
+        }}
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h5" sx={{ 
+              fontFamily: '"Adlam Display", serif',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+            }}>
+              <RateReviewIcon /> Review Teammate
+            </Typography>
+            <IconButton 
+              onClick={() => setReviewDialogOpen(false)} 
+              size="small"
+              sx={{
+                backgroundColor: alpha(getThemeColor('error'), 0.1),
+                color: getThemeColor('error'),
+                '&:hover': {
+                  backgroundColor: alpha(getThemeColor('error'), 0.2),
+                }
+              }}
+            >
+              <Close />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        
+        <DialogContent>
+          {selectedReviewee && (
+            <>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, p: 2, borderRadius: 2, backgroundColor: alpha(theme.palette.primary.main, 0.05) }}>
+                <Avatar 
+                  sx={{ 
+                    width: 48, 
+                    height: 48,
+                    background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                  }}
+                >
+                  {selectedReviewee.name?.charAt(0) || '?'}
+                </Avatar>
+                <Box>
+                  <Typography variant="h6">
+                    {selectedReviewee.name || 'Teammate'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Please provide an honest and constructive review
+                  </Typography>
+                </Box>
+              </Box>
+              
+              {/* Review Criteria */}
+              <Typography variant="subtitle1" sx={{ mb: 2, fontFamily: '"Adlam Display", serif' }}>
+                Review Criteria (1-5)
+              </Typography>
+              
+              {['contribution', 'collaboration', 'quality', 'punctuality'].map((criteria) => (
+                <Box key={criteria} sx={{ mb: 2.5 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
+                      {criteria.replace('_', ' ')}
+                    </Typography>
+                    <Typography variant="body2" fontWeight="600">
+                      {reviewScores[criteria]} / 5
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <IconButton
+                        key={star}
+                        size="small"
+                        onClick={() => setReviewScores(prev => ({ ...prev, [criteria]: star }))}
+                        sx={{
+                          color: star <= reviewScores[criteria] ? getThemeColor('warning') : alpha(theme.palette.text.secondary, 0.3),
+                          '&:hover': {
+                            color: getThemeColor('warning'),
+                          }
+                        }}
+                      >
+                        <StarIcon />
+                      </IconButton>
+                    ))}
+                  </Box>
+                </Box>
+              ))}
+              
+              {/* Comment */}
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                label="Additional Comments (Optional)"
+                placeholder="Provide constructive feedback to help your teammate improve..."
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                sx={{
+                  mt: 2,
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    backgroundColor: alpha(theme.palette.background.paper, 0.5),
+                    borderColor: getBorderColor('primary', 0.2),
+                  }
+                }}
+              />
+              
+              {/* Preview Score */}
+              <Box sx={{ 
+                mt: 3, 
+                p: 2, 
+                borderRadius: 2, 
+                backgroundColor: alpha(getThemeColor('primary'), 0.05),
+                border: `1px solid ${getBorderColor('primary', 0.1)}`,
+              }}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Preview Score
+                </Typography>
+                <Typography variant="h4" fontWeight="800" sx={{ 
+                  fontFamily: '"Alkatra", cursive',
+                  color: getThemeColor('primary'),
+                  textAlign: 'center',
+                }}>
+                  {((reviewScores.contribution + reviewScores.collaboration + reviewScores.quality + reviewScores.punctuality) / 4).toFixed(1)}
+                  <Typography component="span" variant="h6" color="text.secondary">
+                    {' '}/ 5.0
+                  </Typography>
+                </Typography>
+              </Box>
+            </>
+          )}
+        </DialogContent>
+        
+        <DialogActions sx={{ p: 3, pt: 0 }}>
+          <Button 
+            onClick={() => setReviewDialogOpen(false)}
+            sx={{
+              color: theme.palette.text.secondary,
+              '&:hover': {
+                backgroundColor: alpha(theme.palette.action.hover, 0.1),
+              }
+            }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="contained"
+            onClick={handleSubmitReview}
+            disabled={project?.peerReviewLocked}
+            sx={{
+              background: `linear-gradient(135deg, ${getThemeColor('primary')}, ${alpha(getThemeColor('primary'), 0.8)})`,
+              color: getContrastColor(getThemeColor('primary')),
+              boxShadow: `0 4px 15px ${alpha(getThemeColor('primary'), 0.3)}`,
+              '&:hover': {
+                boxShadow: `0 6px 20px ${alpha(getThemeColor('primary'), 0.4)}`,
+              },
+              '&.Mui-disabled': {
+                background: alpha(theme.palette.action.disabled, 0.5),
+                color: theme.palette.text.disabled,
+              }
+            }}
+          >
+            Submit Review
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 };
