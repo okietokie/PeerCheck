@@ -1,4 +1,4 @@
-// userRoutes.js - FIXED VERSION
+// userRoutes.js
 import express from 'express';
 import { 
   fetchUserDetails, 
@@ -11,7 +11,6 @@ import {
   getRecentActivities
 } from '../controllers/userController.js';
 
-// Import FIXED connection controllers
 import {
   sendConnectionRequest,
   removeConnection,
@@ -39,7 +38,6 @@ import {
 
 import { authMiddleware } from '../middleware/authMiddleware.js';
 
-// Import ALL task controllers (FIXED - added missing imports)
 import { 
   getTasks, 
   getAllTasks,           // ADD THIS
@@ -63,18 +61,23 @@ import {
   startTask,
   pauseTask,
   resumeTask,
-  completeTask
+  completeTask,
+  updateTask
 } from '../controllers/taskController.js';
 
 import { fetchBasicData } from '../controllers/homeController.js'; 
 import upload from '../middleware/uploadMiddleware.js';
 
-const router = express.Router();
 
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { getMentorById, getMentors } from '../controllers/mentorController.js';
+import { getProofFile, getProofFileDirect } from '../controllers/taskController.js';
+
+const router = express.Router();
+
+
 
 // Create avatar upload directory
 //code working explanation: checks if the directory for storing uploaded avatars exists. If it doesn't, the code creates the directory using fs.mkdirSync with the recursive option set to true, ensuring that any necessary parent directories are also created.
@@ -133,14 +136,10 @@ router.post("/create-project", authMiddleware, createProject);
 router.delete("/del-project/:id", authMiddleware, deleteProject);
 router.put("/update-project/:id", authMiddleware, updateProject);
 
-// In your routes file (taskRoutes.js)
-import { getProofFile, getProofFileDirect } from '../controllers/taskController.js';
 
 // Get specific proof file with authentication and authorization
 router.get("/task/:taskId/proof/:proofId", authMiddleware, getProofFile);
 
-// Direct file access (optional - less secure but simpler for frontend)
-router.get("/uploads/proofs/:filename", getProofFileDirect); // Can be public or with minimal auth
 
 // OR with auth for direct access:
 router.get("/uploads/proofs/:filename", authMiddleware, getProofFileDirect);
@@ -160,6 +159,8 @@ router.get("/tasks/user", authMiddleware, getUserTasks);
 // Single task operations
 router.get("/task/:taskId", authMiddleware, getTaskDetails);  // get task details
 router.post("/task/create", authMiddleware, createTask);  // create new task
+router.patch("/task/:taskId", authMiddleware, updateTask);
+
 router.put("/task/:taskId/status", authMiddleware, updateTaskStatus); // update task status
 router.put("/task/:taskId/time", authMiddleware, updateTaskTime); // update task time tracking
 router.delete("/task/:taskId", authMiddleware, deleteTask); // delete task

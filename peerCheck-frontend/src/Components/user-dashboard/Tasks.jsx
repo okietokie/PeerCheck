@@ -47,7 +47,8 @@ import {
   Switch,
   FormControlLabel,
   Tab,
-  Tabs
+  Tabs,
+  Snackbar
 } from '@mui/material';
 import {
   Search,
@@ -290,7 +291,7 @@ const LogTimeModal = ({ open, onClose, task, theme, onSuccess }) => {
 
 
 // Upload Proof Modal
-const UploadProofModal = ({ open, onClose, task, theme, onSuccess }) => {
+export const UploadProofModal = ({ open, onClose, task, theme, onSuccess }) => {
   const [file, setFile] = useState(null);
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
@@ -559,7 +560,9 @@ const AssignTaskDialog = ({ open, onClose, task, projectTeam, onAssign, theme })
   );
 };
 // Task Details Modal 
-const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, onLogTime, userTeacher, onUploadProof }) => {
+export const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, onLogTime, userTeacher, onUploadProof, onStatusChange }) => {
+
+
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -568,11 +571,86 @@ const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate, 
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [projectTeam, setProjectTeam] = useState([]);
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
-  const [uploadProofModalOpen, setUploadProofModalOpen] = useState(false);
-const [selectedTaskForProof, setSelectedTaskForProof] = useState(null);
+
+
 
   console.log("taskdetailsmodal/Task: ", task);
+  console.log("onstatuschange: ", onStatusChange);
 
+
+const handleEditTask = async (taskId) => {
+  try{
+    const token = localStorage.getItem("token");
+    
+    const response = await axiosClient.patch(`/task/${taskId}`, {
+        assignedTo: task.assignedTo,
+        deadline: task.deadline,
+        description: task.description,
+        estimatedTime: task.estimatedTime,
+        taskTitle: task.taskTitle
+      },
+      {
+        headers: {  
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
+    if (response?.data){
+      console.log(task);
+    }
+
+  }catch(err){
+    console.error("Error editing task: ", err);
+  }
+}
+
+const viewProofFile = async (taskId, proofId) => {
+  try {
+    const token = localStorage.getItem("token"); // or however you store it
+
+    const response = await axiosClient.get(
+      `/user/task/${taskId}/proof/${proofId}`,
+      {
+        responseType: "blob",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    const fileURL = URL.createObjectURL(response.data);
+    window.open(fileURL, "_blank"); // Opens viewer tab
+  } catch (err) {
+    console.error("Error viewing file", err);
+  }
+};
+
+const downloadProofFile = async (taskId, proofId, filename) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    const response = await axiosClient.get(
+      `/user/task/${taskId}/proof/${proofId}`,
+      {
+        responseType: "blob",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", filename); // forces download
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch (err) {
+    console.error("Download failed:", err);
+  }
+};
 
   // Fetch activity logs
   const fetchActivityLogs = async () => {
@@ -679,118 +757,11 @@ const [selectedTaskForProof, setSelectedTaskForProof] = useState(null);
     }
   };
 
-  const handleStatusChange = async (newStatus) => {
-    try {
-      setLoading(true);
-      const token = getAuthToken();
-      if (!token) {
-        setError('Authentication required');
-        return;
-      }
-
-      const now = new Date();
-      let additionalTime = 0;
-
-      // Only log time if task was active before
-      if (task.status === 'active' && task.lastEventTime) {
-        additionalTime = Math.floor((now - new Date(task.lastEventTime)) / 1000); // seconds
-      }
-      const response = await axiosClient.put(
-        `/user/task/${task._id}/status`,
-        { status: newStatus, additionalTime },
-        {
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      if (response.data?.success) {
-        onTaskUpdate?.();
-        onClose();
-      } else {
-        setError(response.data?.error || 'Failed to update status');
-      }
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to update status');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleReassignTask = async () => {
     setAssignDialogOpen(true);
   };
 
-  const handleAssignTask = async (newAssigneeId) => {
-    try {
-      setLoading(true);
-      const token = getAuthToken();
-      if (!token) {
-        setError('Authentication required');
-        return;
-      }
-
-      const response = await axiosClient.put(
-        `/api/user/task/${task._id}/assign`,
-        { 
-          assignedTo: newAssigneeId,
-          action: 'assign'
-        },
-        {
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      if (response.data?.success) {
-        const { oldAssigneeId, newAssigneeId } = response.data;
-        const currentUser = getUserData();
-        const currentUserId = currentUser?.id || currentUser?._id;
-
-        // Check if current user is affected by this reassignment
-        const isOldAssignee = oldAssigneeId === currentUserId;
-        const isNewAssignee = newAssigneeId === currentUserId;
-        
-        if (isOldAssignee || isNewAssignee) {
-          // Refresh the task list since user's task set has changed
-          fetchTasks();
-        }
-        
-        // Also refresh for the task owner (project creator/teacher/admin)
-        if (userRole?.role === 'teacher' || userRole?.role === 'admin') {
-          fetchTasks();
-        }
-        
-        // Update the task details modal
-        if (task) {
-          setSelectedTask(prev => ({
-            ...prev,
-            assignedTo: response.data.task.assignedTo
-          }));
-        }
-        
-        // Show success message
-        setSnackbar({
-          open: true,
-          message: `Task ${isNewAssignee ? 'assigned to you' : 'reassigned successfully'}`,
-          severity: 'success'
-        });
-        
-        onTaskUpdate?.();
-        setAssignDialogOpen(false);
-      } else {
-        setError(response.data?.error || 'Failed to assign task');
-      }
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to assign task');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAddComment = () => {
     setCommentDialogOpen(true);
@@ -1404,56 +1375,7 @@ const [selectedTaskForProof, setSelectedTaskForProof] = useState(null);
                   Quick Actions
                 </Typography>
                 
-                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-                  {task.assignedTo?._id === userRole?.userId && (
-                    <>
-                      {task.status !== 'completed' && (
-                        <Button
-                          variant="contained"
-                          startIcon={<CheckCircle />}
-                          onClick={() => handleStatusChange('completed')}
-                          disabled={loading}
-                          size="medium"
-                          sx={{ 
-                            borderRadius: 2,
-                            px: 3,
-                            py: 1,
-                            fontWeight: 600,
-                            background: `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.success.dark})`,
-                            '&:hover': {
-                              boxShadow: `0 6px 20px ${alpha(theme.palette.success.main, 0.4)}`,
-                            }
-                          }}
-                        >
-                          Mark Complete
-                        </Button>
-                      )}
-                      <Button
-                        variant="outlined"
-                        startIcon={<Timer />}
-                        onClick={() => onLogTime(task)}
-                        size="medium"
-                        sx={{ borderRadius: 2, px: 3, py: 1, fontWeight: 600 }}
-                      >
-                        Log Time
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        startIcon={<Upload />}
-                        onClick={() => {
-                          onClose();
-                          setTimeout(() => {
-                            window.dispatchEvent(new CustomEvent('openUploadProofModal', { detail: task }));
-                          }, 100);
-                        }}
-                        size="medium"
-                        sx={{ borderRadius: 2, px: 3, py: 1, fontWeight: 600 }}
-                      >
-                        Upload Proof
-                      </Button>
-                    </>
-                  )}
-                  
+                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>     
                   {(userRole?.role === 'teacher' || userRole?.role === 'admin') && (
                     <>
                       <Button
@@ -1493,7 +1415,7 @@ const [selectedTaskForProof, setSelectedTaskForProof] = useState(null);
                     variant="outlined"
                     color="info"
                     startIcon={<Edit />}
-                    onClick={() => {alert('Edit details functionality to be implemented');}}
+                    onClick={handleEditTask}
                     size="medium"
                     sx={{ borderRadius: 2, px: 3, py: 1, fontWeight: 600 }}
                   >
@@ -1919,12 +1841,7 @@ const [selectedTaskForProof, setSelectedTaskForProof] = useState(null);
                     <Box sx={{ display: 'flex', gap: 1 }}>
                       <IconButton
                         size="small"
-                        onClick={() => {
-                          const fullUrl = proof.fileUrl.startsWith('/') 
-                          ? `${axiosClient.defaults.baseURL}${proof.fileUrl}`
-                          : proof.fileUrl;
-                          window.open(fullUrl, '_blank')
-                        }}
+                        onClick={() => viewProofFile(task._id, proof._id)}
                         sx={{ 
                           color: theme.palette.primary.main,
                           backgroundColor: alpha(theme.palette.primary.main, 0.1),
@@ -1937,10 +1854,7 @@ const [selectedTaskForProof, setSelectedTaskForProof] = useState(null);
                       </IconButton>
                       <IconButton
                         size="small"
-                        onClick={() => {
-                          const token = getAuthToken();
-    window.open(`http://localhost:5000/api/user/task/${taskId}/proof/${proof.serverFilename}?token=${token}`, '_blank');
-                        }}
+                        onClick={() => downloadProofFile(task._id, proof._id, proof.filename)}
                         sx={{ 
                           color: theme.palette.info.main,
                           backgroundColor: alpha(theme.palette.info.main, 0.1),
@@ -2338,9 +2252,10 @@ const [selectedTaskForProof, setSelectedTaskForProof] = useState(null);
           <>
             {task.status !== 'completed' && (
               <Button
+                type="button"
                 variant="contained"
                 startIcon={<CheckCircle />}
-                onClick={() => handleStatusChange('completed')}
+                onClick={() => onStatusChange(task._id, "completed")}
                 disabled={loading}
                 size="small"
                 sx={{ 
@@ -2426,15 +2341,7 @@ const [selectedTaskForProof, setSelectedTaskForProof] = useState(null);
       </Button>
     </DialogActions>
 
-    {/* Assign Task Dialog */}
-    <AssignTaskDialog
-      open={assignDialogOpen}
-      onClose={() => setAssignDialogOpen(false)}
-      task={task}
-      projectTeam={projectTeam}
-      onAssign={handleAssignTask}
-      theme={theme}
-    />
+
 
     {/* Add Comment Dialog (to be implemented) */}
     <Dialog open={commentDialogOpen} onClose={() => setCommentDialogOpen(false)}>
@@ -2515,11 +2422,8 @@ const TaskTableRow = ({
   const isAssignedUser = task.assignedTo?._id === userRole?.userId;
   const canEdit = isAssignedUser || userRole?.role === 'teacher' || userRole?.role === 'admin';
 
-
-
-
-  
   return (
+    <Tooltip title={task?.projectId?.projectName ? `Project Name: ${task?.projectId?.projectName}` : 'Error Fetching Name! Report To Admin!'}>
     <TableRow
       hover
       selected={isSelected}
@@ -2738,6 +2642,7 @@ const TaskTableRow = ({
         </Stack>
       </TableCell>
     </TableRow>
+    </Tooltip>
   );
 };
 
@@ -2774,6 +2679,12 @@ const Tasks = () => {
   const [uploadProofModalOpen, setUploadProofModalOpen] = useState(false);
   const [selectedTaskForProof, setSelectedTaskForProof] = useState(null);
   const [liveTimers, setLiveTimers] = useState({}); 
+
+  const [proofUploadMessage, setProofUploadMessage] = useState({
+    open: false,
+    message: "",
+    severity: "success" // "success" | "error" | "warning" | "info"
+  });
 
   const { ref, inView } = useInView({
     threshold: 0.5,
@@ -2958,6 +2869,12 @@ const handleOpenUploadProof = (task) => {
 const handleProofUploadSuccess = () => {
   // Refresh tasks or show success message
   console.log('Proof uploaded successfully');
+  setProofUploadMessage({
+    open: true,
+    message: "Proof uploaded successfully! Refresh the page to view the changes!",
+    severity: "success"
+  });
+  
 
 };
 
@@ -3984,6 +3901,7 @@ const handleDeleteSelected = async () => {
         onLogTime={handleLogTime}
         userTeacher={userTeacher}
         onUploadProof={handleOpenUploadProof}
+        onStatusChange={handleStatusChange}
 
       />
 
@@ -4003,8 +3921,22 @@ const handleDeleteSelected = async () => {
         }}
         task={selectedTaskForProof}
         theme={theme}
-        onSuccess={handleProofUploadSuccess}
+        onSuccess={() => handleProofUploadSuccess()}
       />
+
+      <Snackbar
+        open={proofUploadMessage.open}
+        autoHideDuration={3000}
+        onClose={() => setProofUploadMessage({ ...proofUploadMessage, open: false })}
+      >
+        <Alert
+          severity={proofUploadMessage.severity}
+          variant="filled"
+          onClose={() => setProofUploadMessage({ ...proofUploadMessage, open: false })}
+        >
+          {proofUploadMessage.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

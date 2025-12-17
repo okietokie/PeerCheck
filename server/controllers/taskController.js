@@ -10,6 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import { updateProjectMetricsInDB } from './projectController.js';
 import Team from '../models/peergroup_log.js';
+import editDataInfo from '../models/editDataInfo.js';
 
 //individual task risk score
 /**
@@ -35,7 +36,7 @@ export const calculateTaskMetrics = (task) => {
   const efficiency = estimatedTime > 0 ? (focusTime / estimatedTime) * 100 : 0;
   
   const paddedTime = efficiency > 200;           // Worked >2x estimated
-  const rushedCompletion = task.status === 'completed' && efficiency < 20;
+  const rushedCompletion = task.status === 'completed' && efficiency < 40;
   const noProof = !task.proofUploads || task.proofUploads.length === 0;
   const manualReviewRequired = paddedTime || rushedCompletion || noProof;
 
@@ -1774,6 +1775,42 @@ const calculateRiskScore = (task) => {
     (flags.noProof ? 1 : 0) +
     (flags.manualReviewRequired ? 3 : 0)
   );
+};
+
+
+export const updateTask = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const updateData = req.body;
+    const task = await Project.findById(taskId);
+    if (!task) {
+      return res.status(404).json({ error: "Task not found" });
+    }
+    // Check permissions
+    const isAssignee = task.assignedTo.toString() === req.user.id;
+    const isAdmin = req.user.role === 'admin';
+    if (!isAssignee && !isAdmin) {
+      return res.status(403).json({ error: "Not authorized to update/edit this project" });
+    }
+    // Update project fields
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] !== undefined && updateData[key] !== task[key]) { //means only update if value is provided and different
+        task[key] = updateData[key];
+      }
+    });
+    await task.save();
+
+    await editDataInfo.create({
+      taskId: task._id, 
+      projectId: task.projectId?._id ? task.projectId._id : task.projectId, 
+      updatedData: updateData, 
+      editMadeAt: task.updatedAt
+    })
+
+    res.json(task);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
 // Update the existing updateTaskStatus function
 export const updateTaskStatus = async (req, res) => {

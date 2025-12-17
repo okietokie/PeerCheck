@@ -79,7 +79,8 @@ import {
   Email,
   Save,
   PlayCircleFilledOutlined,
-  PlayCircleOutline
+  PlayCircleOutline,
+  ArrowForward
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import axiosClient from '@/api/axiosClient';
@@ -2563,47 +2564,214 @@ const ReviewProjectModal = ({ open, onClose, project, theme }) => {
 };
 
 // Team Members Popover
-const TeamMembersPopover = ({ anchorEl, open, onClose, teamMembers }) => {
+const TeamMembersPopover = ({ anchorEl, open, onClose, teamMembers, theme, projectId }) => {
+  const navigate = useNavigate();
   return (
-    <Popover
-      open={open}
-      anchorEl={anchorEl}
-      onClose={onClose}
-      anchorOrigin={{
-        vertical: 'bottom',
-        horizontal: 'left',
-      }}
-      transformOrigin={{
-        vertical: 'top',
-        horizontal: 'left',
-      }}
-    >
-      <Box sx={{ p: 2, minWidth: 200 }}>
-        <Typography variant="subtitle2" gutterBottom fontWeight="medium">
-          Team Members
+<Popover
+  open={open}
+  anchorEl={anchorEl}
+  onClose={onClose}
+  anchorOrigin={{
+    vertical: 'bottom',
+    horizontal: 'left',
+  }}
+  transformOrigin={{
+    vertical: 'top',
+    horizontal: 'left',
+  }}
+  PaperProps={{
+    sx: {
+      borderRadius: 3,
+      border: `1px solid ${theme.palette.divider}`,
+      backgroundColor: theme.palette.background.paper,
+      boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.08)}`,
+      backdropFilter: 'blur(20px)',
+      minWidth: 280,
+      maxWidth: 320,
+      overflow: 'hidden',
+    }
+  }}
+>
+  <Box sx={{ p: 0 }}>
+    {/* Header */}
+    <Box sx={{
+      p: 2.5,
+      borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+      backgroundColor: alpha(theme.palette.primary.main, 0.05),
+    }}>
+      <Typography 
+        variant="subtitle1" 
+        sx={{ 
+          fontWeight: 600,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          color: theme.palette.primary.main,
+        }}
+      >
+        <Group fontSize="small" />
+        Team Members
+        <Chip 
+          label={teamMembers?.length || 0}
+          size="small"
+          sx={{ 
+            ml: 1,
+            height: 20,
+            fontSize: '0.75rem',
+            backgroundColor: alpha(theme.palette.primary.main, 0.1),
+            color: theme.palette.primary.main,
+          }}
+        />
+      </Typography>
+      <Typography variant="caption" sx={{ 
+        color: theme.palette.text.secondary,
+        display: 'block',
+        mt: 0.5,
+      }}>
+        {teamMembers?.length || 0} member{teamMembers?.length !== 1 ? 's' : ''}
+      </Typography>
+    </Box>
+
+    {/* Member List */}
+    <Box sx={{ maxHeight: 320, overflow: 'auto', p: 1 }}>
+      {teamMembers?.map((member, index) => (
+        <Box
+          key={index}
+          sx={{
+            p: 1.5,
+            borderRadius: 2,
+            mb: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            transition: 'all 0.2s ease',
+            '&:hover': {
+              backgroundColor: alpha(theme.palette.primary.main, 0.05),
+              transform: 'translateX(4px)',
+            },
+            '&:last-child': {
+              mb: 0,
+            }
+          }}
+        >
+          <Avatar
+            sx={{
+              width: 36,
+              height: 36,
+              fontSize: 14,
+              fontWeight: 600,
+              backgroundColor: alpha(theme.palette.primary.main, 0.1),
+              color: theme.palette.primary.main,
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+            }}
+          >
+            {(member || 'U').charAt(0)}
+          </Avatar>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                fontWeight: 500,
+                color: theme.palette.text.primary,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {member || 'Unknown Member'}
+            </Typography>
+            <Typography 
+              variant="caption" 
+              sx={{ 
+                color: theme.palette.text.secondary,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.5,
+                mt: 0.25,
+              }}
+            >
+              <Person fontSize="inherit" />
+              Member
+            </Typography>
+          </Box>
+          <Box sx={{ 
+            width: 8, 
+            height: 8, 
+            borderRadius: '50%',
+            backgroundColor: index % 3 === 0 ? theme.palette.success.main : 
+                           index % 3 === 1 ? theme.palette.warning.main : 
+                           theme.palette.error.main,
+            opacity: index % 3 === 0 ? 0.8 : 0.4,
+          }} />
+        </Box>
+      ))}
+
+      {(!teamMembers || teamMembers.length === 0) && (
+        <Box sx={{ 
+          p: 4, 
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 1.5,
+        }}>
+          <Box sx={{ 
+            width: 56, 
+            height: 56, 
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: alpha(theme.palette.divider, 0.1),
+            mb: 1,
+          }}>
+            <Group sx={{ 
+              fontSize: 28, 
+              color: alpha(theme.palette.text.secondary, 0.5),
+            }} />
+          </Box>
+          <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+            No team members
+          </Typography>
+          <Typography variant="caption" sx={{ color: theme.palette.text.secondary, maxWidth: 200 }}>
+            Add team members to start collaborating
+          </Typography>
+        </Box>
+      )}
+    </Box>
+
+    {/* Footer */}
+    {(teamMembers && teamMembers.length > 0) && (
+      <Box sx={{
+        p: 2,
+        borderTop: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+        backgroundColor: alpha(theme.palette.background.default, 0.5),
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      }}>
+        <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+          Click to manage
         </Typography>
-        <List dense>
-          {teamMembers?.map((member, index) => (
-            <ListItem key={index}>
-              <ListItemAvatar>
-                <Avatar sx={{ width: 32, height: 32, fontSize: 14 }}>
-                  {(member?.name || 'U').charAt(0)}
-                </Avatar>
-              </ListItemAvatar>
-              <ListItemText
-                primary={member?.name || 'Unknown Member'}
-                secondary={member?.email || ''}
-              />
-            </ListItem>
-          ))}
-          {(!teamMembers || teamMembers.length === 0) && (
-            <ListItem>
-              <ListItemText primary="No team members" />
-            </ListItem>
-          )}
-        </List>
+        <Button
+          size="small"
+          variant="text"
+          endIcon={<ArrowForward fontSize="small" />}
+          onClick={() => navigate(`/user-app/my-project/${projectId}`)}
+          sx={{
+            fontSize: '0.75rem',
+            color: theme.palette.primary.main,
+            '&:hover': {
+              backgroundColor: alpha(theme.palette.primary.main, 0.05),
+            }
+          }}
+        >
+          View All
+        </Button>
       </Box>
-    </Popover>
+    )} 
+  </Box>
+</Popover>
   );
 };
 
@@ -2616,13 +2784,12 @@ const ProjectTableRow = ({
   theme,
   onCreateTask,
   onReviewProject,
-  userId
+  userId,
 }) => {
   const [teamAnchorEl, setTeamAnchorEl] = useState(null);
   const [tagsAnchorEl, setTagsAnchorEl] = useState(null);
   const [dueAnchorEl, setDueAnchorEl] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
-  const [selectedProject, setSelectedProject] = useState(null);
   const navigate = useNavigate();
   
   
@@ -2698,11 +2865,14 @@ const ProjectTableRow = ({
       try {
         const token = getAuthToken();
         if (!token) return;
+        console.log("teams in project tablerow: ", teams);
+        console.log("project in ptr: ", project);
         teams.map(team => {
           if (project.teamId._id === team._id) {
             const members = team.members?.map(
               member => member.user?.username
             ) || [];
+            console.log("memebrs in ptr: ",members);
                 
             setTeamMembers(members);
           }
@@ -2718,10 +2888,12 @@ const ProjectTableRow = ({
   }, [project]);
   return (
 <>
+    <Tooltip title='Double click on a project to view it in My Projects tab'>
   <TableRow
     key={project._id}
     onDoubleClick={() => navigate(`/user-app/my-project/${project._id}`)}
-    hover
+
+    
     selected={isSelected}
     sx={{
       cursor: 'pointer',
@@ -2840,12 +3012,17 @@ const ProjectTableRow = ({
           </IconButton>
         </Tooltip>
         
-        <Tooltip title="Timeline" arrow>
+
+        <Box
+            onMouseEnter={(e) => setDueAnchorEl(e.currentTarget)}
+            onMouseLeave={() => setTimeout(() => setDueAnchorEl(null), 5000)}
+            sx={{ display: 'inline-block' }}
+          >
+                  
+        <Tooltip title="Timeline" arrow >
           <IconButton 
             size="small"
             className="action-button"
-            onMouseEnter={(e) => setDueAnchorEl(e.currentTarget)}
-            onMouseLeave={() => setDueAnchorEl(null)}
             onClick={(e) => e.stopPropagation()}
             sx={{
               opacity: 0,
@@ -2861,6 +3038,7 @@ const ProjectTableRow = ({
             <CalendarToday fontSize="small" />
           </IconButton>
         </Tooltip>
+        </Box>
         
         <Tooltip title="Review" arrow>
           <IconButton 
@@ -2894,10 +3072,11 @@ const ProjectTableRow = ({
           alignItems="center"
           gap={1}
           onMouseEnter={(e) => setTeamAnchorEl(e.currentTarget)}
-          onMouseLeave={() => setTeamAnchorEl(null)}
+          onMouseLeave={() => setTimeout(() => setTeamAnchorEl(null), 8000)}
           sx={{ 
             cursor: 'pointer',
             p: 1,
+            display: 'inline-block',
             borderRadius: 2,
             transition: 'all 0.2s ease',
             '&:hover': {
@@ -3108,6 +3287,7 @@ const ProjectTableRow = ({
       </Box>
     </TableCell>
   </TableRow>
+    </Tooltip>
 
   {/* Team Members Popover */}
   <TeamMembersPopover
@@ -3116,6 +3296,7 @@ const ProjectTableRow = ({
     onClose={() => setTeamAnchorEl(null)}
     teamMembers={teamMembers}
     theme={theme}
+    projectId={project._id}
   />
 
   {/* Tags Popover */}
@@ -3419,8 +3600,6 @@ const Projects = () => {
       } else if (response.data && Array.isArray(response.data.projects)) {
         projectsData = response.data.projects;
       } else if (response.data && Array.isArray(response.data.data)) {
-        projectsData = response.data.data;
-      } else if (response.data && response.data.success && Array.isArray(response.data.data)) {
         projectsData = response.data.data;
       }
 

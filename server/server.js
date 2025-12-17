@@ -16,8 +16,6 @@ const app = express();
 app.use(cors());  //allows your frontend (React) to access your backend. Without it, browsers block requests for security.
 app.use(express.json()); //allows Express to understand JSON data sent from the frontend (like { email: "...", password: "..." }).
 
-// Server uploaded files
-app.use('/uploads', express.static(path.join(process.cwd(), '/uploads/proofs')));
 
 // Connect MongoDB
 mongoose
