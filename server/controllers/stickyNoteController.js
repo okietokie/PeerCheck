@@ -1,5 +1,6 @@
 import  StickyNote from '../models/stickyNote.js';
 import Project from '../models/projects.js';
+import MentorProjectAssignment from '../models/mentorProjectAssignment.js';
 
 // Create a new sticky note
 export const createStickyNote = async (req, res) => {
@@ -8,18 +9,20 @@ export const createStickyNote = async (req, res) => {
     const { title, description, color, assignedUser, category, isImportant, isPinned } = req.body;
     
     // Verify project exists and user has access
-    const project = await Project.findById(projectId);
+    const project = await Project.findById(projectId).populate("teamId", "members");
     if (!project) {
       return res.status(404).json({
         success: false,
         message: 'Project not found'
       });
     }
+
     
     // Check if user is a member of the project
     const isMember = project.teamId?.members?.some(member => 
       member._id.toString() === req.user.id
     );
+        console.log("ismember/project: ", project);
     const isCreator = project.createdBy.toString() === req.user.id;
     
     if (!isMember && !isCreator) {
@@ -28,7 +31,15 @@ export const createStickyNote = async (req, res) => {
         message: 'You are not authorized to add notes to this project'
       });
     }
-    
+
+    const mentorId = await MentorProjectAssignment.findOne({projectId: projectId}, 'mentor');
+    console.log(mentorId);
+    if (category === 'mentor' && req.user.id !== mentorId) {
+        return res.status(403).json({
+            success: false,
+            message: 'You are not authorized to add a note under this pin'
+        })
+    }
     // Create the sticky note
     const stickyNote = await StickyNote.create({
       projectId,
