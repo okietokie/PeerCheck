@@ -3,7 +3,6 @@ import Navbar from "./Navbar";
 import image1 from "./collaboration.jpg";
 import {
   Button,
-  Card,
   Container,
   Box,
   Typography,
@@ -17,7 +16,6 @@ import {
   Alert,
   IconButton,
   Rating,
-  AvatarGroup,
   LinearProgress
 } from "@mui/material";
 import {
@@ -33,17 +31,7 @@ import {
   Refresh,
   ThumbUp,
   AccessTime,
-  TrendingUp,
-  CheckCircle,
-  Psychology,
-  Code,
-  DesignServices,
-  AutoGraph,
-  WorkspacePremium,
   School,
-  Group,
-  Schedule,
-  Security,
   Email,
   Phone,
   LocationOn,
@@ -61,9 +49,7 @@ import useInView from "@/hooks/useInView";
 
 export default function Home() {
   const theme = useTheme();
-  const { ref, inView } = useInView({ threshold: 0.3 });
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { ref } = useInView({ threshold: 0.3 });
 
   const [stats, setStats] = useState({
     activeUsers: 0,

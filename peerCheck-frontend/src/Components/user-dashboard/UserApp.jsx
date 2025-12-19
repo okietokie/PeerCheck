@@ -32,12 +32,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useLocation, Routes, Route, Outlet } from 'react-router-dom';
 import { useEffect } from 'react';
-import Dashboard from './Dashboard';
-import Projects from './Projects';
-import Tasks from './Tasks';
-import PeerTeams from './PeerTeams';
-import Profile from './Profile';
-import MyProject from './MyProject';
+
 import axiosClient from '@/api/axiosClient';
 
 export default function UserApp() {

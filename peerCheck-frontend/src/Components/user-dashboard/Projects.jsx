@@ -29,15 +29,10 @@ import {
   Checkbox,
   LinearProgress,
   Chip,
-  Stack,
   alpha,
   useTheme,
   CircularProgress,
   Popover,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemAvatar,
   Divider,
   FormControlLabel,
   Checkbox as MuiCheckbox,
@@ -78,7 +73,6 @@ import {
   WarningAmber,
   Email,
   Save,
-  PlayCircleFilledOutlined,
   PlayCircleOutline,
   ArrowForward
 } from '@mui/icons-material';
@@ -140,7 +134,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
       try {
         const token = getAuthToken();
         if (!token) return;
-        const response = await axiosClient.get("/user/get-mentors", {
+        const response = await axiosClient.get("/user/mentors", {
           headers: { 
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -279,25 +273,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
     
     return true;
   };
-  const resetForm = () => {
-    setFormData({
-      projectName: '',
-      description: '',
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      tags: '',
-      teamName: '',
-      teamId: '',
-      mentorId: '',
-      allowPeerReview: true,
-      taskCompletionWeight: 40,
-      peerReviewWeight: 30,
-      teacherReviewWeight: 30
-    });
-    setTags([]);
-    setTagInput('');
-    setError('');
-};
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');

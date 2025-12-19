@@ -4,13 +4,13 @@ import { failedLogin, getSecurityStats, loginAttempts, passwordResetList, getAll
 import { protectAdmin } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
-
-router.get("/security-stats", protectAdmin, getSecurityStats);
-router.get("/login-logs", protectAdmin, loginAttempts);
-router.get("/failed-logins", protectAdmin, failedLogin);
-router.get("/password-resets", protectAdmin, passwordResetList);
-router.get("/user-data", protectAdmin, getAllUsers);
-router.put("/change-status/:id", protectAdmin, updateStatus);
+router.use(protectAdmin);
+router.get("/security-stats", getSecurityStats);
+router.get("/login-logs", loginAttempts);
+router.get("/failed-logins", failedLogin);
+router.get("/password-resets", passwordResetList);
+router.get("/user-data", getAllUsers);
+router.put("/change-status/:id", updateStatus);
 
 
 
