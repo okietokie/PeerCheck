@@ -48,7 +48,7 @@ const taskActivityEventSchema = new mongoose.Schema(
         // task management
         "task_edited",
         "task_assigned",
-        "task_unassigned",
+        "task_reassigned",
         "deadline_updated",
         
         // grading

@@ -31,6 +31,7 @@ import userRoutes from "./routes/userRoutes.js";
 import projectRoutes from "./routes/projectRoutes.js"; 
 import reviewRoutes from "./routes/reviewRoutes.js";
 import peerReviewRoutes from "./routes/peerReviewRoutes.js";
+import stickyNoteRoutes from "./routes/stickyNoteRoutes.js";
 import { fileURLToPath } from "url";
 
 
@@ -43,6 +44,8 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/home", authRoutes );
 app.use('/uploads/avatars', express.static(path.join(process.cwd(), 'uploads/avatars')));
 app.use("/api/peer-review", peerReviewRoutes);
+app.use("/api/sticky-note", stickyNoteRoutes);
+
 
 
 

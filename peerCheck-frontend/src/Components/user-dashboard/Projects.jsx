@@ -3157,7 +3157,7 @@ const ProjectTableRow = ({
           alignItems="center"
           gap={1}
           onMouseEnter={(e) => setTagsAnchorEl(e.currentTarget)}
-          onMouseLeave={() => setTagsAnchorEl(null)}
+          onMouseLeave={() => setTimeout(() => setTagsAnchorEl(null), 1000)}
           sx={{ 
             cursor: 'pointer',
             p: 1,

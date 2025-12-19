@@ -129,6 +129,7 @@ import useInView from '@/hooks/useInView.js';
 import { format, differenceInDays, isBefore } from 'date-fns';
 import { CreateTaskModal } from './Projects';
 import { TaskDetailsModal, UploadProofModal } from './Tasks';
+import { StickyNoteEditor } from './StickyNoteEditor';
 
 // Helper functions from Tasks.jsx
 const getUserData = () => {
@@ -495,6 +496,10 @@ const MyProject = () => {
   const [projectMetrics, setProjectMetrics] = useState(null);
   const [memberEfficiencies, setMemberEfficiencies] = useState({});
   const [overallEfficiency, setOverallEfficiency] = useState(null);
+  const [stickyNotes, setStickyNotes] = useState([]);
+  const [isLoadingNotes, setIsLoadingNotes] = useState(null);
+  const [showNewNoteDialog, setShowNewNoteDialog] = useState(null);
+  const [editingNote, setEditingNote] = useState(null);
 
   // Task table specific states from Tasks.jsx
   const [selectedTasks, setSelectedTasks] = useState(new Set());
@@ -681,6 +686,169 @@ const canReviewMember = (memberId) => {
     border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
     boxShadow: `0 8px 32px ${alpha(theme.palette.mode === 'dark' ? '#000' : getThemeColor('primary'), 0.1)}`,
   });
+
+  const fetchStickyNotes = async () => {
+  try {
+    setIsLoadingNotes(true);
+    const token = localStorage.getItem('token');
+    const response = await axiosClient.get(`/sticky-note/${projectId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('Sticky notes response:', response.data); // Debug log
+    
+    if (response.data?.success) {
+      setStickyNotes(response.data.data || []);
+    }
+  } catch (error) {
+    console.error('Error fetching sticky notes:', error);
+    
+    // If it's a 404, the backend route might not be set up
+    if (error.response?.status === 404) {
+      console.warn('Sticky notes endpoint not found. Please check backend setup.');
+      // Set empty array for now
+      setStickyNotes([]);
+    } else {
+      showSnackbar('Error loading sticky notes', 'error');
+    }
+  } finally {
+    setIsLoadingNotes(false);
+  }
+};
+
+useEffect(() => {
+  fetchStickyNotes();
+}, [refresh]);
+const createStickyNote = async (noteData) => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axiosClient.post(
+      `/sticky-note/create-new-note/${projectId}`, 
+      noteData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    console.log('Create note response:', response.data); // Debug log
+    
+    if (response.data?.success) {
+      showSnackbar('Sticky note created successfully', 'success');
+      await fetchStickyNotes();
+      setShowNewNoteDialog(false);
+      return response.data.data;
+    }
+  } catch (error) {
+    console.error('Error creating sticky note:', error);
+    
+    if (error.response?.status === 404) {
+      showSnackbar('Backend endpoint not found. Please check server setup.', 'error');
+    } else {
+      showSnackbar(error.response?.data?.message || 'Error creating note', 'error');
+    }
+    throw error;
+  }
+};
+
+const updateStickyNote = async (noteId, updateData) => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axiosClient.put(
+      `/sticky-note//update-note/${noteId}`, 
+      updateData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    console.log('Update note response:', response.data); // Debug log
+    
+    if (response.data?.success) {
+      showSnackbar('Sticky note updated successfully', 'success');
+      await fetchStickyNotes();
+      setEditingNote(null);
+      return response.data.data;
+    }
+  } catch (error) {
+    console.error('Error updating sticky note:', error);
+    
+    if (error.response?.status === 404) {
+      showSnackbar('Backend endpoint not found. Please check server setup.', 'error');
+    } else {
+      showSnackbar(error.response?.data?.message || 'Error updating note', 'error');
+    }
+    throw error;
+  }
+};
+
+const deleteStickyNote = async (noteId) => {
+  try {
+    if (!window.confirm('Are you sure you want to delete this note?')) return;
+
+    const token = localStorage.getItem('token');
+    const response = await axiosClient.delete(`/sticky-note/delete-note/${noteId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('Delete note response:', response.data); // Debug log
+    
+    if (response.data?.success) {
+      showSnackbar('Sticky note deleted successfully', 'success');
+      await fetchStickyNotes();
+    }
+  } catch (error) {
+    console.error('Error deleting sticky note:', error);
+    
+    if (error.response?.status === 404) {
+      showSnackbar('Backend endpoint not found. Please check server setup.', 'error');
+    } else {
+      showSnackbar(error.response?.data?.message || 'Error deleting note', 'error');
+    }
+  }
+};
+
+const togglePinNote = async (noteId) => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axiosClient.patch(
+      `/sticky-note/${noteId}/pin`, 
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    console.log('Toggle pin response:', response.data); // Debug log
+    
+    if (response.data?.success) {
+      showSnackbar(response.data.message, 'success');
+      await fetchStickyNotes();
+    }
+  } catch (error) {
+    console.error('Error toggling pin:', error);
+    
+    if (error.response?.status === 404) {
+      showSnackbar('Backend endpoint not found. Please check server setup.', 'error');
+    } else {
+      showSnackbar('Error updating note', 'error');
+    }
+  }
+};
 
   const getStatusColor = (status) => {
     if (!status) return 'default';
@@ -3865,52 +4033,102 @@ const canReviewMember = (memberId) => {
   </Box>
 </TabContent>
                   {/* Notes Tab */}
-                  <TabContent value={activeTab} index={6}>
-                    <Paper
-                      elevation={0}
-                      sx={{
-                        p: 3,
-                        borderRadius: 3,
-                        ...getGlassEffect(),
-                        border: `1.5px solid ${getBorderColor('primary', 0.4)}`,
-                        minHeight: 400,
-                      }}
-                    >
-                      <Typography variant="h5" sx={{ 
-                        fontFamily: '"Adlam Display", serif',
-                        fontWeight: 500,
-                        mb: 3,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
-                        background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                        backgroundClip: 'text',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                      }}>
-                        <Note /> Collaborative Notes
-                      </Typography>
-                      <TextField
-                        fullWidth
-                        multiline
-                        rows={12}
-                        placeholder="Start typing your collaborative notes here... All team members can see and edit in real-time."
-                        variant="outlined"
-                        InputProps={{
-                          sx: {
-                            borderRadius: 2,
-                            fontFamily: '"Inter", sans-serif',
-                            backgroundColor: alpha(theme.palette.background.paper, 0.5),
-                            border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                            '&:focus-within': {
-                              borderColor: theme.palette.primary.main,
-                              boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.1)}`,
-                            }
-                          }
-                        }}
-                      />
-                    </Paper>
-                  </TabContent>
+<TabContent value={activeTab} index={6}>
+  <Box sx={{ mb: 3 }}>
+    <Box sx={{ 
+      display: 'flex', 
+      justifyContent: 'space-between', 
+      alignItems: 'center', 
+      mb: 3,
+      flexWrap: 'wrap',
+      gap: 2
+    }}>
+      <Typography variant="h5" sx={{ 
+        fontFamily: '"Adlam Display", serif',
+        fontWeight: 500,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1,
+        background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+        backgroundClip: 'text',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+      }}>
+        <Note /> Collaborative Notes
+      </Typography>
+    </Box>
+
+    {/* Your StickyNoteEditor Component */}
+    <Box sx={{ 
+      height: '600px',
+      borderRadius: 3,
+      overflow: 'hidden',
+      border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
+      boxShadow: `0 8px 32px ${alpha(theme.palette.mode === 'dark' ? '#000' : theme.palette.primary.main, 0.1)}`,
+    }}>
+      <StickyNoteEditor
+        projectId={projectId}
+        initialContent=""
+        currentUser={{
+          _id: user?._id || '',
+          name: user?.name || 'User',
+          role: user?.role === 'teacher' ? 'teacher' : 'peer',
+          avatar: user?.avatar
+        }}
+        onOpenHistory={() => showSnackbar('History feature coming soon', 'info')}
+        onToggleComments={() => showSnackbar('Comments feature coming soon', 'info')}
+        commentsOpen={false}
+        stickyNotes={stickyNotes}
+        onAddNote={async (note) => {
+          try {
+            const noteData = {
+              title: note.content.substring(0, 50), // Use first 50 chars as title
+              description: note.content,
+              color: note.color,
+              category: note.category,
+              isImportant: note.isImportant,
+              isPinned: note.isPinned,
+              assignedUser: user?._id
+            };
+            
+            await createStickyNote(noteData);
+          } catch (error) {
+            console.error('Error adding note:', error);
+          }
+        }}
+        onDeleteNote={async (id) => {
+          await deleteStickyNote(id);
+        }}
+        onPinNote={async (id) => {
+          await togglePinNote(id);
+        }}
+      />
+    </Box>
+
+    {/* Loading State Overlay */}
+    {isLoadingNotes && (
+      <Box sx={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: alpha(theme.palette.background.paper, 0.7),
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        borderRadius: 3,
+      }}>
+        <CircularProgress 
+          sx={{ 
+            color: theme.palette.primary.main 
+          }} 
+        />
+      </Box>
+    )}
+  </Box>
+</TabContent>
                 </Box>
               </Paper>
             </Box>

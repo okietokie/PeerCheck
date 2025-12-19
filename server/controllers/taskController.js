@@ -11,6 +11,7 @@ import path from 'path';
 import { updateProjectMetricsInDB } from './projectController.js';
 import Team from '../models/peergroup_log.js';
 import editDataInfo from '../models/editDataInfo.js';
+import MentorProjectAssignment from '../models/mentorProjectAssignment.js';
 
 //individual task risk score
 /**
@@ -277,6 +278,7 @@ export const getTaskDetails = async (req, res) => {
 
     const task = await Task.findById(taskId)
       .populate('assignedTo', 'name email avatar skills')
+      .populate('assignedBy', 'name email avatar skills')
       .populate('projectId', 'projectName description teamName');
 
     if (!task) {
@@ -1781,31 +1783,57 @@ const calculateRiskScore = (task) => {
 export const updateTask = async (req, res) => {
   try {
     const { taskId } = req.params;
-    const updateData = req.body;
-    const task = await Project.findById(taskId);
+    const { assignedTo, ...updateData} = req.body;
+    const task = await Task.findById(taskId);
     if (!task) {
       return res.status(404).json({ error: "Task not found" });
     }
+    console.log("req.body: ",req.body);
+
+    const mentor = await MentorProjectAssignment.findOne({projectId: task.projectId}).populate('mentor', "name email avatar")
+
     // Check permissions
     const isAssignee = task.assignedTo.toString() === req.user.id;
     const isAdmin = req.user.role === 'admin';
     if (!isAssignee && !isAdmin) {
       return res.status(403).json({ error: "Not authorized to update/edit this project" });
     }
+
+    let changedAssignedTo  = {state: false, oldId: task.assignedTo._id, newId: null};
+
     // Update project fields
+
     Object.keys(updateData).forEach(key => {
-      if (updateData[key] !== undefined && updateData[key] !== task[key]) { //means only update if value is provided and different
+      if (updateData[key] !== undefined && updateData[key] !== task[key]) { //means only update if value is provided and is different
         task[key] = updateData[key];
       }
     });
+    if (assignedTo._id !== task.assignedTo._id){
+      if (task.assignedBy._id === req.user.id || mentor._id === req.user.id){
+        task.assignedTo = assignedTo._id;
+        changedAssignedTo  = {state: true, oldId: assignedTo._id, newId: task.assignedTo};
+
+      }
+    }
+
     await task.save();
 
     await editDataInfo.create({
       taskId: task._id, 
-      projectId: task.projectId?._id ? task.projectId._id : task.projectId, 
+      projectId: task?.projectId?._id ? task?.projectId?._id : task?.projectId, 
       updatedData: updateData, 
       editMadeAt: task.updatedAt
     })
+
+    if (changedAssignedTo.state){
+      await TaskActivityEvent.create({
+        taskId: task._id,
+        projectId: task.projectId,
+        userId: req.user.id,
+        eventType: "task_reassigned",
+        comment: `Reassigned from ${changedAssignedTo.oldId} to ${changedAssignedTo.newId}`,
+      });
+    }
 
     res.json(task);
   } catch (error) {
