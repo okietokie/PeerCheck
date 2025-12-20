@@ -134,13 +134,14 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
       try {
         const token = getAuthToken();
         if (!token) return;
-        const response = await axiosClient.get("/user/mentors", {
+        const response = await axiosClient.get("/user/get-mentors", {
           headers: { 
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
         const mentorsData = response.data?.mentors || [];
+        console.log("mentors: ", mentorsData);
         setMentors(Array.isArray(mentorsData) ? mentorsData : []);
       } catch (err) {
         console.error('Error fetching mentors:', err);

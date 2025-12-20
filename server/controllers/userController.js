@@ -2,8 +2,6 @@ import DeletedProjects from "../models/deletedProjectInfo.js";
 import Group from "../models/peergroup_log.js";
 import Project from "../models/projects.js";
 import User from "../models/user.js";
-
-import fs from 'fs';
 import path from 'path';
 import Task from "../models/tasks.js";
 import Connection from "../models/connection.js";
@@ -17,31 +15,29 @@ export const uploadAvatar = async (req, res) => {
       });
     }
     
-    // avatar URL
-    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
-    
-    // Get previous avatar to delete later
-    const user = await User.findById(req.userId);
-    const oldAvatar = user.avatar;
-    
-    // Update user's avatar in database
+    // Generate a unique key for R2
+    const avatarKey = `avatars/avatar-${req.userId}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${path.extname(req.file.originalname)}`;
+
+    // Upload to R2
+    await r2Client.send(new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: avatarKey,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype
+    }));
+
+
+    const avatarUrl = `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${process.env.R2_BUCKET_NAME}/${avatarKey}`;
+
+    // Update user in DB
     const updatedUser = await User.findByIdAndUpdate(
-      req.userId, 
+      req.userId,
       { avatar: avatarUrl },
       { new: true, select: '-password' }
     );
-    
-    // Delete old avatar file if it exists
-    if (oldAvatar && oldAvatar.startsWith('/uploads/avatars/')) {
-      const oldFilename = oldAvatar.split('/').pop();
-      const oldPath = path.join('uploads/avatars', oldFilename);
-      if (fs.existsSync(oldPath)) {
-        fs.unlinkSync(oldPath);
-      }
-    }
-    
-    res.status(200).json({ 
-      success: true, 
+
+    res.status(200).json({
+      success: true,
       avatarUrl,
       user: {
         name: updatedUser.name,
@@ -54,9 +50,10 @@ export const uploadAvatar = async (req, res) => {
         skills: updatedUser.skills,
         avatar: updatedUser.avatar
       },
-      message: "Avatar uploaded successfully" 
+      message: "Avatar uploaded successfully"
     });
-    
+  
+
   } catch (error) {
     console.error('Upload avatar error:', error);
     res.status(500).json({ 

@@ -43,6 +43,7 @@ const taskActivityEventSchema = new mongoose.Schema(
         
         // proof management
         "proof_uploaded",
+        "proof_viewed",
         "proof_deleted",
         
         // task management

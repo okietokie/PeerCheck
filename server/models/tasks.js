@@ -31,7 +31,8 @@ const taskSchema = new mongoose.Schema(
         description: String,
         uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         fileType: String,
-        serverFilename: String
+        serverFilename: String,
+        r2Key: String
       }
     ],
 

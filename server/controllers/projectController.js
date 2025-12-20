@@ -695,21 +695,17 @@ export const deleteProject = async (req, res) => {
       });
     }
 
+
     //Removing project from all teams `projects` arrays
     await Team.updateMany(
       { projects: projectId },
       { $pull: { projects: projectId } }
     );
 
-    //Removing projectId from all tasks (delete tasks)
-    await Task.updateMany(
-      { projectId: projectId },
-      { $set: { projectId: null } } 
-    );
-
     //Delete all tasks associated with the project
     await Task.deleteMany({ projectId: projectId });
 
+    await MentorProjectAssignment.deleteMany({ project: projectId});
 
     // Delete the project
     await Project.findByIdAndDelete(projectId);

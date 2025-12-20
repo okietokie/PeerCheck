@@ -96,6 +96,7 @@ import {
   CalendarMonth,
   Task,
   Settings,
+  DeleteForeverSharp,
   
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
@@ -745,60 +746,102 @@ const handleEditTask = async () => {
   }
 };
 
-  const viewProofFile = async (taskId, proofId) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axiosClient.get(
-        `/user/task/${taskId}/proof/${proofId}`,
-        {
-          responseType: "blob",
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
+const viewProofFile = async (taskId, proofId) => {
+  try {
+    const token = localStorage.getItem("token");
 
-      const fileURL = URL.createObjectURL(response.data);
-      window.open(fileURL, "_blank");
-    } catch (err) {
-      console.error("Error viewing file", err);
+    const response = await axiosClient.get(
+      `/user/task/${taskId}/proof/${proofId}?download=false`, // send query to indicate inline
+      {
+        responseType: "blob",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    const fileURL = URL.createObjectURL(response.data);
+    window.open(fileURL, "_blank"); // open in new tab for viewing
+  } catch (err) {
+    console.error("Error viewing file", err);
+    setSnackbar({
+      open: true,
+      message: 'Failed to view proof file',
+      severity: 'error'
+    });
+  }
+};
+
+const downloadProofFile = async (taskId, proofId, filename) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    const response = await axiosClient.get(
+      `/user/task/${taskId}/proof/${proofId}?download=true`, // force download
+      {
+        responseType: "blob",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", filename); // filename for download
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch (err) {
+    console.error("Download failed:", err);
+    setSnackbar({
+      open: true,
+      message: 'Failed to download proof file',
+      severity: 'error'
+    });
+  }
+};
+const deleteProofFile = async (taskId, proofId) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    const response = await axiosClient.delete(
+      `/user/task/${taskId}/proof/${proofId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    if (response.data.success) {
       setSnackbar({
         open: true,
-        message: 'Failed to view proof file',
+        message: 'Proof file deleted successfully',
+        severity: 'success'
+      });
+
+      // Optionally, refresh the list of proofs or update state
+      // fetchTaskProofs(); // your function to refresh UI
+    } else {
+      setSnackbar({
+        open: true,
+        message: response.data.error || 'Failed to delete proof',
         severity: 'error'
       });
     }
-  };
+  } catch (err) {
+    console.error("Delete failed:", err);
+    setSnackbar({
+      open: true,
+      message: 'Failed to delete proof file',
+      severity: 'error'
+    });
+  }
+};
 
-  const downloadProofFile = async (taskId, proofId, filename) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axiosClient.get(
-        `/user/task/${taskId}/proof/${proofId}`,
-        {
-          responseType: "blob",
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (err) {
-      console.error("Download failed:", err);
-      setSnackbar({
-        open: true,
-        message: 'Failed to download proof file',
-        severity: 'error'
-      });
-    }
-  };
 
   // Fetch activity logs
   const fetchActivityLogs = async () => {
@@ -2013,6 +2056,19 @@ const handleEditTask = async () => {
                           }}
                         >
                           <Download />
+                        </IconButton>
+                        <IconButton
+                          size='small'
+                          onClick={() => deleteProofFile(updatedTask._id, proof._id)}
+                          sx={{ 
+                            color: theme.palette.info.main,
+                            backgroundColor: alpha(theme.palette.info.main, 0.1),
+                            '&:hover': {
+                              backgroundColor: alpha(theme.palette.info.main, 0.2),
+                            }
+                          }}
+                        >
+                          <DeleteForeverSharp/>
                         </IconButton>
                       </Box>
                     </Box>

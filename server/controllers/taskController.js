@@ -4,14 +4,14 @@ import Project from '../models/projects.js';
 import User from '../models/user.js';
 import TaskActivityEvent from '../models/taskActivityEvent.js';
 import { formatTimeAgo, getActionMessage, logActivity } from "./activityLogger.js";
-import DeletedProjects from '../models/deletedProjectInfo.js';
 import DeletedTaskInfo from '../models/deletedTaskInfo.js';
-import fs from 'fs';
-import path from 'path';
 import { updateProjectMetricsInDB } from './projectController.js';
 import Team from '../models/peergroup_log.js';
 import editDataInfo from '../models/editDataInfo.js';
 import MentorProjectAssignment from '../models/mentorProjectAssignment.js';
+import { r2Client, R2_BUCKET_NAME } from "../r2Client.js"; // your configured R2 client
+import path from "path";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 //individual task risk score
 /**
@@ -1619,81 +1619,6 @@ export const addTaskComment = async (req, res) => {
   }
 };
 
-// Delete proof
-export const deleteProof = async (req, res) => {
-  try {
-    const { taskId, proofId } = req.params;
-    const userId = req.user.id;
-
-    const task = await Task.findById(taskId);
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        error: "Task not found"
-      });
-    }
-
-    // Check permissions - only proof uploader, task assignee, or admin
-    const proofIndex = task.proofUploads.findIndex(
-      proof => proof._id.toString() === proofId
-    );
-    
-    if (proofIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        error: "Proof not found"
-      });
-    }
-
-    const proof = task.proofUploads[proofIndex];
-    const isProofUploader = proof.uploadedBy?.toString() === userId;
-    const isAssignee = task.assignedTo.toString() === userId;
-    const isAdmin = req.user.role === 'admin';
-    const project = await Project.findById(task.projectId);
-    const isCreator = project.createdBy.toString() === userId;
-    
-    if (!isProofUploader && !isAssignee && !isAdmin && !isCreator) {
-      return res.status(403).json({
-        success: false,
-        error: "Not authorized to delete this proof"
-      });
-    }
-
-    // Remove proof
-    const deletedProof = task.proofUploads.splice(proofIndex, 1)[0];
-    
-    // Update noProof flag if no proofs left
-    if (task.proofUploads.length === 0) {
-      task.flags.noProof = true;
-    }
-    
-    await task.save();
-
-    // Log activity
-    await logActivity({
-      taskId,
-      userId,
-      projectId: task.projectId,
-      eventType: 'proof_deleted',
-      metadata: {
-        filename: deletedProof.filename,
-        proofId: deletedProof._id
-      }
-    });
-
-    res.json({
-      success: true,
-      message: "Proof deleted successfully",
-      proof: deletedProof
-    });
-  } catch (error) {
-    console.error('Error deleting proof:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
 
 // Update task flags
 export const updateTaskFlags = async (req, res) => {
@@ -1996,6 +1921,10 @@ export const updateTaskTime = async (req, res) => {
 };
 
 
+
+
+
+// Upload proof to R2
 export const uploadProof = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -2004,35 +1933,33 @@ export const uploadProof = async (req, res) => {
     const { description } = req.body || '';
 
     const task = await Task.findById(taskId);
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        error: "Task not found"
-      });
-    }
+    if (!task) return res.status(404).json({ success: false, error: "Task not found" });
 
-    // Create proof object with multiple URL options
+  // Prepare R2 key
+  const r2Key = `proofs/${taskId}/${Date.now()}-${file.originalname}`;
+  console.log("trying to upload file into :", R2_BUCKET_NAME);
+
+  // Upload to R2 using PutObjectCommand
+  await r2Client.send(new PutObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: r2Key,
+    Body: file.buffer,        // if multer memory storage
+    ContentType: file.mimetype
+  }));
+  
     const proof = {
       filename: file.originalname,
-      // Direct static URL (if using express.static)
-      fileUrl: `/uploads/proofs/${file.filename}`,
-      // API endpoint URL (with auth)
-      apiUrl: `/api/user/task/${taskId}/proof/${file.filename}`,
-      // Direct download URL
-      downloadUrl: `/api/user/download/proof/${file.filename}`,
-      filePath: file.path,
+      r2Key: r2Key,
       uploadedAt: new Date(),
       description: description || '',
       uploadedBy: userId,
       fileSize: file.size,
-      fileType: file.mimetype,
-      serverFilename: file.filename // Store the server-generated filename
+      fileType: file.mimetype
     };
 
     if (!task.proofUploads) task.proofUploads = [];
     task.proofUploads.push(proof);
     task.flags.noProof = false;
-    
     await task.save();
 
     // Log activity
@@ -2041,201 +1968,127 @@ export const uploadProof = async (req, res) => {
       userId,
       projectId: task.projectId,
       eventType: 'proof_uploaded',
-      metadata: {
-        filename: file.originalname,
-        description: description,
-        fileSize: file.size
-      }
+      metadata: { filename: file.originalname, description, fileSize: file.size }
     });
 
     res.json({
       success: true,
       message: "Proof uploaded successfully",
-      proof: proof,
-      // Return URLs for frontend to use
+      proof,
       urls: {
-        view: `/api/user/task/${taskId}/proof/${file.filename}`,
-        download: `/api/user/download/proof/${file.filename}`,
-        direct: `/uploads/proofs/${file.filename}`
+        view: `/api/user/task/${taskId}/proof/${proof._id}`,
+        download: `/api/user/task/${taskId}/proof/${proof._id}?download=true`
       }
     });
+
   } catch (error) {
-    console.error('Error uploading proof:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    console.error("Error uploading proof:", error);
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
-
-// Get proof file (view/download)
+// View or download proof
 export const getProofFile = async (req, res) => {
   try {
     const { taskId, proofId } = req.params;
+    const download = req.query.download === 'true';
     const userId = req.user.id;
-
+  
     const task = await Task.findById(taskId);
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        error: "Task not found"
-      });
-    }
+    if (!task) return res.status(404).json({ success: false, error: "Task not found" });
 
-    // Find the specific proof in the task
     const proof = task.proofUploads.id(proofId);
-    if (!proof) {
-      return res.status(404).json({
-        success: false,
-        error: "Proof not found"
-      });
-    }
+    if (!proof) return res.status(404).json({ success: false, error: "Proof not found" });
 
-    // Check if user has permission to view this proof
-    // Allow: task assignee, project members, teachers, admins
-    const isAssignee = task.assignedTo?.toString() === userId.toString();
-    const isTeacherOrAdmin = req.user.role === 'teacher' || req.user.role === 'admin';
-    
+    // Authorization
+    const isAssignee = task.assignedTo?.toString() === userId.toString() || task.assignedTo?._id.toString() === userId.toString();
+    const isTeacherOrAdmin = ['teacher', 'admin'].includes(req.user.role);
+
     if (!isAssignee && !isTeacherOrAdmin) {
-      // Check if user is in the same project team
       const project = await Project.findById(task.projectId);
-      if (!project || !project.teamId) {
-        return res.status(403).json({
-          success: false,
-          error: "Access denied"
-        });
-      }
-      
-      const team = await Team.findById(project.teamId);
-      if (!team || !team.members.some(m => m.user?.toString() === userId.toString())) {
-        return res.status(403).json({
-          success: false,
-          error: "Access denied"
-        });
-      }
+      const team = project?.teamId ? await Team.findById(project.teamId) : null;
+      if (!team?.members.some(m => m.user?.toString() === userId.toString()))
+        return res.status(403).json({ success: false, error: "Access denied" });
     }
 
-    // Construct file path
-    // Make sure this matches where you're saving files in uploadMiddleware
-    const filePath = proof.filePath || path.join(process.cwd(), 'uploads', 'proofs', path.basename(proof.fileUrl));
-
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      console.error('File not found at path:', filePath);
-      return res.status(404).json({
-        success: false,
-        error: "File not found on server"
-      });
-    }
-
-    // Determine content type
-    const contentType = getContentType(proof.filename);
+    // Get object from R2
+    const object = await r2Client.send(new GetObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: proof.r2Key
+    }));
     
-    // Set appropriate headers
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(proof.filename)}"`);
-    
-    // Stream the file
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
 
-    // Log the access
+    /**
+     * backend route
+     * streaming a file from cloudflare to client
+     * sets MIME [- Multipurpose Internet Mail Extension (tells the client/browser the type of file/content being sent)] of file being sent
+     * proof.fileType could be 'image/png', 'application/pdf'
+     * Content-Disposition controls how the browser should treat the file
+     * * 'inline' means display in-browser if possible
+     * * 'attachment' forces download instead of displaying
+     * filename = sets the file its name for download
+     * encodeURIComponent ensures special characters dont break code, when filename is being set(if it has any special chrs)
+     * object.body is the readable sstreamof file from storage
+     * .pipe(res) connects it directyl to response
+     * * * tell the browser what type the file is, whether to view or download it, and then stream file directly to the user
+     */
+    res.setHeader('Content-Type', proof.fileType);
+    res.setHeader('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="${encodeURIComponent(proof.filename)}"`);
+    object.Body.pipe(res);
+
     await logActivity({
       taskId,
       userId,
       projectId: task.projectId,
       eventType: 'proof_viewed',
-      metadata: {
-        filename: proof.filename,
-        proofId: proof._id
-      }
+      metadata: { filename: proof.filename, proofId }
     });
 
   } catch (error) {
-    console.error('Error getting proof file:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Internal server error'
-    });
+    console.error("Error getting proof file:", error);
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
-// Helper function to determine content type
-const getContentType = (filename) => {
-  const ext = path.extname(filename).toLowerCase();
-  const contentTypes = {
-    '.pdf': 'application/pdf',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.png': 'image/png',
-    '.gif': 'image/gif',
-    '.doc': 'application/msword',
-    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    '.txt': 'text/plain',
-    '.zip': 'application/zip'
-  };
-  
-  return contentTypes[ext] || 'application/octet-stream';
-};
-// Direct file access endpoint (can be public or with minimal auth)
-export const getProofFileDirect = async (req, res) => {
+// Delete proof
+export const deleteProof = async (req, res) => {
   try {
-    const { filename } = req.params;
-    
-    // Security: Validate filename to prevent directory traversal
-    if (filename.includes('..') || filename.includes('/')) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid filename"
-      });
-    }
+    const { taskId, proofId } = req.params;
+    const userId = req.user.id;
 
-    const filePath = path.join(process.cwd(), 'uploads', 'proofs', filename);
-    
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      console.error('File not found:', filePath);
-      return res.status(404).json({
-        success: false,
-        error: "File not found"
-      });
-    }
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ success: false, error: "Task not found" });
 
-    // Determine content type
-    const contentType = getContentType(filename);
+    const proof = task.proofUploads.id(proofId);
+    if (!proof) return res.status(404).json({ success: false, error: "Proof not found" });
+
+    // Authorization: only uploader, teacher, or admin
+    const isUploader = task.assignedTo?.toString() === userId.toString() || task.assignedTo?._id.toString() === userId.toString();
+    const isTeacherOrAdmin = ['teacher', 'admin'].includes(req.user.role);
+    if (!isUploader && !isTeacherOrAdmin) return res.status(403).json({ success: false, error: "Access denied" });
+
+    // Delete from R2
+    await r2Client.send(new DeleteObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: proof.r2Key
+    }));
     
-    // Set headers
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
-    
-    // Stream the file
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
+    // Remove from task
+    proof.deleteOne();
+    await task.save();
+
+    await logActivity({
+      taskId,
+      userId,
+      projectId: task.projectId,
+      eventType: 'proof_deleted',
+      metadata: { filename: proof.filename, proofId }
+    });
+
+    res.json({ success: true, message: "Proof deleted successfully" });
 
   } catch (error) {
-    console.error('Error getting proof file:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Internal server error'
-    });
+    console.error("Error deleting proof:", error);
+    res.status(500).json({ success: false, error: error.message });
   }
-};
-
-// Export all functions 
-export default {
-  getTasks,
-  getAllTasks,           
-  getAllTasksWithFilters, 
-  createTask,
-  updateTaskStatus,
-  updateTaskTime,
-  uploadProof,
-  updateTaskFlags,
-  deleteTask,
-  assignTask,
-  getTaskDetails,
-  updateTaskGrading,
-  getTasksWithFilter,  
-  getUserTasks         
 };
