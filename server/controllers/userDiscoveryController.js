@@ -11,7 +11,6 @@ export const getSuggestedUsers = async (req, res) => {
     const userId = req.userId;
     const limit = parseInt(req.query.limit) || 50; 
 
-    console.log(`Fetching suggested users for user: ${userId}, limit: ${limit}`);
 
     // Getting IDs of users that current user is already connected with or has pending requests with
     const existingConnections = await Connection.find({
@@ -29,7 +28,6 @@ export const getSuggestedUsers = async (req, res) => {
       excludedUserIds.add(conn.toUser.toString());
     });
 
-    console.log(`Excluding ${excludedUserIds.size} users from suggestions`);
 
     // Find users not in excluded list with more flexible criteria
     const suggestedUsers = await User.find(
@@ -42,11 +40,9 @@ export const getSuggestedUsers = async (req, res) => {
     .limit(limit)
     .sort({ joinedOn: -1 }); // Shows newest users first
 
-    console.log(`Found ${suggestedUsers.length} suggested users`);
 
     // If we very few suggestions, include some inactive users too
     if (suggestedUsers.length < 5) {
-      console.log('Very few active users found, expanding search...');
       
       const additionalUsers = await User.find(
         { 
@@ -66,7 +62,6 @@ export const getSuggestedUsers = async (req, res) => {
         }
       });
 
-      console.log(`After expansion: ${suggestedUsers.length} total suggested users`);
     }
 
     res.status(200).json({ 

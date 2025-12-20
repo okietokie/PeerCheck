@@ -47,7 +47,6 @@ export const authMiddleware = async (req, res, next) => {
     req.userId = decoded.id;
     req.user = decoded;   
     req.username = decoded.username;
-    console.log("[authMiddleware.js]\nToken decoded:", decoded)
 
     // Continue to the next middleware/controller
     next();

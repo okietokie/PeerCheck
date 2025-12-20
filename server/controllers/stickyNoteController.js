@@ -22,7 +22,6 @@ export const createStickyNote = async (req, res) => {
     const isMember = project.teamId?.members?.some(member => 
       member._id.toString() === req.user.id
     );
-        console.log("ismember/project: ", project);
     const isCreator = project.createdBy.toString() === req.user.id;
     
     if (!isMember && !isCreator) {
@@ -33,7 +32,6 @@ export const createStickyNote = async (req, res) => {
     }
 
     const mentorId = await MentorProjectAssignment.findOne({projectId: projectId}, 'mentor');
-    console.log(mentorId);
     if (category === 'mentor' && req.user.id !== mentorId) {
         return res.status(403).json({
             success: false,

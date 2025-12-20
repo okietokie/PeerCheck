@@ -563,7 +563,7 @@ useEffect(() => {
 
 const handleProofUploadSuccess = () => {
   // Refresh tasks or show success message
-  console.log('Proof uploaded successfully');
+
   setProofUploadMessage(true);
 
 };
@@ -571,7 +571,6 @@ const handleProofUploadSuccess = () => {
 // Add function to handle submitting a review
 const handleSubmitReview = async () => {
   try {
-        console.log("selectedReviewee", selectedReviewee);
 
     const token = localStorage.getItem("token");
     
@@ -698,7 +697,6 @@ const canReviewMember = (memberId) => {
       }
     });
 
-    console.log('Sticky notes response:', response.data); // Debug log
     
     if (response.data?.success) {
       setStickyNotes(response.data.data || []);
@@ -736,7 +734,6 @@ const createStickyNote = async (noteData) => {
       }
     );
 
-    console.log('Create note response:', response.data); // Debug log
     
     if (response.data?.success) {
       showSnackbar('Sticky note created successfully', 'success');
@@ -770,7 +767,6 @@ const updateStickyNote = async (noteId, updateData) => {
       }
     );
 
-    console.log('Update note response:', response.data); // Debug log
     
     if (response.data?.success) {
       showSnackbar('Sticky note updated successfully', 'success');
@@ -802,7 +798,6 @@ const deleteStickyNote = async (noteId) => {
       }
     });
 
-    console.log('Delete note response:', response.data); // Debug log
     
     if (response.data?.success) {
       showSnackbar('Sticky note deleted successfully', 'success');
@@ -833,7 +828,6 @@ const togglePinNote = async (noteId) => {
       }
     );
 
-    console.log('Toggle pin response:', response.data); // Debug log
     
     if (response.data?.success) {
       showSnackbar(response.data.message, 'success');
@@ -1193,14 +1187,11 @@ const togglePinNote = async (noteId) => {
       });
       setUser(response.data?.user);
 
-      console.log("members:",members)
 
       if (members){
-        console.log("fetchuserdata/members: ", members);
 
         const count = members.filter(member => member?.onlineStatus === "active");
         setActiveMemberCount(count.length);
-        console.log("active member count:",activeMemberCount);
       }
     } catch (err) {
       console.error('Error fetching user data:', err);
@@ -1490,7 +1481,6 @@ const togglePinNote = async (noteId) => {
         setIsEditing({ state: false, field: 'Edit Project' });
         
         const token = localStorage.getItem('token');
-        console.log(project);
         const updateProject = async () => {
           try {
             const response = await axiosClient.patch(
@@ -1552,7 +1542,6 @@ const togglePinNote = async (noteId) => {
   };
 
   const onCreateTask = (project) => {
-    console.log("Selected Project: ", project);
     setCreateTaskModalOpen(true);
   };
 

@@ -141,7 +141,6 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
           }
         });
         const mentorsData = response.data?.mentors || [];
-        console.log("mentors: ", mentorsData);
         setMentors(Array.isArray(mentorsData) ? mentorsData : []);
       } catch (err) {
         console.error('Error fetching mentors:', err);
@@ -315,7 +314,6 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
         }
       };
   
-      console.log('Creating project with data:', projectData); 
   
       const response = await axiosClient.post('/projects', projectData, {
         headers: { 
@@ -324,7 +322,6 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
         }
       });
       
-      console.log('Project created response:', response.data); 
       
       if (onProjectCreated) {
         onProjectCreated(response.data);
@@ -1312,7 +1309,6 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
         default:
           estimatedSeconds = timeValue * 60 * 60;
       }
-      console.log("project: ", project)
       const taskData = {
         taskTitle: formData.taskTitle.trim(),
         description: formData.description.trim(),
@@ -1321,7 +1317,6 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
         deadline: formData.deadline,
         estimatedTime: Math.round(estimatedSeconds)
       };
-      console.log("taskdata/createtask/frommyprojects: ", taskData)
 
       let response;
       
@@ -1333,7 +1328,6 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
             'Content-Type': 'application/json'
           }
         });
-        console.log('Task updated successfully:', response.data);
       } else {
         // Create new task
         response = await axiosClient.post('/user/task/create', taskData, {
@@ -1342,7 +1336,6 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
             'Content-Type': 'application/json'
           }
         });
-        console.log('Task created successfully:', response.data);
       }
 
       onClose();
@@ -1368,8 +1361,6 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
               username: member.user?.username
             })) || [];
         
-            console.log("members:", members);
-            console.log("project.teamId:", project.teamId);
         
             setTeamMembers(members);
           }
@@ -2366,7 +2357,6 @@ const ReviewProjectModal = ({ open, onClose, project, theme }) => {
       // Simulate submission
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      console.log('Review submitted:', reviewPayload);
       onClose();
 
     } catch (err) {
@@ -2842,14 +2832,13 @@ const ProjectTableRow = ({
       try {
         const token = getAuthToken();
         if (!token) return;
-        console.log("teams in project tablerow: ", teams);
-        console.log("project in ptr: ", project);
+
         teams.map(team => {
           if (project.teamId._id === team._id) {
             const members = team.members?.map(
               member => member.user?.username
             ) || [];
-            console.log("memebrs in ptr: ",members);
+
                 
             setTeamMembers(members);
           }
@@ -3516,7 +3505,6 @@ const Projects = () => {
         }
       });
       setUser(user.data?.user);
-      console.log('Fetched user data:', user.data?.user);
     } catch (err) {
       console.error('Error fetching user data:', err);
     }
@@ -3692,7 +3680,6 @@ const Projects = () => {
   };
 
   const handleCreateTask = (project) => {
-    console.log("Selected Project: ", project);
     setSelectedProject(project);
     setCreateTaskModalOpen(true);
   };

@@ -592,7 +592,6 @@ export const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskU
 
     const fetchTaskData = async () => {
       try {
-        console.log("fetching tasks in taskdetail!");
         const token = localStorage.getItem("token");
         const response = await axiosClient.get(`/user/task/${task._id}`, {
           headers: {
@@ -649,10 +648,7 @@ const handleEditTask = async () => {
     if (isEditing) {
       setIsEditing(false);
       const token = localStorage.getItem("token");
-      
-      // Debug: log what we're sending
-      console.log("Updated Task State:", updatedTask);
-      
+
       if (!updatedTask.taskTitle?.trim()) {
         setError('Task title is required');
         return;
@@ -667,7 +663,6 @@ const handleEditTask = async () => {
       };
 
       // Debug: log the data being sent
-      console.log("Task Data to Send:", taskData);
 
       // Handle assignedTo - extract just the ID if it's an object
       if (updatedTask.assignedTo) {
@@ -687,7 +682,6 @@ const handleEditTask = async () => {
         }
       }
 
-      console.log("Final Task Data with IDs:", taskData);
 
       const response = await axiosClient.patch(
         `/user/task/${task._id}`,
@@ -700,7 +694,6 @@ const handleEditTask = async () => {
         }
       );
 
-      console.log("Backend Response:", response.data);
 
       if (response?.data?.success) {
         setUpdatedTask(response.data.task);

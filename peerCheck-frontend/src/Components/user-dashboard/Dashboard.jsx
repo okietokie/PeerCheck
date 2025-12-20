@@ -74,7 +74,6 @@ export default function Dashboard() {
         headers: { Authorization: `Bearer ${token}` } 
       });
       
-      console.log("User data:", userRes.data);
       
       setUsername(userRes.data.username || userRes.data.user?.username || 'User');
       setUserData(userRes.data.user);
@@ -86,7 +85,6 @@ export default function Dashboard() {
         const projectsRes = await axiosClient.get("projects", {
           headers: { Authorization: `Bearer ${token}` }
         });
-        console.log("Projects response:", projectsRes.data);
 
         if (Array.isArray(projectsRes.data)) {
           fetchedProjects = projectsRes.data;
@@ -114,7 +112,6 @@ export default function Dashboard() {
           headers: { Authorization: `Bearer ${token}` }
         });
 
-        console.log("Tasks response:", tasksRes.data);
         if (tasksRes.data.success) {
           const userTasks = tasksRes.data.tasks || [];
           setTasks(userTasks);
@@ -127,8 +124,7 @@ export default function Dashboard() {
           ).length;
           
           const productivity = calculateProductivity(userTasks);
-          console.log("active tasks:", activeTasks);
-          console.log("projects in tasks fetch:", projects);
+
           setStats(prev => ({
             ...prev,
             activeTasks,

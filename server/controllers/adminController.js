@@ -43,7 +43,6 @@ export const getSecurityStats = async (req, res) => {
     //   .sort({ createdAt: -1 })
     //   .limit(5);
 
-    console.log(totalLoginsLast7Days);
     res.json({
       totalLogins,
       totalLoginsLast7Days,

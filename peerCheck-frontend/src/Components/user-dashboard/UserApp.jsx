@@ -102,7 +102,7 @@ export default function UserApp() {
         Authorization: `Bearer ${token}`,
       }
     });
-    console.log("res.data", res.data);
+
     if (res.data?.success){
       localStorage.removeItem('token');
       navigate('/login');

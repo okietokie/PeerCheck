@@ -125,7 +125,6 @@ export const fetchUserDetails = async (req, res) => {
       .populate('members.user', 'name username avatar email')
       .populate('tasks');
 
-    console.log(user.onlineStatus);
 
     res.status(200).json({
       username: req.username,
@@ -147,7 +146,6 @@ export const existingPeerGroup = async ({ name, members }) => {
                 { $push: { projects: name } },
                 { new: true, runValidators: true }
             );
-            console.log("[userController.js]\nExisting group updated with new project:", name);
             return { message: "Project added to existing group", groupId: group._id };
         }
 

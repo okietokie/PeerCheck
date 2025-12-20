@@ -54,11 +54,13 @@ export default function Profile() {
       const res = await axiosClient.get("/user/me", {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
       setUser(res.data);
-      console.log("res.data", res.data);
+    
+
     } catch (error) {
-      console.log(`Error fetching user data: ${error}`);
-      setError('Failed to load user data');
+      console.error("Error: ", error);
+      setError(`Failed to load user data: ${error}`);
     }
   };
 
@@ -70,8 +72,7 @@ export default function Profile() {
       });
       setPeerTeam(res.data.connections || []);
     } catch (error) {
-      console.log(`Error fetching peer team: ${error}`);
-      setError('Failed to load peer team');
+      setError(`Failed to load peer team:  ${error}`);
     }
   };
 
@@ -83,8 +84,8 @@ export default function Profile() {
       });
       setIncomingRequests(res.data.requests || []);
     } catch (error) {
-      console.log(`Error fetching incoming requests:`, error);
-      setError('Failed to load incoming requests');
+      console.error(`Error fetching incoming requests:`, error);
+      setError(`Failed to load incoming requests: ${error}`);
     }
   };
 
@@ -96,7 +97,7 @@ export default function Profile() {
       });
       setSuggestedUsers(res.data.users || []);
     } catch (error) {
-      console.log(`Error fetching suggested users: ${error}`);
+      console.error(`Error fetching suggested users: ${error}`);
     }
   };
 
@@ -119,7 +120,7 @@ export default function Profile() {
       setSuccess('Connection request sent successfully!');
       setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
-      console.log(`Error sending connection request: ${error}`);
+      console.error(`Error sending connection request: ${error}`);
       if (error.response?.data?.message) {
         setError(error.response.data.message);
       } else {
@@ -140,7 +141,7 @@ export default function Profile() {
       setSuccess('Connection request accepted!');
       setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
-      console.log(`Error accepting request: ${error}`);
+      console.error(`Error accepting request: ${error}`);
       setError('Failed to accept connection request');
     }
   };
@@ -155,7 +156,7 @@ export default function Profile() {
       setSuccess('Connection request declined');
       setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
-      console.log(`Error declining request: ${error}`);
+      console.error(`Error declining request: ${error}`);
       setError('Failed to decline connection request');
     }
   };
@@ -171,7 +172,7 @@ export default function Profile() {
       setSuccess('Connection removed successfully');
       setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
-      console.log(`Error removing connection: ${error}`);
+      console.error(`Error removing connection: ${error}`);
       setError('Failed to remove connection');
     }
   };
@@ -211,7 +212,7 @@ export default function Profile() {
     
     setSearchResults(resultsWithStatus);
   } catch (error) {
-    console.log(`Error searching users: ${error}`);
+    console.error(`Error searching users: ${error}`);
     setSearchError('Failed to search users');
   } finally {
     setSearchLoading(false);

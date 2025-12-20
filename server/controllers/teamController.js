@@ -65,7 +65,6 @@ export const createTeam = async (req, res) => {
     const { name } = req.body;
     const currentUserId = req.userId;
 
-    console.log('Creating team with data:', { name, currentUserId });
 
     // Basic validation
     if (!name || !name.trim()) {
@@ -104,8 +103,8 @@ export const createTeam = async (req, res) => {
     });
 
     await team.save();
-    console.log(`Team created successfully: ${team._id}`);
 
+    
     // Populate the created team to get user details
     const populatedTeam = await Group.findById(team._id)
       .populate('members', 'name username email course institution bio avatar skills year onlineStatus');
@@ -158,7 +157,6 @@ export const leaveTeam = async (req, res) => {
     const { teamId } = req.params;
     const userId = req.userId;
 
-    console.log(`User ${userId} leaving team ${teamId}`);
 
     // Validate team ID format
     if (!mongoose.Types.ObjectId.isValid(teamId)) {
@@ -189,7 +187,6 @@ export const leaveTeam = async (req, res) => {
     // If no members left, soft delete the team
     if (team.members.length === 0) {
       team.deletedAt = new Date();
-      console.log(`Team ${teamId} soft deleted as no members remain`);
     }
 
     await team.save();
@@ -215,7 +212,6 @@ export const updateTeam = async (req, res) => {
     const { name } = req.body;
     const userId = req.userId;
 
-    console.log(`Updating team ${teamId} with name: ${name}`);
 
     // Validate team ID format
     if (!mongoose.Types.ObjectId.isValid(teamId)) {
@@ -322,7 +318,6 @@ export const inviteToTeam = async (req, res) => {
     const { email, username, message } = req.body;
     const currentUserId = req.userId;
 
-    console.log(`Inviting to team ${teamId} by user ${currentUserId}`);
 
     // Validate team ID format
     if (!mongoose.Types.ObjectId.isValid(teamId)) {

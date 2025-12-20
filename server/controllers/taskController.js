@@ -69,7 +69,6 @@ export const calculateTaskMetrics = (task) => {
     (noProof ? 1 : 0) +
     (manualReviewRequired ? 3 : 0);  
 
-  console.log("riskScore", riskScore);
   // Determine risk level based on score
   let riskLevel, riskLabel;
   
@@ -230,7 +229,6 @@ export const getTasks = async (req, res) => {
   try {
     const { projectId } = req.params;
     const userId = req.user.id;
-    console.log("getTasks - userId", userId)
     
     // Check if project exists and user has access
     const project = await Project.findById(projectId);
@@ -241,7 +239,6 @@ export const getTasks = async (req, res) => {
       });
     }
     const team = await Team.findById(project.teamId).select("members")
-    console.log("gettasks/team: ", team);
 
     if (project.createdBy.toString() !== userId && 
         !team.members.some(member => member.toString() === userId)) {
@@ -499,7 +496,6 @@ export const getAllTasks = async (req, res) => {
     
     const projectIds = projects.map(p => p._id);
 
-    console.log(projectIds);
 
     // Find all tasks from these projects
     const tasks = await Task.find({
@@ -541,7 +537,6 @@ export const getAllTasks = async (req, res) => {
     const completedTasks = tasks.filter(t => t.status === 'completed').length;
     const highRiskTasks = tasksWithMetrics.filter(t => t.metrics.riskScore >= 4).length;
     const tasksWithoutProof = tasksWithMetrics.filter(t => !t.metrics.hasProof).length;
-    console.log("tasks with metrics/tasks: ", tasksWithMetrics);
     res.json({
       success: true,
       user: user,
@@ -1011,7 +1006,6 @@ export const deleteTask = async (req, res) => {
         message: "Task not found" 
       });
     }
-    console.log("to be deleteTask", task);
     let projectFound;
     const project = await Project.findById(task.projectId);
     if (project) {
@@ -1713,7 +1707,6 @@ export const updateTask = async (req, res) => {
     if (!task) {
       return res.status(404).json({ error: "Task not found" });
     }
-    console.log("req.body: ",req.body);
 
     const mentor = await MentorProjectAssignment.findOne({projectId: task.projectId}).populate('mentor', "name email avatar")
 
@@ -1779,7 +1772,6 @@ export const updateTaskStatus = async (req, res) => {
         error: "Task not found"
       });
     }
-    console.log("task", task);
 
     let additionalTime = 0;
 
@@ -1791,7 +1783,6 @@ export const updateTaskStatus = async (req, res) => {
     task.totalFocusTime += Math.max(additionalTime, 0);
     task.lastEventTime = new Date(timestamp);
 
-    console.log("totalFocusTime", task.totalFocusTime);
     
     const oldStatus = task.status;
     task.status = status;
@@ -1799,22 +1790,19 @@ export const updateTaskStatus = async (req, res) => {
     
 
     const metrics = calculateTaskMetrics(task);
-    console.log("metrics", metrics);
-    console.log("riskScore", metrics.risk.riskScore);
+
     task.metrics.riskScore = metrics.risk.riskScore;
     task.taskMetrics.efficiency = Math.round(metrics.efficiency * 100) / 100;
     task.taskMetrics.label = metrics.efficiency.label;
     task.taskMetrics.status = metrics.efficiency.status;
 
     task.flags = metrics.flags; //update flags based on current task state
-    console.log("task.flags", task.flags);
-    console.log("task.estimatedTime", task.estimatedTime);
+
     // Recalculate efficiency
     if (task.estimatedTime) {
       task.taskMetrics.efficiency =
         Math.round((task.totalFocusTime / task.estimatedTime) * 100 * 100) / 100;
     }
-    console.log("efficiency", task.taskMetrics.efficiency);
     
 
 
@@ -1937,7 +1925,6 @@ export const uploadProof = async (req, res) => {
 
   // Prepare R2 key
   const r2Key = `proofs/${taskId}/${Date.now()}-${file.originalname}`;
-  console.log("trying to upload file into :", R2_BUCKET_NAME);
 
   // Upload to R2 using PutObjectCommand
   await r2Client.send(new PutObjectCommand({

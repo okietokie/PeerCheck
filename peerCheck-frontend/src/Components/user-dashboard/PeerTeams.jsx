@@ -74,10 +74,9 @@ export default function PeerTeams() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      console.log("Fetched teams:", res.data.teams);
       setTeams(res.data.teams || []);
     } catch (error) {
-      console.log(`Error fetching teams: ${error}`);
+      console.error(`Error fetching teams: ${error}`);
       setError('Failed to load teams');
     }
   };
@@ -90,7 +89,7 @@ export default function PeerTeams() {
       });
       setPeerConnections(res.data.connections || []);
     } catch (error) {
-      console.log(`Error fetching peer connections: ${error}`);
+      console.error(`Error fetching peer connections: ${error}`);
     }
   };
 
@@ -112,7 +111,7 @@ export default function PeerTeams() {
       setNewTeamName('');
       await fetchTeams(); // Refresh teams list
     } catch (error) {
-      console.log(`Error creating team: ${error}`);
+      console.error(`Error creating team: ${error}`);
       setError('Failed to create team');
     } finally {
       setCreatingTeam(false);
@@ -139,7 +138,7 @@ const leaveTeam = async (teamId) => {
     await fetchTeams(); // Refresh teams list
     handleCloseDialog();
   } catch (error) {
-    console.log(`Error leaving team: ${error}`);
+    console.error(`Error leaving team: ${error}`);
     setError('Failed to leave team');
     handleCloseDialog();
   }
