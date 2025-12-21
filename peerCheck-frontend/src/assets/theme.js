@@ -27,7 +27,7 @@ const typographyConfig = {
 function makeTheme(mode, primaryColor, secondaryColor, backgroundColor) {
   return createTheme({
     typography: typographyConfig,
-    palette: {
+  palette: {
       mode: mode,
       primary: { main: primaryColor, contrastText: mode === 'dark' ? '#fff' : '#000' },
       secondary: { main: secondaryColor, contrastText: mode === 'dark' ? '#fff' : '#000' },
@@ -35,106 +35,38 @@ function makeTheme(mode, primaryColor, secondaryColor, backgroundColor) {
     },
   });
 }
+
 const themes = {
+  "dark-high-contrast": makeTheme("dark", "#8AB4F8", "#FF8FA3", "#0D0D0D"),
+  "dark-medium-contrast": makeTheme("dark", "#64A2F3", "#E26A6A", "#171717"),
+  "light-high-contrast": makeTheme("light", "#1565C0", "#C62828", "#FFFFFF"),
+  "light-medium-contrast": makeTheme("light", "#1E88E5", "#EF5350", "#F5F6FA"),
 
-  "dark-high-contrast": makeTheme("dark", "#90caf9", "#f48fb1", "#000000"),
-  "dark-medium-contrast": makeTheme("dark", "#6ab0f3", "#e57373", "#121212"),
-  "light-high-contrast": makeTheme("light", "#1976d2", "#d32f2f", "#ffffff"),
-  "light-medium-contrast": makeTheme("light", "#2196f3", "#e57373", "#f4f4f4"),
+  "pastel-lavender": makeTheme("light", "#AFA3E8", "#D4A5E6", "#F7F2FF"),
+  "pastel-mint": makeTheme("light", "#7ACFC0", "#48B8A5", "#E6FAF6"),
+  "pastel-mauve-rose": makeTheme("light", "#F29CB8", "#E16491", "#FBE8F2"),
+  "pastel-peach": makeTheme("light", "#FF9F7E", "#FF7755", "#FFF4EA"),
+  "pastel-vintage": makeTheme("light", "#CCBBAF", "#927B6A", "#F6EFEA"),
+  "pastel-blush": makeTheme("light", "#F6B7C9", "#F28AAE", "#FFF5F9"),
 
+  "goth-violet": makeTheme("dark", "#A98BFF", "#6F3BFF", "#0A0014"),
+  "goth-bloodmoon": makeTheme("dark", "#E84C47", "#8A1111", "#0E0000"),
+  "goth-storm": makeTheme("dark", "#8FA0AC", "#596E79", "#060A10"),
 
-  "pastel-lavender": makeTheme("light", "#b39ddb", "#ce93d8", "#f3e8ff"),
-  "pastel-mint": makeTheme("light", "#80cbc4", "#4db6ac", "#e0f7f5"),
-  "pastel-mauve-rose": makeTheme("light", "#f48fb1", "#ec407a", "#fde4ec"),
-  "pastel-peach": makeTheme("light", "#ffab91", "#ff8a65", "#fff1e8"),
-  "pastel-vintage": makeTheme("light", "#d7ccc8", "#a1887f", "#f7f0ee"),
-  "pastel-blush": makeTheme("light", "#f8bbd0", "#f48fb1", "#fff0f6"),
+  "cyber-grid": makeTheme("dark", "#00D2F2", "#009BE6", "#001B26"),
+  "cyber-neon": makeTheme("dark", "#F200C9", "#00F28C", "#050007"),
 
-
-  "goth-violet": makeTheme("dark", "#b388ff", "#7c4dff", "#0b0018"),
-  "goth-bloodmoon": makeTheme("dark", "#ef5350", "#b71c1c", "#140000"),
-  "goth-storm": makeTheme("dark", "#90a4ae", "#607d8b", "#0a0f14"),
-
-  "cyber-grid": makeTheme("dark", "#00e5ff", "#00b0ff", "#001219"),
-  "cyber-neon": makeTheme("dark", "#ff00e6", "#00ff95", "#010005"),
-
-
-  "sunset-glow": makeTheme(
-    "light",
-    "#ff7e5f",
-    "#feb47b",
-    "#fff3e8"
-  ),
-
-  "midnight-ocean": makeTheme(
-    "dark",
-    "#4fc3f7",
-    "#0288d1",
-    "#001f33"
-  ),
-
-  "forest-haze": makeTheme(
-    "light",
-    "#81c784",
-    "#4caf50",
-    "#e8f5e9"
-  ),
-
-  "royal-purple": makeTheme(
-    "dark",
-    "#ce93d8",
-    "#ab47bc",
-    "#1a001f"
-  ),
-
-  "deep-space": makeTheme(
-    "dark",
-    "#90caf9",
-    "#536dfe",
-    "#020012"
-  ),
-
-  "rose-blush": makeTheme(
-    "light",
-    "#f48fb1",
-    "#ec407a",
-    "#fff0f5"
-  ),
-
-  "teal-dream": makeTheme(
-    "light",
-    "#4db6ac",
-    "#00897b",
-    "#e0f2f1"
-  ),
-
-  "warm-sands": makeTheme(
-    "light",
-    "#ffcc80",
-    "#ffb74d",
-    "#fff7ec"
-  ),
-
-  "cool-mint": makeTheme(
-    "light",
-    "#80deea",
-    "#26c6da",
-    "#e0f7fa"
-  ),
-
-  "solar-eclipse": makeTheme(
-    "dark",
-    "#ffca28",
-    "#ffa000",
-    "#0a0700"
-  ),
-
-  "candy-pastel": makeTheme(
-    "light",
-    "#ff9ecb",
-    "#ff77a9",
-    "#fff2fa"
-  ),
+  "sunset-glow": makeTheme("light", "#FF7B57", "#FFAE70", "#FFF4E9"),
+  "midnight-ocean": makeTheme("dark", "#4ABAF2", "#0277BD", "#001829"),
+  "forest-haze": makeTheme("light", "#78CC8C", "#43A047", "#E9F6EC"),
+  "royal-purple": makeTheme("dark", "#C88CE0", "#973DB4", "#15001C"),
+  "deep-space": makeTheme("dark", "#8FBDFB", "#495CFF", "#01000D"),
+  "rose-blush": makeTheme("light", "#F5A3BC", "#D85086", "#FFF2F7"),
+  "teal-dream": makeTheme("light", "#47B6AC", "#00796B", "#E3F4F3"),
+  "warm-sands": makeTheme("light", "#FFC273", "#FFA74A", "#FFF8EF"),
+  "cool-mint": makeTheme("light", "#77DCEC", "#20BFD0", "#E4FAFD"),
+  "solar-eclipse": makeTheme("dark", "#FFBD27", "#FF9500", "#090600"),
+  "candy-pastel": makeTheme("light", "#FF98C4", "#FF71A4", "#FFF3FB"),
 };
 
 export default themes;

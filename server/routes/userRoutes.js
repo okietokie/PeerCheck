@@ -25,6 +25,7 @@ router.get("/dashboard-stats", userController.getDashboardStats);
 
 
 router.post("/upload-avatar", upload.avatarUpload.single('avatar'), userController.uploadAvatar);
+
 router.put("/update-profile", userController.updateProfile);
 
 router.get("/get-mentors", getMentors);

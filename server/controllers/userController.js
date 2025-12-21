@@ -5,6 +5,10 @@ import User from "../models/user.js";
 import path from 'path';
 import Task from "../models/tasks.js";
 import Connection from "../models/connection.js";
+import crypto from "crypto";
+import { r2Client, R2_BUCKET_NAME, R2_ACCOUNT_ID } from "../r2Client.js";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+
 
 export const uploadAvatar = async (req, res) => {
   try {
@@ -14,20 +18,30 @@ export const uploadAvatar = async (req, res) => {
         message: "No file uploaded" 
       });
     }
+
+    const userId = req.user.id;
+
+    const user = await User.findById(userId);
     
     // Generate a unique key for R2
     const avatarKey = `avatars/avatar-${req.userId}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${path.extname(req.file.originalname)}`;
 
     // Upload to R2
     await r2Client.send(new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME,
+      Bucket: R2_BUCKET_NAME,
       Key: avatarKey,
       Body: req.file.buffer,
       ContentType: req.file.mimetype
     }));
 
+    if (user.avatarKey) {
+    await r2Client.send(new DeleteObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: user.avatarKey,
+    }));
+  }
 
-    const avatarUrl = `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${process.env.R2_BUCKET_NAME}/${avatarKey}`;
+    const avatarUrl = `https://pub-20b7867f97aa42afaf18d6bc1fc11de7.r2.dev/${R2_BUCKET_NAME}/${avatarKey}`;
 
     // Update user in DB
     const updatedUser = await User.findByIdAndUpdate(
@@ -38,19 +52,8 @@ export const uploadAvatar = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      avatarUrl,
-      user: {
-        name: updatedUser.name,
-        username: updatedUser.username,
-        email: updatedUser.email,
-        bio: updatedUser.bio,
-        institution: updatedUser.institution,
-        course: updatedUser.course,
-        year: updatedUser.year,
-        skills: updatedUser.skills,
-        avatar: updatedUser.avatar
-      },
-      message: "Avatar uploaded successfully"
+      avatarUrl: `${avatarUrl}?v=${Date.now()}`,
+      user: updatedUser
     });
   
 
@@ -125,7 +128,7 @@ export const fetchUserDetails = async (req, res) => {
       .populate('members.user', 'name username avatar email')
       .populate('tasks');
 
-
+    console.log("user:", user)
     res.status(200).json({
       username: req.username,
       user: user,

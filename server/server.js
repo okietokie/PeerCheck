@@ -42,7 +42,6 @@ app.use("/api/user", userRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/home", authRoutes );
-app.use('/uploads/avatars', express.static(path.join(process.cwd(), 'uploads/avatars')));
 app.use("/api/peer-review", peerReviewRoutes);
 app.use("/api/sticky-note", stickyNoteRoutes);
 
