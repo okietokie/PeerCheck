@@ -2565,6 +2565,7 @@ const TaskTableRow = ({
   userTeacher
 }) => {
   const [actionsAnchorEl, setActionsAnchorEl] = useState(null);
+  const navigate = useNavigate();
 
   const getStatusColor = (status) => {
     switch (status) {

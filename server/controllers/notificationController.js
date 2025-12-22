@@ -279,13 +279,26 @@ export const getNotificationStats = async (req, res) => {
 export const notifyTaskAssigned = async (taskId, assignedToId, assignedById) => {
   const task = await Task.findById(taskId).populate('projectId', 'projectName');
   const assigner = await User.findById(assignedById);
-  
+  const assignee = await User.findById(assignedToId);
   if (task && assigner) {
     await createNotification({
       userId: assignedToId,
-      type: 'task_assigned',
-      title: 'New Task Assigned',
+      type: 'task_created',
+      title: 'New Task Created!',
       message: `${assigner.name} assigned you a task: "${task.taskTitle}" in ${task.projectId?.projectName}`,
+      data: {
+        taskId: task._id,
+        projectId: task.projectId?._id,
+        userId: assignedById
+      },
+      priority: 'high',
+      actionUrl: `/tasks/${task._id}`
+    });
+    await createNotification({
+      userId: assignedById,
+      type: 'task_created',
+      title: 'New Task Created!',
+      message: `You assigned a task to ${assignee.name}: "${task.taskTitle}" in ${task.projectId?.projectName}`,
       data: {
         taskId: task._id,
         projectId: task.projectId?._id,

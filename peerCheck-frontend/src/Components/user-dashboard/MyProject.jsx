@@ -50,11 +50,16 @@ import {
   FormControl,
   InputLabel,
   Select,
-  Skeleton
+  Skeleton,
+  Accordion
 } from '@mui/material';
 import {
   Edit,
+
+  People,
+  ExpandMore,
   CheckCircle,
+  Assessment,
   PersonAdd,
   Upload,
   MoreVert,
@@ -90,7 +95,6 @@ import {
   Timer,
   FilterList,
   Sort,
-  Assessment,
   Search,
   Add,
   MoreHoriz,
@@ -142,7 +146,7 @@ const getUserData = () => {
     console.error('Error parsing user data:', err);
     return null;
   }
-};
+}; 
 
 const getAuthToken = () => {
   return localStorage.getItem('token');
@@ -452,8 +456,9 @@ const TaskTableRow = ({
 const MyProject = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
+
+
   const theme = useTheme();
-  const { ref, inView } = useInView({ threshold: 0.5 });
   const [loading, setLoading] = useState(false);
   const [project, setProject] = useState(null);
   const [refresh, setRefresh] = useState(false);
@@ -500,6 +505,8 @@ const MyProject = () => {
   const [isLoadingNotes, setIsLoadingNotes] = useState(null);
   const [showNewNoteDialog, setShowNewNoteDialog] = useState(null);
   const [editingNote, setEditingNote] = useState(null);
+  const [completionStatus, setCompletionStatus] = useState(null);
+
 
   // Task table specific states from Tasks.jsx
   const [selectedTasks, setSelectedTasks] = useState(new Set());
@@ -567,6 +574,71 @@ const handleProofUploadSuccess = () => {
   setProofUploadMessage(true);
 
 };
+
+const fetchCompletionStatus = async () => {
+  console.log("response completion: ");
+  if (!projectId) return;
+  
+  try {
+    const token = getAuthToken();
+    const response = await axiosClient.get(`/peer-review/completion/${projectId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    console.log("response completion: ", response.data);
+    if (response.data?.success) {
+      setCompletionStatus(response.data.data);
+    }
+  } catch (error) {
+    console.error('Error fetching completion status:', error);
+  }
+};
+
+useEffect(() => {
+  const fetchPeerReviewsData = async () => {
+    if (!projectId) return;
+    
+    try {
+      const token = getAuthToken();
+      
+      // 1. Get all peer reviews for the project
+      const reviewsResponse = await axiosClient.get(`/peer-review/project/${projectId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (reviewsResponse.data?.success) {
+        setPeerReviews(reviewsResponse.data.data || reviewsResponse.data.reviews || []);
+      }
+      
+      // 2. Get aggregated scores
+      const aggregatedResponse = await axiosClient.get(`/peer-review/aggregated/${projectId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (aggregatedResponse.data?.success) {
+        setAggregatedScores(aggregatedResponse.data.data);
+      }
+      
+      // 3. Get user's personal score
+      const userScoreResponse = await axiosClient.get(`/peer-review/my-score/${projectId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (userScoreResponse.data?.success) {
+        setUserPeerScore(userScoreResponse.data.data);
+      }
+      
+      // 4. Get completion status
+      await fetchCompletionStatus();
+      
+    } catch (error) {
+      console.error('Error fetching peer review data:', error);
+    }
+  };
+  
+  if (activeTab === 6) {
+    fetchPeerReviewsData();
+  }
+}, [projectId, user, activeTab, refresh]);
 
 // Add function to handle submitting a review
 const handleSubmitReview = async () => {
@@ -1188,11 +1260,6 @@ const togglePinNote = async (noteId) => {
       setUser(response.data?.user);
 
 
-      if (members){
-
-        const count = members.filter(member => member?.onlineStatus === "active");
-        setActiveMemberCount(count.length);
-      }
     } catch (err) {
       console.error('Error fetching user data:', err);
       showSnackbar('Error fetching user data', 'error');
@@ -1274,7 +1341,16 @@ const togglePinNote = async (noteId) => {
 
       setProject(projectData);
       setMembers(fetchedData.teamId?.members || []);
+      console.log("teammebers: ", fetchedData.teamId?.members)
 
+      
+      if (fetchedData.teamId?.members){
+        const count = fetchedData.teamId?.members.filter(member => {
+          return member?.onlineStatus === "active";
+        });
+
+        setActiveMemberCount(count.length);
+      }
       showSnackbar('Project data loaded successfully', 'success');
     } catch (error) {
       console.error('Error fetching project details:', error);
@@ -1282,6 +1358,7 @@ const togglePinNote = async (noteId) => {
     } finally {
       setLoading(false);
       setRefresh(false);
+
     }
   };
 
@@ -1394,7 +1471,7 @@ const togglePinNote = async (noteId) => {
         
         const teamsData = response.data?.teams || [];
         setTeams(Array.isArray(teamsData) ? teamsData : []);
-        
+
 
       } catch (err) {
         console.error('Error fetching teams:', err);
@@ -1745,7 +1822,11 @@ const togglePinNote = async (noteId) => {
   }
 
   const allSelected = tasks.length > 0 && selectedTasks.size === tasks.length;
-
+if(!projectId){
+  return(
+    <LinearProgress> Nothing to see here?  1. Go to Projects Tab 2. Double Click on a project! 3. That opens here!</LinearProgress>
+  )
+}
   return (
     <>
       <Snackbar
@@ -1901,6 +1982,7 @@ const togglePinNote = async (noteId) => {
                   <Box sx={{ flex: 1, minWidth: '300px' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                       <Avatar
+
                         sx={{
                           width: 60,
                           height: 60,
@@ -2111,7 +2193,9 @@ const togglePinNote = async (noteId) => {
                 {/* Leadership Team */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Avatar sx={{ 
+                    <Avatar
+                    src={project?.createdBy?.avatar}                  
+                    sx={{ 
                       width: 48, 
                       height: 48, 
                       background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${alpha(theme.palette.primary.main, 0.8)})`,
@@ -2135,7 +2219,10 @@ const togglePinNote = async (noteId) => {
                     </Box>
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Avatar sx={{ 
+                    <Avatar 
+                    src={project?.mentor?.avatar}                  
+
+                    sx={{ 
                       width: 48, 
                       height: 48, 
                       background: `linear-gradient(135deg, ${theme.palette.secondary.main}, ${alpha(theme.palette.secondary.main, 0.8)})`,
@@ -2852,6 +2939,7 @@ const togglePinNote = async (noteId) => {
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
                 <Box sx={{ position: 'relative' }}>
                   <Avatar 
+                   src={member.avatar}
                     sx={{ 
                       width: 56, 
                       height: 56,
@@ -3136,6 +3224,7 @@ const togglePinNote = async (noteId) => {
                                 }}
                               >
                                 <Avatar
+                                src={log.user?.avatar}
                                   sx={{
                                     background: `linear-gradient(135deg, ${getThemeColor('primary')}, ${alpha(getThemeColor('primary'), 0.8)})`,
                                     color: getContrastColor(getThemeColor('primary')),
@@ -3520,42 +3609,6 @@ const togglePinNote = async (noteId) => {
         <RateReview /> Peer Reviews
       </Typography>
       
-      {/* Lock/Unlock button for teachers */}
-      {(userTeacher || user?.role === 'teacher') && (
-        <Button
-          variant="outlined"
-          startIcon={project?.peerReviewLocked ? <LockOpen /> : <Lock />}
-          onClick={async () => {
-            try {
-              const token = getAuthToken();
-              const response = await axiosClient.patch(
-                `/peer-review/lock/${projectId}`,
-                { lock: !project?.peerReviewLocked },
-                { headers: { Authorization: `Bearer ${token}` } }
-              );
-              
-              if (response.data?.success) {
-                showSnackbar(
-                  project?.peerReviewLocked 
-                    ? 'Peer reviews unlocked' 
-                    : 'Peer reviews locked',
-                  'success'
-                );
-                setRefresh(true);
-              }
-            } catch (error) {
-              showSnackbar('Error updating lock status', 'error');
-            }
-          }}
-          sx={{ 
-            borderRadius: 2,
-            px: 3,
-            py: 1,
-          }}
-        >
-          {project?.peerReviewLocked ? 'Unlock Reviews' : 'Lock Reviews'}
-        </Button>
-      )}
     </Box>
 
     {/* Lock Warning */}
@@ -3572,7 +3625,226 @@ const togglePinNote = async (noteId) => {
         Peer reviews are currently locked. No new reviews can be submitted.
       </Alert>
     )}
-
+{completionStatus && (
+  <motion.div
+    initial={{ opacity: 0, y: -20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.3 }}
+  >
+    <Paper
+      sx={{
+        p: 3,
+        mb: 3,
+        borderRadius: 3,
+        backgroundColor: completionStatus.isCompleted 
+          ? alpha(theme.palette.success.main, 0.1)
+          : alpha(theme.palette.info.main, 0.1),
+        border: `2px solid ${completionStatus.isCompleted 
+          ? alpha(theme.palette.success.main, 0.3)
+          : alpha(theme.palette.info.main, 0.3)}`,
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      <Box sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 2
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {completionStatus.isCompleted ? (
+            <>
+              <CheckCircle sx={{ 
+                fontSize: 40,
+                color: theme.palette.success.main 
+              }} />
+              <Box>
+                <Typography variant="h6" sx={{ 
+                  fontWeight: 600,
+                  color: theme.palette.success.main,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}>
+                  Peer Reviews Complete!
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  All team members have submitted their reviews
+                </Typography>
+              </Box>
+            </>
+          ) : (
+            <>
+              <Assessment sx={{ 
+                fontSize: 40,
+                color: theme.palette.info.main 
+              }} />
+              <Box>
+                <Typography variant="h6" sx={{ 
+                  fontWeight: 600,
+                  color: theme.palette.info.main,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}>
+                  Peer Review Progress: {completionStatus.completionPercentage}%
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {completionStatus.stats.completedReviews} of {completionStatus.stats.totalPossibleReviews} reviews submitted
+                </Typography>
+              </Box>
+            </>
+          )}
+        </Box>
+        
+        {/* Progress Bar */}
+        <Box sx={{ flex: 1, maxWidth: 300 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            mb: 1 
+          }}>
+            <Typography variant="caption" color="text.secondary">
+              Progress
+            </Typography>
+            <Typography variant="caption" fontWeight="600">
+              {completionStatus.completionPercentage}%
+            </Typography>
+          </Box>
+          <LinearProgress 
+            variant="determinate" 
+            value={completionStatus.completionPercentage}
+            sx={{
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: alpha(theme.palette.background.paper, 0.3),
+              '& .MuiLinearProgress-bar': {
+                backgroundColor: completionStatus.isCompleted 
+                  ? theme.palette.success.main
+                  : theme.palette.info.main,
+                borderRadius: 4,
+              }
+            }}
+          />
+        </Box>
+      </Box>
+      
+      {/* Member Progress Breakdown  */}
+      <Box sx={{ mt: 2, pt: 2, borderTop: `1px solid ${alpha(theme.palette.divider, 0.2)}` }}>
+        <Accordion 
+          elevation={0}
+          sx={{
+            backgroundColor: 'transparent',
+            '&:before': { display: 'none' },
+          }}
+        >
+          <AccordionSummary 
+            expandIcon={<ExpandMore />}
+            sx={{
+              minHeight: 'auto',
+              p: 0,
+              '& .MuiAccordionSummary-content': {
+                m: 0,
+              }
+            }}
+          >
+            <Typography variant="body2" sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 1,
+              color: theme.palette.text.secondary
+            }}>
+              <People /> View individual progress ({completionStatus.stats.totalMembers} members)
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails sx={{ p: 0, pt: 1 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: 1 
+            }}>
+              {completionStatus.memberCompletion.map((member, index) => (
+                <Box 
+                  key={member.userId}
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    p: 1.5,
+                    borderRadius: 2,
+                    backgroundColor: member.isComplete 
+                      ? alpha(theme.palette.success.main, 0.05)
+                      : alpha(theme.palette.background.paper, 0.3),
+                    border: `1px solid ${member.isComplete 
+                      ? alpha(theme.palette.success.main, 0.1)
+                      : alpha(theme.palette.divider, 0.2)}`,
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Avatar 
+                    src={member?.avatar}
+                    sx={{ 
+                      width: 32, 
+                      height: 32,
+                      fontSize: 14,
+                      backgroundColor: member.isComplete 
+                        ? alpha(theme.palette.success.main, 0.1)
+                        : alpha(theme.palette.primary.main, 0.1),
+                      color: member.isComplete 
+                        ? theme.palette.success.main
+                        : theme.palette.primary.main,
+                    }}>
+                      {member?.avatar || member.name.charAt(0).toUpperCase()}
+                    </Avatar>
+                    <Box>
+                      <Typography variant="body2" fontWeight="500">
+                        {member.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {member.userId === user?.id ? '(You)' : ''}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {member.isComplete ? (
+                      <Chip
+                        label="Complete"
+                        size="small"
+                        icon={<CheckCircle fontSize="small" />}
+                        sx={{
+                          backgroundColor: alpha(theme.palette.success.main, 0.1),
+                          color: theme.palette.success.main,
+                          fontWeight: 600,
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <Typography variant="caption" color="text.secondary">
+                          {member.reviewsCompleted}/{member.reviewsNeeded} reviews
+                        </Typography>
+                        <CircularProgress 
+                          size={20}
+                          variant="determinate" 
+                          value={(member.reviewsCompleted / member.reviewsNeeded) * 100}
+                          sx={{
+                            color: theme.palette.warning.main,
+                          }}
+                        />
+                      </>
+                    )}
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          </AccordionDetails>
+        </Accordion>
+      </Box>
+    </Paper>
+  </motion.div>
+)}
     {/* User's Personal Score Card */}
     {userPeerScore && (
       <motion.div
@@ -3787,6 +4059,7 @@ const togglePinNote = async (noteId) => {
               
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                 <Avatar 
+                  src={member.avatar}
                   sx={{ 
                     width: 56, 
                     height: 56,

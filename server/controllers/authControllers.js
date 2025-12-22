@@ -71,6 +71,7 @@ export const loginUser = async (req, res) => {
 
 
 
+
     await userData.create({email, ipAddress})
 
     //save into login_logs

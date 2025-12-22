@@ -33,6 +33,7 @@ import Profile from "./Components/user-dashboard/Profile.jsx";
 import Dashboard from "./Components/user-dashboard/Dashboard.jsx";
 import { useInView } from "react-intersection-observer";
 import NotificationsPage from "./Components/user-dashboard/NotificationsPage.jsx";
+import MyProjectNull from "./Components/user-dashboard/MyProjectNull.jsx";
 
 // Extract theme names dynamically
 const themeNames = Object.keys(themes);
@@ -133,6 +134,7 @@ export default function App() {
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="tasks" element={<Tasks />} />
                 <Route path="projects" element={<Projects />} />
+                <Route path="my-project" element={<MyProjectNull />} />
                 <Route path="my-project/:projectId" element={<MyProject />} />
                 <Route path="peerteams" element={<PeerTeams />} />
                 <Route path="notifications" element={<NotificationsPage />} />

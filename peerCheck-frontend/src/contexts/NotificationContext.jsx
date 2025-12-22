@@ -38,7 +38,7 @@ export const NotificationProvider = ({ children }) => {
     }
   }, []);
 
-  // Add a local notification (for immediate UI feedback)
+  // a local notification (for immediate UI feedback)
   const addNotification = useCallback((notification) => {
     setNotifications(prev => [notification, ...prev.slice(0, 19)]);
     if (!notification.read) {
@@ -56,7 +56,7 @@ export const NotificationProvider = ({ children }) => {
         return;
       }
       const token = localStorage.getItem("token");
-      // For real notifications from backend, call API
+
       await axiosClient.put(`/user/notifications/${notificationId}/read`,{
         headers :{
           Authorization: `Bearer ${token}`

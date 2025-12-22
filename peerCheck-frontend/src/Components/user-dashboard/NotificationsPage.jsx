@@ -122,7 +122,7 @@ const NotificationsPage = () => {
 
   const markAsRead = async (notificationId) => {
     try {
-      await axiosClient.put(`/api/user/notifications/${notificationId}/read`);
+      await axiosClient.put(`/user/notifications/${notificationId}/read`);
       setNotifications(prev => 
         prev.map(notif => 
           notif._id === notificationId ? { ...notif, read: true } : notif
@@ -136,7 +136,7 @@ const NotificationsPage = () => {
 
   const markAllAsRead = async () => {
     try {
-      await axiosClient.put('/api/user/notifications/read-all');
+      await axiosClient.put('/user/notifications/read-all');
       setNotifications(prev => prev.map(notif => ({ ...notif, read: true })));
       setUnreadCount(0);
     } catch (error) {
@@ -146,7 +146,7 @@ const NotificationsPage = () => {
 
   const deleteNotification = async (notificationId) => {
     try {
-      await axiosClient.delete(`/api/user/notifications/${notificationId}`);
+      await axiosClient.delete(`/user/notifications/${notificationId}`);
       const notification = notifications.find(n => n._id === notificationId);
       if (notification && !notification.read) {
         setUnreadCount(prev => Math.max(0, prev - 1));
@@ -159,7 +159,7 @@ const NotificationsPage = () => {
 
   const clearAllNotifications = async () => {
     try {
-      await axiosClient.delete('/api/user/notifications/clear-all');
+      await axiosClient.delete('/user/notifications/clear-all');
       setNotifications([]);
       setUnreadCount(0);
     } catch (error) {

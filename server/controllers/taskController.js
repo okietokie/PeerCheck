@@ -10,8 +10,10 @@ import Team from '../models/peergroup_log.js';
 import editDataInfo from '../models/editDataInfo.js';
 import MentorProjectAssignment from '../models/mentorProjectAssignment.js';
 import { r2Client, R2_BUCKET_NAME } from "../r2Client.js"; // your configured R2 client
+import cron from 'node-cron';
 import path from "path";
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { createNotification, notifyProofUploaded, notifyTaskAssigned, notifyTaskComment, notifyTaskCompleted, notifyTaskDeadline } from './notificationController.js';
 
 //individual task risk score
 /**
@@ -777,6 +779,8 @@ export const createTask = async (req, res) => {
 
     await task.save();
 
+    await notifyTaskAssigned(task._id, assignedTo, userId);
+
     // Get populated task
     const populatedTask = await Task.findById(task._id)
       .populate('assignedTo', 'name email avatar')
@@ -827,6 +831,18 @@ export const startTask = async (req, res) => {
     task.status = "active";
     task.lastEventTime = new Date();  //js Date object, represents the current date and time ("time right now in ISo format")
     await task.save();
+    await createNotification({
+      userId: task.assignedBy,
+      type: 'task_status_changed',
+      title: 'Task Status Updated',
+      message: `Task "${task.taskTitle}" started!`,
+      data: {
+        taskId: task._id,
+        projectId: task.projectId,
+        status: task.status
+      },
+      priority: 'medium'
+    });
     
     // Log activity
     await logActivity({
@@ -883,6 +899,18 @@ export const pauseTask = async (req, res) => {
     task.lastEventTime = now;
     
     await task.save();
+    await createNotification({
+      userId: task.assignedBy,
+      type: 'task_status_changed',
+      title: 'Task Status Updated',
+      message: `Task "${task.taskTitle}" paused!`,
+      data: {
+        taskId: task._id,
+        projectId: task.projectId,
+        status: task.status
+      },
+      priority: 'medium'
+    });
     
     // Log activity
     await logActivity({
@@ -911,6 +939,8 @@ export const pauseTask = async (req, res) => {
 export const resumeTask = async (req, res) => {
   const { taskId } = req.params;
   const userId = req.user.id;
+
+  
   
   try {
     const task = await Task.findById(taskId);
@@ -927,6 +957,19 @@ export const resumeTask = async (req, res) => {
     task.status = "active";
     task.lastEventTime = new Date();
     await task.save();
+    await createNotification({
+      userId: task.assignedBy,
+      type: 'task_status_changed',
+      title: 'Task Status Updated',
+      message: `Resuming task "${task.taskTitle}" `,
+      data: {
+        taskId: task._id,
+        projectId: task.projectId,
+        status: task.status
+      },
+      priority: 'medium'
+    });
+    
     
     // Log activity
     await logActivity({
@@ -982,6 +1025,9 @@ export const completeTask = async (req, res) => {
         newStatus: 'completed'
       }
     });
+
+    await notifyTaskCompleted(task._id, userId);
+
     
     res.json({ 
       success: true, 
@@ -1034,7 +1080,20 @@ export const deleteTask = async (req, res) => {
       assignedTo: task.assignedTo
     });
 
-
+    if (task.assignedTo) {
+      await createNotification({
+        userId: task.assignedTo,
+        type: 'task_deleted',
+        title: 'Task Deleted',
+        message: `Task "${task.taskTitle}" has been deleted`,
+        data: {
+          taskId: task._id,
+          projectId: task.projectId,
+          taskTitle: task.taskTitle
+        },
+        priority: 'high'
+      });
+    }
     // Delete the task
     await Task.findByIdAndDelete(taskId);
     
@@ -1410,7 +1469,20 @@ export const updateTaskDeadline = async (req, res) => {
 
     task.deadline = newDeadline;
     await task.save();
-
+    await createNotification({
+      userId: task.assignedTo,
+      type: 'deadline_updated',
+      title: 'Task Deadline Updated',
+      message: `Deadline for task "${task.taskTitle}" has been updated`,
+      data: {
+        taskId: task._id,
+        projectId: task.projectId,
+        oldDeadline: oldDeadline,
+        newDeadline: newDeadline
+      },
+      priority: 'high',
+      actionUrl: `/tasks/${task._id}`
+    });
     // Log activity
     await logActivity({
       taskId,
@@ -1515,6 +1587,20 @@ export const updateTaskGrading = async (req, res) => {
     }
 
     await task.save();
+    await createNotification({
+      userId: task.assignedTo,
+      type: 'grade_updated',
+      title: 'Task Graded',
+      message: `Task "${task.taskTitle}" has been graded with ${numericScore}/10`,
+      data: {
+        taskId: task._id,
+        projectId: task.projectId,
+        score: numericScore,
+        graderType: overrideType
+      },
+      priority: 'medium',
+      actionUrl: `/tasks/${task._id}`
+    });
 
     // Log activity
     await logActivity({
@@ -1595,6 +1681,9 @@ export const addTaskComment = async (req, res) => {
       }
     });
 
+    if (task.assignedTo.toString() !== userId.toString()) {
+      await notifyTaskComment(taskId, userId, comment.trim());
+    }
     res.json({
       success: true,
       message: "Comment added successfully",
@@ -1818,6 +1907,75 @@ export const updateTaskStatus = async (req, res) => {
       }
       await project.save();
     }
+
+    const statusMessages = {
+      'not_started': 'not started',
+      'active': 'started',
+      'paused': 'paused',
+      'completed': 'completed'
+    };
+
+    const statusActionMessages = {
+      'not_started': 'is ready to start',
+      'active': 'has been started',
+      'paused': 'has been paused',
+      'completed': 'has been completed'
+    };
+
+    const notificationPriority = {
+      'completed': 'high',
+      'active': 'medium',
+      'paused': 'low',
+      'not_started': 'low'
+    };
+
+    // Determine who should receive notifications
+    const notificationRecipients = [];
+
+    // Always notify the task assignee about their own action (confirmation)
+    if (task.assignedTo && task.assignedTo._id.toString() === userId) {
+      // User is updating their own task - get confirmation notification
+      await createNotification({
+        userId: task.assignedTo._id,
+        type: 'task_status_changed',
+        title: `Task ${statusMessages[status]}`,
+        message: `You ${statusMessages[status]} task: "${task.taskTitle}"`,
+        data: {
+          taskId: task._id,
+          projectId: task.projectId,
+          oldStatus,
+          newStatus: status,
+          performedBy: userId
+        },
+        priority: notificationPriority[status],
+        actionUrl: `/tasks/${task._id}`
+      });
+    }
+
+    // Notify task creator/assigner if different from current user
+    if (task.assignedBy && 
+        task.assignedBy._id.toString() !== userId &&
+        task.assignedBy._id.toString() !== task.assignedTo?._id?.toString()) {
+      
+      const performerName = req.user.name || 'A user';
+      
+      await createNotification({
+        userId: task.assignedBy._id,
+        type: 'task_status_changed',
+        title: 'Task Status Updated',
+        message: `${performerName} ${statusMessages[status]} task: "${task.taskTitle}"`,
+        data: {
+          taskId: task._id,
+          projectId: task.projectId,
+          oldStatus,
+          newStatus: status,
+          performedBy: userId,
+          performerName: performerName
+        },
+        priority: status === 'completed' ? 'high' : 'medium',
+        actionUrl: `/tasks/${task._id}`
+      });
+    }
     // Log activity with status_changed event type
     await logActivity({
       taskId,
@@ -1846,6 +2004,10 @@ export const updateTaskStatus = async (req, res) => {
     const updatedTask = await Task.findById(taskId)
       .populate('assignedTo', 'name email avatar')
       .populate('projectId', 'projectName');
+
+    if (status === 'completed') {
+      await notifyTaskCompleted(taskId, userId);
+    }
 
     res.json({
       success: true,
@@ -1910,6 +2072,36 @@ export const updateTaskTime = async (req, res) => {
 
 
 
+export const scheduleTaskDeadlineReminders = () => {
+  // Run every day at 9 AM
+  cron.schedule('0 9 * * *', async () => {
+    try {
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      // Find tasks due in next 24 hours that aren't completed
+      const upcomingTasks = await Task.find({
+        deadline: {
+          $gte: now,
+          $lte: tomorrow
+        },
+        status: { $ne: 'completed' },
+        'assignedTo': { $ne: null }
+      }).populate('assignedTo');
+      
+      for (const task of upcomingTasks) {
+        await notifyTaskDeadline(task._id);
+      }
+      
+      console.log(`Sent ${upcomingTasks.length} deadline reminders`);
+    } catch (error) {
+      console.error('Error sending deadline reminders:', error);
+    }
+  });
+};
+
+
 
 
 // Upload proof to R2
@@ -1957,6 +2149,7 @@ export const uploadProof = async (req, res) => {
       eventType: 'proof_uploaded',
       metadata: { filename: file.originalname, description, fileSize: file.size }
     });
+    await notifyProofUploaded(taskId, userId);
 
     res.json({
       success: true,

@@ -7,7 +7,8 @@ import {
   applyPeerScoreToGrading,
   getPeerScoreForUser,
   getAggregatedScores,
-  canSubmitReview
+  canSubmitReview,
+  checkPeerReviewCompletion
 } from '../controllers/peerReviewController.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 
@@ -24,5 +25,8 @@ router.get('/project/:projectId', getPeerReviewsForProject);
 router.get('/aggregated/:projectId', getAggregatedScores);
 router.patch('/lock/:projectId', lockPeerReviews);
 router.post('/calculate-grades/:projectId', applyPeerScoreToGrading);
+
+router.get('/completion/:projectId', checkPeerReviewCompletion);
+
 
 export default router;

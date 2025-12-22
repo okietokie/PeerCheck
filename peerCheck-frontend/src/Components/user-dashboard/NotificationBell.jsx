@@ -86,8 +86,8 @@ const NotificationBell = () => {
       markAsRead(notification._id);
     }
     
-    if (notification.actionUrl) {
-      navigate(notification.actionUrl);
+    if (notification) {
+      navigate("/user-app/notifications");
     }
     
     setAnchorEl(null);
@@ -341,7 +341,7 @@ const NotificationBell = () => {
               <Divider sx={{ my: 2 }} />
               <Button
                 fullWidth
-                onClick={() => navigate('/notifications')}
+                onClick={() => navigate('/user-app/notifications')}
                 sx={{
                   textTransform: 'none',
                   fontWeight: 500,

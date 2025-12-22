@@ -46,7 +46,6 @@ export default function UserApp() {
   const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
   
   const [selectedTab, setSelectedTab] = useState(0);
-  const [selectedProject, setSelectedProject] = useState(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [bottomNavValue, setBottomNavValue] = useState(0);
 
@@ -61,14 +60,7 @@ export default function UserApp() {
     '/user-app/profile': 5,
   };
 
-  const handleSendRequest = async (userId) => {
-  try {
-    await axiosClient.post('/api/user/send-request', { targetUserId: userId });
-    // The notification will be automatically created by the backend
-  } catch (error) {
-    console.error('Error sending request:', error);
-  }
-};
+
 
   // Navigation items
   const navItems = [
@@ -78,13 +70,12 @@ export default function UserApp() {
     { label: 'My Project', icon: <VisibilityOutlined />, path: '/user-app/my-project' },
     { label: 'PeerTeams', icon: <TeamsIcon />, path: '/user-app/peerteams' },
     { label: 'Profile', icon: <ProfileIcon />, path: '/user-app/profile' },
-    { label : 'Notification', icon: <NotificationBell />, path: '/user-app/notifications'}
   ];
 
   // Set initial tab value based on current route
   useEffect(() => {
     const currentPath = location.pathname;
-    const tabValue = pathToValue[currentPath] || 0;
+    const tabValue = pathToValue[currentPath];
     if (currentPath.startsWith('/user-app/my-project/')) {
       setSelectedTab(3);
       setBottomNavValue(3);
@@ -182,9 +173,7 @@ export default function UserApp() {
       </List>
 
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <NotificationBell />
-        
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>        
         <IconButton 
           onClick={handleLogout}
           sx={{
@@ -208,9 +197,9 @@ export default function UserApp() {
       display: 'flex', 
       flexDirection: 'column',
       minHeight: '100vh',
-      pb: isMobile ? 7 : 0 // Add padding for bottom navigation on mobile
+      pb: isMobile ? 7 : 0
     }}>
-      {/* Desktop Navigation */}
+      {/* Desktop Navigation - UPDATED */}
       {!isMobile ? (
         <Box sx={{ 
           width: '100%', 
@@ -219,64 +208,75 @@ export default function UserApp() {
           borderColor: 'divider',
           boxShadow: 1,
         }}>
-          <Tabs
-            value={selectedTab}
-            onChange={handleTabChange}
-            scrollButtons="auto"
-            aria-label="main navigation tabs"
-            sx={{
-              minHeight: 64,
-              '& .MuiTab-root': {
-                minHeight: 64,
-                fontSize: { xs: '0.75rem', sm: '0.85rem', md: '0.9rem' },
-                fontWeight: 500,
-                textTransform: 'none',
-                px: { xs: 1, sm: 1.5, md: 2 },
-              },
-              '& .Mui-selected': {
-                color: 'primary.main',
-                fontWeight: 600,
-              },
-              '& .MuiTabs-indicator': {
-                backgroundColor: 'primary.main',
-                height: 3,
-              },
-            }}
-            centered
-          >
-            {navItems.map((item) => (
-              <Tab 
-                key={item.label}
-                icon={item.icon}
-                iconPosition="start"
-                label={item.label}
+          <Container maxWidth="lg">
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              height: 64
+            }}>
+              {/* Navigation Tabs */}
+              <Tabs
+                value={selectedTab}
+                onChange={handleTabChange}
+                aria-label="main navigation tabs"
                 sx={{
-                  minWidth: { xs: 'auto', sm: '120px' },
+                  minHeight: 64,
+                  '& .MuiTab-root': {
+                    minHeight: 64,
+                    fontSize: '0.9rem',
+                    fontWeight: 500,
+                    textTransform: 'none',
+                    px: 2,
+                  },
+                  '& .Mui-selected': {
+                    color: 'primary.main',
+                    fontWeight: 600,
+                  },
+                  '& .MuiTabs-indicator': {
+                    backgroundColor: 'primary.main',
+                    height: 3,
+                  },
                 }}
-              />
-            ))}
-            
-            {/* Logout as separate button - not in tabs */}
-            <Tab 
-              icon={<LogoutIcon />}
-              iconPosition="start"
-              label="Logout" 
-              onClick={handleLogout}
-              sx={{
-                '&.MuiTab-root': {
-                  color: 'error.main',
-                  minWidth: { xs: 'auto', sm: '120px' },
-                  '&:hover': {
-                    color: 'error.dark',
-                    backgroundColor: 'rgba(211, 47, 47, 0.04)',
-                  }
-                }
-              }}
-            />
-          </Tabs>
+              >
+                {navItems.map((item) => (
+                  <Tab 
+                    key={item.label}
+                    icon={item.icon}
+                    iconPosition="start"
+                    label={item.label}
+                    sx={{
+                      minWidth: '120px',
+                    }}
+                  />
+                ))}
+              </Tabs>
+              
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                {/* Notification Bell */}
+                <NotificationBell />
+                
+                {/* Logout Button */}
+                <Tooltip title="Logout">
+                  <IconButton 
+                    onClick={handleLogout}
+                    sx={{
+                      color: 'error.main',
+                      '&:hover': {
+                        color: 'error.dark',
+                        backgroundColor: 'rgba(211, 47, 47, 0.04)',
+                      }
+                    }} 
+                  >
+                    <LogoutIcon />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Box>
+          </Container>
         </Box>
       ) : (
-        /* Mobile Top Bar */
+        /* Mobile Top Bar - UPDATED */
         <>
           <AppBar 
             position="fixed" 
@@ -301,25 +301,10 @@ export default function UserApp() {
                 {navItems[selectedTab]?.label || 'Dashboard'}
               </Typography>
               
-              {/* ADD NOTIFICATION BELL HERE */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <NotificationBell />
-                
-                <IconButton 
-                  color="inherit" 
-                  onClick={handleLogout}
-                  sx={{ 
-                    color: 'error.light',
-                    '&:hover': {
-                      color: 'error.main',
-                    }
-                  }}
-                >
-                  <LogoutIcon />
-                </IconButton>
               </Box>
             </Toolbar>
-            
           </AppBar>
           
           {/* Mobile Drawer */}
@@ -329,7 +314,7 @@ export default function UserApp() {
             open={mobileOpen}
             onClose={handleDrawerToggle}
             ModalProps={{
-              keepMounted: true, // Better mobile performance
+              keepMounted: true,
             }}
             sx={{
               display: { xs: 'block', md: 'none' },
@@ -345,7 +330,7 @@ export default function UserApp() {
           {/* Spacer for AppBar */}
           <Toolbar />
           
-          {/* Mobile Bottom Navigation */}
+          {/* Mobile Bottom Navigation - UPDATED */}
           <Paper 
             sx={{ 
               position: 'fixed', 

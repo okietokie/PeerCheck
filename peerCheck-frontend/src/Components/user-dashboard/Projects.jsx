@@ -36,7 +36,8 @@ import {
   Divider,
   FormControlLabel,
   Checkbox as MuiCheckbox,
-  Card
+  Card,
+  Snackbar
 } from '@mui/material';
 import {
   Search,
@@ -129,8 +130,8 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState([]);
   const [mentors, setMentors] = useState([]);
+  const {addNotification} = useNotifications();
 
-  const { addNotification } = useNotifications();
   useEffect(() => {
     const fetchMentorData = async () => {
       try {
@@ -1351,10 +1352,10 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
           }
         });
       }
-            if (response.data) {
+      if (response.data) {
         addNotification({
           _id: `temp_${Date.now()}`,
-          type: 'task_assigned',
+          type: 'task_created',
           title: mode === 'edit' ? 'Task Updated' : 'Task Created',
           message: mode === 'edit' 
             ? `Task "${formData.taskTitle}" updated successfully`
@@ -2385,6 +2386,8 @@ const ReviewProjectModal = ({ open, onClose, project, theme }) => {
         memberEvaluations: reviewData.memberEvaluations
       };
 
+      
+
       // Simulate submission
       await new Promise(resolve => setTimeout(resolve, 1000));
       
@@ -2400,7 +2403,7 @@ const ReviewProjectModal = ({ open, onClose, project, theme }) => {
   return (
     <Dialog open={open} onClose={!loading ? onClose : undefined} maxWidth="md" fullWidth>
       <DialogTitle>
-        <Box display="flex" justifyContent="space-between" alignItems="center">
+        <Box display="flex" justifyContent="space-between" alignItems="center" color={theme.palette.primary.main}>
           <Typography variant="h6">Review Project</Typography>
           <IconButton onClick={onClose} disabled={loading} size="small">
             <Close />
@@ -2569,6 +2572,10 @@ const TeamMembersPopover = ({ anchorEl, open, onClose, teamMembers, theme, proje
   open={open}
   anchorEl={anchorEl}
   onClose={onClose}
+  disableRestoreFocus  
+  disableAutoFocus
+  sx={{ pointerEvents: "none" }}
+
   anchorOrigin={{
     vertical: 'bottom',
     horizontal: 'left',
@@ -2885,7 +2892,10 @@ const ProjectTableRow = ({
   }, [project]);
   return (
 <>
-    <Tooltip title='Double click on a project to view it in My Projects tab'>
+  <Snackbar>
+    Hack: Double click on a project to view more details!
+  </Snackbar>
+
   <TableRow
     key={project._id}
     onDoubleClick={() => navigate(`/user-app/my-project/${project._id}`)}
@@ -2917,8 +2927,9 @@ const ProjectTableRow = ({
       }
     }}
   >
-    <TableCell padding="checkbox">
-      <Checkbox
+    <TableCell padding="checkbox" >
+    {project?.createdBy._id === userId &&
+    (<Checkbox
         checked={isSelected}
         onChange={(e) => onSelect(project._id, e.target.checked)}
         sx={{
@@ -2930,7 +2941,7 @@ const ProjectTableRow = ({
             backgroundColor: alpha(theme.palette.primary.main, 0.1),
           }
         }}
-      />
+      />)}
     </TableCell>
 
     <TableCell>
@@ -3012,11 +3023,11 @@ const ProjectTableRow = ({
 
         <Box
             onMouseEnter={(e) => setDueAnchorEl(e.currentTarget)}
-            onMouseLeave={() => setTimeout(() => setDueAnchorEl(null), 5000)}
+            onMouseLeave={() => setDueAnchorEl(false)}
             sx={{ display: 'inline-block' }}
           >
                   
-        <Tooltip title="Timeline" arrow >
+        <Tooltip>
           <IconButton 
             size="small"
             className="action-button"
@@ -3063,13 +3074,13 @@ const ProjectTableRow = ({
     </TableCell>
 
     <TableCell>
-      <Tooltip title="View Team Details" arrow>
+      <Tooltip>
         <Box
           display="flex"
           alignItems="center"
           gap={1}
           onMouseEnter={(e) => setTeamAnchorEl(e.currentTarget)}
-          onMouseLeave={() => setTimeout(() => setTeamAnchorEl(null), 8000)}
+          onMouseLeave = {() => setTeamAnchorEl(false)}
           sx={{ 
             cursor: 'pointer',
             p: 1,
@@ -3148,13 +3159,13 @@ const ProjectTableRow = ({
     </TableCell>
 
     <TableCell>
-      <Tooltip title="View All Tags" arrow>
+      <Tooltip>
         <Box
           display="flex"
           alignItems="center"
           gap={1}
           onMouseEnter={(e) => setTagsAnchorEl(e.currentTarget)}
-          onMouseLeave={() => setTimeout(() => setTagsAnchorEl(null), 1000)}
+          onMouseLeave={() => setTagsAnchorEl(false)}
           sx={{ 
             cursor: 'pointer',
             p: 1,
@@ -3193,7 +3204,7 @@ const ProjectTableRow = ({
               textOverflow: 'ellipsis',
             }}
           >
-            {project.tags?.slice(0, 2).map(tag => `#${tag}`).join(', ')}
+            {project.tags?.slice(0, 2).map(tag => `${tag}`).join(', ')}
             {project.tags && project.tags.length > 2 && '...'}
             {(!project.tags || project.tags.length === 0) && 'No tags'}
           </Typography>
@@ -3284,7 +3295,7 @@ const ProjectTableRow = ({
       </Box>
     </TableCell>
   </TableRow>
-    </Tooltip>
+    
 
   {/* Team Members Popover */}
   <TeamMembersPopover
@@ -3300,6 +3311,10 @@ const ProjectTableRow = ({
   <Popover
     open={Boolean(tagsAnchorEl)}
     anchorEl={tagsAnchorEl}
+    disableRestoreFocus  
+    disableAutoFocus
+    sx={{ pointerEvents: "none" }}
+
     onClose={() => setTagsAnchorEl(null)}
     anchorOrigin={{
       vertical: 'bottom',
@@ -3396,6 +3411,11 @@ const ProjectTableRow = ({
     open={Boolean(dueAnchorEl)}
     anchorEl={dueAnchorEl}
     onClose={() => setDueAnchorEl(null)}
+    disableRestoreFocus  
+    disableAutoFocus
+    sx={{ pointerEvents: "none" }}
+
+
     anchorOrigin={{
       vertical: 'bottom',
       horizontal: 'left',
@@ -3495,7 +3515,7 @@ const Projects = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const [user, setUser] = useState(getUserData() || null);
-  const { addNotifications } = useNotifications();
+  const { addNotification } = useNotifications();
 
   const [projects, setProjects] = useState([]);
   const [filteredProjects, setFilteredProjects] = useState([]);
@@ -3511,8 +3531,6 @@ const Projects = () => {
   const [teams, setTeams] = useState([]);
   const [authError, setAuthError] = useState(false);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
-
-  const { ref, inView } = useInView({ threshold: 0, triggerOnce: true });
 
   // Check authentication
   const checkAuth = useCallback(() => {
@@ -3697,10 +3715,31 @@ const Projects = () => {
         }
 
         for (const projectId of selectedProjects) {
-          await axiosClient.delete(`/projects/${projectId}`, {
+          const response = await axiosClient.delete(`/projects/${projectId}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
+          if (response?.data?.success){
+            if( addNotification ){
+              addNotification({
+                _id: `${Date.now()}`,
+                type: 'project_deleted',
+                title: 'Project Deleted', 
+                message: response?.data?.message,
+                read: false,
+                createdAt: new Date(),
+                priority: 'high',
+                data: {
+                  projectId: projectId,
+                  projectName: response?.data?.projectDeleted
+                }
+              });
+            }
+          }else{
+            setError(response.data?.message);
+          }
         }
+
+
         
         fetchProjects();
         setSelectedProjects(new Set());

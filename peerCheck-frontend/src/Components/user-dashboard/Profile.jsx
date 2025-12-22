@@ -198,7 +198,7 @@ export default function Profile() {
         snackbarMessage: `${userName || 'User'} is now your peer!`
       }));
 
-          if (addNotification) {
+    if (addNotification) {
       addNotification({
         _id: `temp_${Date.now()}`,
         type: 'connection_accepted',
@@ -2153,7 +2153,6 @@ const handleCloseSnackbar = (snackbar) => {
                         ) : (
                           <Box sx={{ 
                             display: 'grid',
-                            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' },
                             gap: 2.5
                           }}>
                             {peerTeam.map((connection) => (

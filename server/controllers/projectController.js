@@ -1,6 +1,7 @@
 import Project from "../models/projects.js";
 import DeletedProjects from "../models/deletedProjectInfo.js";
 import Task from "../models/tasks.js"; 
+import User from "../models/user.js";
 import Team from "../models/peergroup_log.js";
 import MentorProjectAssignment from "../models/mentorProjectAssignment.js";
 import { createNotification } from './notificationController.js';
@@ -572,7 +573,7 @@ export const createProject = async (req, res) => {
     }
 
     // Make sure the team exists
-    const team = await Team.findById(teamId);
+    const team = await Team.findById(teamId).populate("members", "name username email");
     if (!team) return res.status(404).json({ error: "Team not found" });
 
     // Create project with creator ID from authenticated user
@@ -674,20 +675,33 @@ const projectData = {
 export const deleteProject = async (req, res) => {
   try {
     const { projectId } = req.params;
+    const userId = req.user.id;
 
-    const deleteProject = await Project.findById(projectId).populate('teamId', 'members');
+    const deleteProject = await Project.findById(projectId)
+    .populate('teamId', 'members')
+    .populate('createdBy');
     
     if (!deleteProject) {
       return res.status(404).json({ error: "Project not found" });
     }
-
+    
     // Check permissions
-    const isCreator = deleteProject.createdBy.toString() === req.user.id;
+    const isCreator = deleteProject.createdBy._id.toString() === userId.toString();
     const isAdmin = req.user.role === 'admin';
     if (!isCreator && !isAdmin) {
-      return res.status(403).json({ error: "Not authorized to delete this project" });
+      return res.status(403).json({ error: `Not authorized to delete this project.` });
     }
 
+    const deletedBy = await User.findById(userId);
+
+    const teamMembers = await Team.findById(deleteProject.teamId)
+      .populate("members");
+    await notifyProjectEvents.deleteProject(
+      projectId, 
+      deleteProject,
+      deletedBy,
+      teamMembers.members
+    )
     // Save deleted project info
     const deletedRecord = new DeletedProjects({
       deletedProjectName: deleteProject.projectName,
@@ -704,6 +718,7 @@ export const deleteProject = async (req, res) => {
     }
 
 
+
     //Removing project from all teams `projects` arrays
     await Team.updateMany(
       { projects: projectId },
@@ -718,10 +733,11 @@ export const deleteProject = async (req, res) => {
     // Delete the project
     await Project.findByIdAndDelete(projectId);
 
-    res.status(200).json({ message: "Project deleted successfully" });
+
+    res.status(200).json({ succes: true, projectDeleted: deleteProject?.projectName || deleteProject?.name ,message: `Project ${deleteProject?.projectName || deleteProject?.name || projectId} deleted successfully` });
 
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
@@ -751,7 +767,7 @@ export const updateProject = async (req, res) => {
     await project.save();
 
     if (statusChanged) {
-    await notifyProjectEvents.statusChanged(
+    await notifyProjectEvents.editProject(
       projectId,
       req.user.id,
       oldStatus,
@@ -778,8 +794,24 @@ export const getAllProjects = async (req, res) => {
       .populate("teamId", 'name members')
       .populate("createdBy", 'name email')
       .sort({ 'metrics.healthScore': -1, createdAt: -1 });
-      
+      const now = new Date();
+      const sevenDaysFromNow = new Date();
+      sevenDaysFromNow.setDate(now.getDate() + 7);
 
+      for (const project of projects) {
+        const endDate = new Date(project.endDate);
+
+        if (endDate > now && endDate <= sevenDaysFromNow) {
+          const daysRemaining = Math.ceil(
+            (endDate - now) / (1000 * 60 * 60 * 24)
+          );
+
+          await notifyProjectEvents.deadlineApproaching(
+            project._id,
+            daysRemaining
+          );
+        }
+      }
 
     projects = [
       ...projects,
@@ -1166,7 +1198,7 @@ export const refreshProjectMetrics = async (req, res) => {
 
 export const notifyProjectEvents = {
   // When a project is created
-  created: async (projectId, creatorId, teamMembers = []) => {
+  created: async (projectId, creatorId, teamMembers) => {
     try {
       const project = await Project.findById(projectId).populate('teamId');
       const creator = await User.findById(creatorId);
@@ -1176,7 +1208,7 @@ export const notifyProjectEvents = {
       // Notify all team members about new project
       const notifications = [];
       for (const member of teamMembers) {
-        if (member._id.toString() !== creatorId) {
+        if (member?._id !== creatorId) {
           const notification = await createNotification({
             userId: member._id,
             type: 'project_created',
@@ -1195,19 +1227,19 @@ export const notifyProjectEvents = {
         }
       }
 
-      // Also notify the creator
-      await createNotification({
-        userId: creatorId,
-        type: 'project_created_confirm',
-        title: 'Project Created Successfully',
-        message: `You created "${project.projectName}" successfully`,
-        data: {
-          projectId: project._id,
-          projectName: project.projectName
-        },
-        priority: 'medium',
-        actionUrl: `/user-app/my-project/${project._id}`
-      });
+      // // Also notify the creator
+      // await createNotification({
+      //   userId: creatorId,
+      //   type: 'project_created_confirm',
+      //   title: 'Project Created Successfully',
+      //   message: `You created "${project.projectName}" successfully`,
+      //   data: {
+      //     projectId: project._id,
+      //     projectName: project.projectName
+      //   },
+      //   priority: 'medium',
+      //   actionUrl: `/user-app/my-project/${project._id}`
+      // });
 
       return notifications;
     } catch (error) {
@@ -1228,7 +1260,7 @@ export const notifyProjectEvents = {
       // Notify the assignee
       const notification = await createNotification({
         userId: assigneeId,
-        type: 'task_assigned',
+        type: 'task_created',
         title: 'New Task Assigned',
         message: `${assigner.name || assigner.username} assigned you a task: "${task.taskTitle}" in ${task.projectId?.projectName}`,
         data: {
@@ -1251,7 +1283,7 @@ export const notifyProjectEvents = {
   },
 
   // When project status changes
-  statusChanged: async (projectId, updaterId, oldStatus, newStatus) => {
+  editProject: async (projectId, updaterId, oldStatus, newStatus) => {
     try {
       const project = await Project.findById(projectId).populate('teamId');
       const updater = await User.findById(updaterId);
@@ -1294,14 +1326,15 @@ export const notifyProjectEvents = {
       const project = await Project.findById(projectId).populate('teamId');
       
       if (!project) return null;
+      const team = await Team.findById("members", "name username email");
 
       // Get all team members
-      const teamMembers = project.teamId?.members || [];
+      const teamMembers = team.members || [];
       
       const notifications = [];
       for (const member of teamMembers) {
         const notification = await createNotification({
-          userId: member.user?._id || member._id,
+          userId: member._id,
           type: 'project_deadline',
           title: 'Project Deadline Approaching!',
           message: `Project "${project.projectName}" is due in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}`,
@@ -1363,5 +1396,30 @@ export const notifyProjectEvents = {
       console.error('Error creating comment notifications:', error);
       return null;
     }
+  },
+
+  //delete project
+  deleteProject: async (projectId, deletedProject, deletedBy, teamMembers) => {
+
+      const notifications = [];
+      for (const member of teamMembers) {
+        if (member._id !== deletedBy._id) {
+          const notification = await createNotification({
+            userId: member._id,
+            type: 'project_deleted',
+            title: `Project "${deletedProject.projectName}" deleted by ${deletedBy.username}!`,
+            message: `${deletedBy.name || deletedBy.username} deleted a project: "${deletedProject.projectName}"`,
+            data: {
+              projectId: projectId,
+              deletedBy: deletedBy._id,
+              projectName: deletedProject.projectName,
+              teamId: deletedProject.teamId?._id
+            },
+            priority: 'high',
+            actionUrl: `/user-app/projects`
+          });
+          notifications.push(notification);
+        }
+      }
   }
 };
