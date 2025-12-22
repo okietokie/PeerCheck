@@ -1,5 +1,6 @@
+// routes/userRoutes.js (add notification routes)
 import express from 'express';
-import { 
+import {
   getUserNotifications,
   markAsRead,
   markAllAsRead,
@@ -11,25 +12,12 @@ import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(authMiddleware);
-
-// Get notifications
-router.get('/', getUserNotifications);
-
-// Get notification stats
-router.get('/stats', getNotificationStats);
-
-// Mark notification as read
-router.put('/:notificationId/read', markAsRead);
-
-// Mark all as read
-router.put('/read-all', markAllAsRead);
-
-// Delete notification
-router.delete('/:notificationId', deleteNotification);
-
-// Clear all notifications
-router.delete('/clear-all', clearAllNotifications);
+// Notification routes
+router.get('/notifications', authMiddleware, getUserNotifications);
+router.get('/notifications/stats', authMiddleware, getNotificationStats);
+router.put('/notifications/:notificationId/read', authMiddleware, markAsRead);
+router.put('/notifications/read-all', authMiddleware, markAllAsRead);
+router.delete('/notifications/:notificationId', authMiddleware, deleteNotification);
+router.delete('/notifications/clear-all', authMiddleware, clearAllNotifications);
 
 export default router;

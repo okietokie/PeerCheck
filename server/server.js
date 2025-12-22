@@ -33,8 +33,11 @@ import reviewRoutes from "./routes/reviewRoutes.js";
 import peerReviewRoutes from "./routes/peerReviewRoutes.js";
 import stickyNoteRoutes from "./routes/stickyNoteRoutes.js";
 import { fileURLToPath } from "url";
+import { setupDeadlineChecker } from './controllers/deadlineChecker.js';
 
 
+
+setupDeadlineChecker();
 
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);

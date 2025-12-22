@@ -3,6 +3,8 @@ import DeletedProjects from "../models/deletedProjectInfo.js";
 import Task from "../models/tasks.js"; 
 import Team from "../models/peergroup_log.js";
 import MentorProjectAssignment from "../models/mentorProjectAssignment.js";
+import { createNotification } from './notificationController.js';
+
 
 
 // Status weight mapping for weighted progress
@@ -650,6 +652,12 @@ const projectData = {
         project: newProject._id
       });
     }
+    await notifyProjectEvents.created(
+      newProject._id,
+      userId,
+      team.members || []
+    );
+
 
     // Populate teamId and createdBy before sending response
     const populatedProject = await Project.findById(newProject._id)
@@ -731,6 +739,9 @@ export const updateProject = async (req, res) => {
     if (!isCreator && !isAdmin) {
       return res.status(403).json({ error: "Not authorized to update this project" });
     }
+        const oldStatus = project.status;
+    const newStatus = updateData.status;
+    const statusChanged = newStatus && oldStatus !== newStatus;
     // Update project fields
     Object.keys(updateData).forEach(key => {
       if (updateData[key] !== undefined && updateData[key] !== project[key]) { //means only update if value is provided and different
@@ -738,6 +749,15 @@ export const updateProject = async (req, res) => {
       }
     });
     await project.save();
+
+    if (statusChanged) {
+    await notifyProjectEvents.statusChanged(
+      projectId,
+      req.user.id,
+      oldStatus,
+      newStatus
+    );
+    }
     res.json(project);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1142,3 +1162,206 @@ export const refreshProjectMetrics = async (req, res) => {
     });
   }
 }
+
+
+export const notifyProjectEvents = {
+  // When a project is created
+  created: async (projectId, creatorId, teamMembers = []) => {
+    try {
+      const project = await Project.findById(projectId).populate('teamId');
+      const creator = await User.findById(creatorId);
+      
+      if (!project || !creator) return null;
+
+      // Notify all team members about new project
+      const notifications = [];
+      for (const member of teamMembers) {
+        if (member._id.toString() !== creatorId) {
+          const notification = await createNotification({
+            userId: member._id,
+            type: 'project_created',
+            title: 'New Project Created!',
+            message: `${creator.name || creator.username} created a new project: "${project.projectName}"`,
+            data: {
+              projectId: project._id,
+              creatorId: creatorId,
+              projectName: project.projectName,
+              teamId: project.teamId?._id
+            },
+            priority: 'high',
+            actionUrl: `/user-app/projects`
+          });
+          notifications.push(notification);
+        }
+      }
+
+      // Also notify the creator
+      await createNotification({
+        userId: creatorId,
+        type: 'project_created_confirm',
+        title: 'Project Created Successfully',
+        message: `You created "${project.projectName}" successfully`,
+        data: {
+          projectId: project._id,
+          projectName: project.projectName
+        },
+        priority: 'medium',
+        actionUrl: `/user-app/my-project/${project._id}`
+      });
+
+      return notifications;
+    } catch (error) {
+      console.error('Error creating project notifications:', error);
+      return null;
+    }
+  },
+
+  // When a task is assigned
+  taskAssigned: async (taskId, assignerId, assigneeId) => {
+    try {
+      const task = await Task.findById(taskId).populate('projectId');
+      const assigner = await User.findById(assignerId);
+      const assignee = await User.findById(assigneeId);
+      
+      if (!task || !assigner || !assignee) return null;
+
+      // Notify the assignee
+      const notification = await createNotification({
+        userId: assigneeId,
+        type: 'task_assigned',
+        title: 'New Task Assigned',
+        message: `${assigner.name || assigner.username} assigned you a task: "${task.taskTitle}" in ${task.projectId?.projectName}`,
+        data: {
+          taskId: task._id,
+          projectId: task.projectId?._id,
+          projectName: task.projectId?.projectName,
+          assignerId: assignerId,
+          assignerName: assigner.name || assigner.username,
+          deadline: task.deadline
+        },
+        priority: 'high',
+        actionUrl: `/user-app/tasks/${task._id}`
+      });
+
+      return notification;
+    } catch (error) {
+      console.error('Error creating task assignment notification:', error);
+      return null;
+    }
+  },
+
+  // When project status changes
+  statusChanged: async (projectId, updaterId, oldStatus, newStatus) => {
+    try {
+      const project = await Project.findById(projectId).populate('teamId');
+      const updater = await User.findById(updaterId);
+      
+      if (!project || !updater) return null;
+
+      // Get all team members
+      const teamMembers = project.teamId?.members || [];
+      
+      const notifications = [];
+      for (const member of teamMembers) {
+        const notification = await createNotification({
+          userId: member.user?._id || member._id,
+          type: 'project_status_changed',
+          title: 'Project Status Updated',
+          message: `${updater.name || updater.username} changed project "${project.projectName}" from ${oldStatus} to ${newStatus}`,
+          data: {
+            projectId: project._id,
+            projectName: project.projectName,
+            oldStatus,
+            newStatus,
+            updaterId: updaterId
+          },
+          priority: 'medium',
+          actionUrl: `/user-app/my-project/${project._id}`
+        });
+        notifications.push(notification);
+      }
+
+      return notifications;
+    } catch (error) {
+      console.error('Error creating status change notifications:', error);
+      return null;
+    }
+  },
+
+  // When project is nearing deadline
+  deadlineApproaching: async (projectId, daysRemaining) => {
+    try {
+      const project = await Project.findById(projectId).populate('teamId');
+      
+      if (!project) return null;
+
+      // Get all team members
+      const teamMembers = project.teamId?.members || [];
+      
+      const notifications = [];
+      for (const member of teamMembers) {
+        const notification = await createNotification({
+          userId: member.user?._id || member._id,
+          type: 'project_deadline',
+          title: 'Project Deadline Approaching!',
+          message: `Project "${project.projectName}" is due in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}`,
+          data: {
+            projectId: project._id,
+            projectName: project.projectName,
+            deadline: project.endDate,
+            daysRemaining
+          },
+          priority: daysRemaining <= 3 ? 'urgent' : 'high',
+          actionUrl: `/user-app/my-project/${project._id}`
+        });
+        notifications.push(notification);
+      }
+
+      return notifications;
+    } catch (error) {
+      console.error('Error creating deadline notifications:', error);
+      return null;
+    }
+  },
+
+  // When someone comments on project
+  commentAdded: async (projectId, commenterId, comment) => {
+    try {
+      const project = await Project.findById(projectId).populate('teamId');
+      const commenter = await User.findById(commenterId);
+      
+      if (!project || !commenter) return null;
+
+      // Get all team members except the commenter
+      const teamMembers = project.teamId?.members || [];
+      
+      const notifications = [];
+      for (const member of teamMembers) {
+        const memberId = member.user?._id || member._id;
+        if (memberId.toString() !== commenterId) {
+          const notification = await createNotification({
+            userId: memberId,
+            type: 'project_comment',
+            title: 'New Project Comment',
+            message: `${commenter.name || commenter.username} commented on project "${project.projectName}": ${comment.substring(0, 100)}${comment.length > 100 ? '...' : ''}`,
+            data: {
+              projectId: project._id,
+              projectName: project.projectName,
+              commenterId: commenterId,
+              comment,
+              commenterName: commenter.name || commenter.username
+            },
+            priority: 'medium',
+            actionUrl: `/user-app/my-project/${project._id}`
+          });
+          notifications.push(notification);
+        }
+      }
+
+      return notifications;
+    } catch (error) {
+      console.error('Error creating comment notifications:', error);
+      return null;
+    }
+  }
+};

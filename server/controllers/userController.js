@@ -5,26 +5,22 @@ import User from "../models/user.js";
 import path from 'path';
 import Task from "../models/tasks.js";
 import Connection from "../models/connection.js";
-import crypto from "crypto";
-import { r2Client, R2_BUCKET_NAME, R2_ACCOUNT_ID } from "../r2Client.js";
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { r2Client, R2_BUCKET_NAME} from "../r2Client.js";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import dotenv from 'dotenv';
 
+dotenv.config({path : path.resolve('./server/.env')});
 
 export const uploadAvatar = async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ 
-        success: false,
-        message: "No file uploaded" 
-      });
-    }
-
     const userId = req.user.id;
 
     const user = await User.findById(userId);
+    console.log("user before: ", user);
+    console.log("avatar data: ", req.file);
     
     // Generate a unique key for R2
-    const avatarKey = `avatars/avatar-${req.userId}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${path.extname(req.file.originalname)}`;
+    const avatarKey = `avatar/${userId}/${Date.now()}-${req.file.originalname}`;
 
     // Upload to R2
     await r2Client.send(new PutObjectCommand({
@@ -41,8 +37,8 @@ export const uploadAvatar = async (req, res) => {
     }));
   }
 
-    const avatarUrl = `https://pub-20b7867f97aa42afaf18d6bc1fc11de7.r2.dev/${R2_BUCKET_NAME}/${avatarKey}`;
-
+    const avatarUrl = `${process.env.R2_PUBLIC_DEV_DOMAIN_FOR_AVATAR}/${avatarKey}`;
+    console.log("avatarURL: ", avatarUrl);
     // Update user in DB
     const updatedUser = await User.findByIdAndUpdate(
       req.userId,

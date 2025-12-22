@@ -32,9 +32,12 @@ import CheckIcon from '@mui/icons-material/Check';
 import WarningIcon from '@mui/icons-material/Warning';
 import InfoIcon from '@mui/icons-material/Info';
 import CelebrationIcon from '@mui/icons-material/Celebration';
+import { useNotifications } from '@/contexts/NotificationContext';
+import { HourglassEmpty } from '@mui/icons-material';
 
 
 export default function Profile() {
+
   const theme = useTheme();
   const [user, setUser] = useState({});
   const [peerTeam, setPeerTeam] = useState([]);
@@ -44,7 +47,7 @@ export default function Profile() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [activeTab, setActiveTab] = useState(0);
-
+  const { addNotification } = useNotifications();
   // Snackbar states
   const [snackbars, setSnackbars] = useState({
     profileLoaded: false,
@@ -156,6 +159,19 @@ export default function Profile() {
         connectionRequestSent: true,
         snackbarMessage: `Connection request sent to ${userName || 'user'}!`
       }));
+      
+      if (addNotification) {
+        addNotification({
+          _id: `temp_${Date.now()}`,
+          type: 'connection_request_sent',
+          title: 'Connection Request Sent',
+          message: `Your request was sent to ${userName || 'user'}`,
+          read: false,
+          createdAt: new Date(),
+          priority: 'low',
+          actionUrl: `/user-app/profile`
+        });
+      }
 
     } catch (error) {
       console.error(`Error sending connection request: ${error}`);
@@ -181,6 +197,20 @@ export default function Profile() {
         connectionAccepted: true,
         snackbarMessage: `${userName || 'User'} is now your peer!`
       }));
+
+          if (addNotification) {
+      addNotification({
+        _id: `temp_${Date.now()}`,
+        type: 'connection_accepted',
+        title: 'Connection Accepted',
+        message: `You accepted ${userName || 'user'}'s request`,
+        read: false,
+        createdAt: new Date(),
+        priority: 'medium',
+        actionUrl: `/user-app/profile`
+      });
+    }
+
     } catch (error) {
       console.error(`Error accepting request: ${error}`);
       setError('Failed to accept connection request');
@@ -199,6 +229,17 @@ export default function Profile() {
         connectionDeclined: true,
         snackbarMessage: `Declined connection from ${userName || 'user'}`
       }));
+          if (addNotification) {
+      addNotification({
+        _id: `temp_${Date.now()}`,
+        type: 'connection_declined',
+        title: 'Connection Declined',
+        message: `You declined ${userName || 'user'}'s request`,
+        read: false,
+        createdAt: new Date(),
+        priority: 'medium'
+      });
+    }
     } catch (error) {
       console.error(`Error declining request: ${error}`);
       setError('Failed to decline connection request');
@@ -218,6 +259,18 @@ export default function Profile() {
         connectionRemoved: true,
         snackbarMessage: `Removed ${userName || 'user'} from connections`
       }));
+          if (addNotification) {
+      addNotification({
+        _id: `temp_${Date.now()}`,
+        type: 'connection_removed',
+        title: 'Connection Removed',
+        message: `You removed ${userName || 'user'} from connections`,
+        read: false,
+        createdAt: new Date(),
+        priority: 'low'
+      });
+    }
+
     } catch (error) {
       console.error(`Error removing connection: ${error}`);
       setError('Failed to remove connection');
@@ -311,9 +364,14 @@ useEffect(() => {
   try {
     setUploadingAvatar(true);
     setSnackbars(prev => ({ ...prev, avatarUploading: true }));
-    
+    console.log("avatar change initiated!, ", file);
+
     const formData = new FormData();
-    formData.append('avatar', file);
+    formData.append("avatar", file);
+    
+    for (let [key, value] of formData.entries()) {
+      console.log(key, value);
+    }
 
     const token = localStorage.getItem("token");
     const response = await axiosClient.post('/user/upload-avatar', formData, {
@@ -322,7 +380,7 @@ useEffect(() => {
         'Content-Type': 'multipart/form-data'
       }
     });
-    
+    console.log("response.data in upload avatar: ", response?.data);
     setSnackbars(prev => ({ ...prev, avatarUploaded: true }));
     return response.data;
   } catch (error) {
@@ -337,6 +395,7 @@ useEffect(() => {
 // Optimized handleSaveProfile function
 const handleSaveProfile = async () => {
   try {
+    console.log("handling save profile!");
     setEditDialogOpen(false);
     
     // Upload avatar if changed
@@ -358,44 +417,16 @@ const handleSaveProfile = async () => {
     };
     
     const token = localStorage.getItem("token");
-    const profileUpdatePromise = axiosClient.put('/user/update-profile', profileData, {
+    const profileUpdate = axiosClient.put('/user/update-profile', profileData, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     
-    // Execute both promises
-    const [avatarResult, profileResult] = await Promise.allSettled([
-      avatarUpdatePromise,
-      profileUpdatePromise
-    ]);
     
-    // Handle results
-    if (avatarResult.status === 'fulfilled' && avatarResult.value) {
-      // Avatar was updated
-      setUser(prev => ({
-        ...prev,
-        user: {
-          ...prev.user,
-          avatar: `${avatarResult.value.avatarUrl}?v=${Date.now()}`,
-          ...avatarResult.value.user
-        }
-      }));
+    if (profileUpdate?.success){
+      setSnackbars(prev => ({ ...prev, profileUpdated: true }));
+      await loadAllData();
     }
-    
-    if (profileResult.status === 'fulfilled' && profileResult.value) {
-      // Profile was updated
-      if (!avatarFile) { // Only update if avatar wasn't updated
-        setUser(prev => ({
-          ...prev,
-          user: {
-            ...prev.user,
-            ...profileResult.value.user
-          }
-        }));
-      }
-    }
-    
-    setSnackbars(prev => ({ ...prev, profileUpdated: true }));
-    await loadAllData();
+
 
     
   } catch (error) {
@@ -409,6 +440,7 @@ const handleAvatarChange = (e) => {
   const file = e.target.files[0];
   if (!file) return;
   
+  console.log("filename: ", file);
   // Validate file size (2MB max)
   const maxSize = 2 * 1024 * 1024; // 2MB in bytes
   if (file.size > maxSize) {
@@ -489,9 +521,8 @@ const handleCloseSnackbar = (snackbar) => {
 
   const ConnectionButton = ({ user }) => {
     const handleClick = () => {
-      if (user.connectionStatus === 'none') {
-        sendConnectionRequest(user._id, user.name || user.username);
-      }
+       console.log("handleclick clicked!");
+        sendConnectionRequest(user._id,  user.username || user.name);
     };
 
     const getButtonProps = (status) => {
@@ -545,7 +576,7 @@ const handleCloseSnackbar = (snackbar) => {
             ...baseProps,
             children: 'Pending',
             disabled: true,
-            startIcon: <HourglassEmptyIcon />,
+            startIcon: <HourglassEmpty />,
             sx: {
               ...baseProps.sx,
               borderColor: theme.palette.warning.main,
@@ -557,7 +588,7 @@ const handleCloseSnackbar = (snackbar) => {
           return {
             ...baseProps,
             children: 'Connect',
-            onClick: handleClick,
+            onClick: () => handleClick(),
             startIcon: <PersonAddIcon />,
             sx: {
               ...baseProps.sx,
@@ -1667,6 +1698,7 @@ const handleCloseSnackbar = (snackbar) => {
                               color: alpha(theme.palette.primary.main, 0.3),
                               mb: 2
                             }} />
+
                             <Typography variant="h6" color="text.secondary" sx={{ mb: 1, fontWeight: 600 }}>
                               No suggested peers yet
                             </Typography>
@@ -1952,9 +1984,8 @@ const handleCloseSnackbar = (snackbar) => {
                         ) : (
                           <Box sx={{ 
                             display: 'grid',
-                            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' },
                             gap: 2.5
-                          }}>
+                          }}> 
                             {incomingRequests.map((request) => (
                               <Card
                                 key={request._id}
@@ -2269,7 +2300,7 @@ const handleCloseSnackbar = (snackbar) => {
               style={{ display: 'none' }}
               id="avatar-upload"
               type="file"
-              onChange={handleAvatarChange}
+              onChange={(e) => handleAvatarChange(e)}
             />
             <Box sx={{ position: 'relative' }}>
               <label htmlFor="avatar-upload">

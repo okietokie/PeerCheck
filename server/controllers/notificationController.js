@@ -29,8 +29,7 @@ export const createNotification = async ({
     
     // Emit real-time notification if using WebSockets
     if (process.env.ENABLE_WEBSOCKETS === 'true') {
-      // You can integrate Socket.io here
-      // io.to(`user_${userId}`).emit('new_notification', notification);
+
     }
     
     return notification;
@@ -43,7 +42,7 @@ export const createNotification = async ({
 // Get user notifications
 export const getUserNotifications = async (req, res) => {
   try {
-    const userId = req.userId;
+    const userId = req.user.id;
     const { limit = 20, unreadOnly = false, page = 1 } = req.query;
     
     const skip = (page - 1) * limit;
@@ -364,42 +363,118 @@ export const notifyTaskComment = async (taskId, commenterId, comment) => {
   }
 };
 
-// When connection request is received
+// controllers/notificationController.js - Add these functions
 export const notifyConnectionRequest = async (fromUserId, toUserId, connectionId) => {
-  const fromUser = await User.findById(fromUserId);
-  
-  if (fromUser) {
-    await createNotification({
-      userId: toUserId,
-      type: 'connection_request',
-      title: 'New Connection Request',
-      message: `${fromUser.name} wants to connect with you`,
-      data: {
+  try {
+    const fromUser = await User.findById(fromUserId);
+    const toUser = await User.findById(toUserId);
+    
+    if (fromUser && toUser) {
+      // Create notification for receiver
+      await createNotification({
+        userId: toUserId,
+        type: 'connection_request',
+        title: 'New Connection Request',
+        message: `${fromUser.name || fromUser.username} wants to connect with you`,
+        data: {
+          fromUserId: fromUserId,
+          fromUserName: fromUser.name || fromUser.username,
+          connectionId: connectionId,
+          userAvatar: fromUser.avatar
+        },
+        priority: 'medium',
+        actionUrl: `/user-app/profile` // Redirects to profile page
+      });
+
+      // Create notification for sender (optional)
+      await createNotification({
         userId: fromUserId,
-        connectionId: connectionId
-      },
-      priority: 'medium',
-      actionUrl: `/peer-teams`
-    });
+        type: 'connection_request_sent',
+        title: 'Connection Request Sent',
+        message: `Your connection request was sent to ${toUser.name || toUser.username}`,
+        data: {
+          toUserId: toUserId,
+          toUserName: toUser.name || toUser.username
+        },
+        priority: 'low'
+      });
+      
+      return true;
+    }
+  } catch (error) {
+    console.error('Error creating connection notification:', error);
+    return false;
   }
 };
 
-// When connection is accepted
 export const notifyConnectionAccepted = async (acceptorId, requestorId) => {
-  const acceptor = await User.findById(acceptorId);
-  
-  if (acceptor) {
-    await createNotification({
-      userId: requestorId,
-      type: 'connection_accepted',
-      title: 'Connection Request Accepted',
-      message: `${acceptor.name} accepted your connection request`,
-      data: {
-        userId: acceptorId
-      },
-      priority: 'low',
-      actionUrl: `/peer-teams`
-    });
+  try {
+    const acceptor = await User.findById(acceptorId);
+    const requestor = await User.findById(requestorId);
+    
+    if (acceptor && requestor) {
+      // Notify requestor
+      await createNotification({
+        userId: requestorId,
+        type: 'connection_accepted',
+        title: 'Connection Request Accepted!',
+        message: `${acceptor.name || acceptor.username} accepted your connection request`,
+        data: {
+          acceptorId: acceptorId,
+          acceptorName: acceptor.name || acceptor.username,
+          acceptorAvatar: acceptor.avatar
+        },
+        priority: 'medium',
+        actionUrl: `/user-app/profile`
+      });
+
+      // Notify acceptor
+      await createNotification({
+        userId: acceptorId,
+        type: 'connection_confirmed',
+        title: 'You are now connected!',
+        message: `You are now connected with ${requestor.name || requestor.username}`,
+        data: {
+          requestorId: requestorId,
+          requestorName: requestor.name || requestor.username,
+          requestorAvatar: requestor.avatar
+        },
+        priority: 'low',
+        actionUrl: `/user-app/profile`
+      });
+      
+      return true;
+    }
+  } catch (error) {
+    console.error('Error creating connection acceptance notification:', error);
+    return false;
+  }
+};
+
+export const notifyConnectionDeclined = async (declinerId, requestorId) => {
+  try {
+    const decliner = await User.findById(declinerId);
+    const requestor = await User.findById(requestorId);
+    
+    if (decliner && requestor) {
+      // Notify requestor
+      await createNotification({
+        userId: requestorId,
+        type: 'connection_declined',
+        title: 'Connection Request Declined',
+        message: `${decliner.name || decliner.username} declined your connection request`,
+        data: {
+          declinerId: declinerId,
+          declinerName: decliner.name || decliner.username
+        },
+        priority: 'medium'
+      });
+      
+      return true;
+    }
+  } catch (error) {
+    console.error('Error creating connection decline notification:', error);
+    return false;
   }
 };
 

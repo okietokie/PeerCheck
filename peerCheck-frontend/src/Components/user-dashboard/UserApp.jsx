@@ -17,7 +17,8 @@ import {
   useTheme,
   BottomNavigation,
   BottomNavigationAction,
-  Paper
+  Paper,
+  Tooltip
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -29,12 +30,14 @@ import {
   VisibilityOutlined,
   Menu as MenuIcon,
   Close as CloseIcon
+
 } from '@mui/icons-material';
+
 import { useNavigate, useLocation, Routes, Route, Outlet } from 'react-router-dom';
 import { useEffect } from 'react';
 
 import axiosClient from '@/api/axiosClient';
-
+import NotificationBell from './NotificationBell';
 export default function UserApp() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -58,6 +61,15 @@ export default function UserApp() {
     '/user-app/profile': 5,
   };
 
+  const handleSendRequest = async (userId) => {
+  try {
+    await axiosClient.post('/api/user/send-request', { targetUserId: userId });
+    // The notification will be automatically created by the backend
+  } catch (error) {
+    console.error('Error sending request:', error);
+  }
+};
+
   // Navigation items
   const navItems = [
     { label: 'Dashboard', icon: <DashboardIcon />, path: '/user-app/dashboard' },
@@ -66,6 +78,7 @@ export default function UserApp() {
     { label: 'My Project', icon: <VisibilityOutlined />, path: '/user-app/my-project' },
     { label: 'PeerTeams', icon: <TeamsIcon />, path: '/user-app/peerteams' },
     { label: 'Profile', icon: <ProfileIcon />, path: '/user-app/profile' },
+    { label : 'Notification', icon: <NotificationBell />, path: '/user-app/notifications'}
   ];
 
   // Set initial tab value based on current route
@@ -167,27 +180,25 @@ export default function UserApp() {
           </ListItem>
         ))}
       </List>
-      
-      <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
-        <ListItem 
-          button 
+
+
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <NotificationBell />
+        
+        <IconButton 
           onClick={handleLogout}
           sx={{
-            borderRadius: 1,
             color: 'error.main',
             '&:hover': {
+              color: 'error.dark',
               backgroundColor: 'rgba(211, 47, 47, 0.04)',
             }
-          }}
+          }} 
         >
-          <ListItemIcon sx={{ minWidth: 40, color: 'error.main' }}>
+          <Tooltip title="Logout">
             <LogoutIcon />
-          </ListItemIcon>
-          <ListItemText 
-            primary="Logout" 
-            primaryTypographyProps={{ fontWeight: 500 }}
-          />
-        </ListItem>
+          </Tooltip>
+        </IconButton>
       </Box>
     </Box>
   );
@@ -290,19 +301,25 @@ export default function UserApp() {
                 {navItems[selectedTab]?.label || 'Dashboard'}
               </Typography>
               
-              <IconButton 
-                color="inherit" 
-                onClick={handleLogout}
-                sx={{ 
-                  color: 'error.light',
-                  '&:hover': {
-                    color: 'error.main',
-                  }
-                }}
-              >
-                <LogoutIcon />
-              </IconButton>
+              {/* ADD NOTIFICATION BELL HERE */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <NotificationBell />
+                
+                <IconButton 
+                  color="inherit" 
+                  onClick={handleLogout}
+                  sx={{ 
+                    color: 'error.light',
+                    '&:hover': {
+                      color: 'error.main',
+                    }
+                  }}
+                >
+                  <LogoutIcon />
+                </IconButton>
+              </Box>
             </Toolbar>
+            
           </AppBar>
           
           {/* Mobile Drawer */}

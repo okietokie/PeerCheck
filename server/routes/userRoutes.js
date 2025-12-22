@@ -14,17 +14,19 @@ import { fetchBasicData } from '../controllers/homeController.js';
 import * as upload from '../middleware/uploadMiddleware.js';
 
 import { getMentorById, getMentors } from '../controllers/mentorController.js';
-
+import notificationRoutes from "./notificationRoutes.js";
 const router = express.Router();
 
 
 router.get("/basic-data", fetchBasicData);
 
+router.use("", notificationRoutes)
+
 router.use(protect);
 router.get("/dashboard-stats", userController.getDashboardStats);
 
 
-router.post("/upload-avatar", upload.avatarUpload.single('avatar'), userController.uploadAvatar);
+router.post("/upload-avatar", upload.avatarUpload.single("avatar"), userController.uploadAvatar);
 
 router.put("/update-profile", userController.updateProfile);
 

@@ -81,6 +81,7 @@ import axiosClient from '@/api/axiosClient';
 import { useNavigate, useParams } from 'react-router-dom';
 import { set } from 'date-fns';
 import { useInView } from 'react-intersection-observer';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 // Helper to get auth token properly
 const getAuthToken = () => {
@@ -129,6 +130,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
   const [tags, setTags] = useState([]);
   const [mentors, setMentors] = useState([]);
 
+  const { addNotification } = useNotifications();
   useEffect(() => {
     const fetchMentorData = async () => {
       try {
@@ -321,7 +323,18 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
           'Content-Type': 'application/json'
         }
       });
-      
+      addNotification({
+        _id: `temp_${Date.now()}`,
+        type: 'project_created',
+        title: 'Project Created!',
+        message: `Your project "${formData.projectName}" has been created successfully`,
+        read: false,
+        createdAt: new Date(),
+        data: {
+          projectId: response.data._id
+        },
+        actionUrl: `/user-app/my-project/${response.data._id}`
+      });
       
       if (onProjectCreated) {
         onProjectCreated(response.data);
@@ -1235,6 +1248,7 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
   const [error, setError] = useState('');
   const [teamMembers, setTeamMembers] = useState([]);
   const [fetchingMembers, setFetchingMembers] = useState(false);
+  const { addNotification } = useNotifications();
   
   // Set initial form data when editing
   useEffect(() => {
@@ -1335,6 +1349,23 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
+        });
+      }
+            if (response.data) {
+        addNotification({
+          _id: `temp_${Date.now()}`,
+          type: 'task_assigned',
+          title: mode === 'edit' ? 'Task Updated' : 'Task Created',
+          message: mode === 'edit' 
+            ? `Task "${formData.taskTitle}" updated successfully`
+            : `Task "${formData.taskTitle}" created successfully`,
+          read: false,
+          createdAt: new Date(),
+          data: {
+            taskId: response.data._id,
+            projectId: project?._id
+          },
+          actionUrl: `/user-app/my-project/${project?._id}`
         });
       }
 
@@ -3464,6 +3495,7 @@ const Projects = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const [user, setUser] = useState(getUserData() || null);
+  const { addNotifications } = useNotifications();
 
   const [projects, setProjects] = useState([]);
   const [filteredProjects, setFilteredProjects] = useState([]);

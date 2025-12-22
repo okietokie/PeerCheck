@@ -20,7 +20,8 @@ export const proofUpload = multer({
     else cb(new Error('File type not allowed'), false);
   }
 });
-const avatarStorage = multer.memoryStorage(); // <-- memory, not disk
+
+const avatarStorage = multer.memoryStorage(); 
 
 export const avatarUpload = multer({
   storage: avatarStorage,

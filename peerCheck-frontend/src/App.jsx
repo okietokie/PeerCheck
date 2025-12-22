@@ -32,6 +32,7 @@ import PeerTeams from "./Components/user-dashboard/PeerTeams.jsx";
 import Profile from "./Components/user-dashboard/Profile.jsx";
 import Dashboard from "./Components/user-dashboard/Dashboard.jsx";
 import { useInView } from "react-intersection-observer";
+import NotificationsPage from "./Components/user-dashboard/NotificationsPage.jsx";
 
 // Extract theme names dynamically
 const themeNames = Object.keys(themes);
@@ -134,6 +135,7 @@ export default function App() {
                 <Route path="projects" element={<Projects />} />
                 <Route path="my-project/:projectId" element={<MyProject />} />
                 <Route path="peerteams" element={<PeerTeams />} />
+                <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="profile" element={<Profile />} />
             </Route>
             
