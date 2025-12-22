@@ -67,7 +67,7 @@ export default function Profile() {
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
-    
+  const [refresh, setRefresh] = useState();
   // Edit Profile States
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editUserData, setEditUserData] = useState({});
@@ -368,7 +368,7 @@ useEffect(() => {
 
     const formData = new FormData();
     formData.append("avatar", file);
-    
+
     for (let [key, value] of formData.entries()) {
       console.log(key, value);
     }
@@ -427,7 +427,7 @@ const handleSaveProfile = async () => {
       await loadAllData();
     }
 
-
+    setRefresh(true);
     
   } catch (error) {
     console.error('Error updating profile:', error);
@@ -503,7 +503,9 @@ const handleCloseSnackbar = (snackbar) => {
 
   useEffect(() => {
     loadAllData();
-  }, []);
+    if (refresh) setRefresh(false);
+    
+  }, [refresh]);
 
   if (loading) {
     return (
