@@ -183,14 +183,52 @@ export default function Dashboard() {
     }
   };
 
-  const calculateProductivity = (userTasks) => {
-    if (!userTasks || userTasks.length === 0) return 0;
-    
-    const completedTasks = userTasks.filter(t => t.status === 'completed').length;
-    const completionRate = (completedTasks / userTasks.length) * 100;
-    
-    return Math.min(100, Math.round(completionRate));
-  };
+const calculateProductivity = (userTasks) => {
+  if (!userTasks || userTasks.length === 0) return 0;
+
+  let totalWeightedScore = 0;
+  let totalWeight = 0;
+
+  userTasks.forEach(task => {
+    // Weights for components
+    const completionWeight = 0.5;
+    const timeWeight = 0.3;
+    const riskWeight = 0.2;
+
+    // Completion score (0 or 1)
+    const completionScore = task.status === 'completed' ? 1 : 0;
+
+    // Time efficiency score: ratio of focus time to estimated time, capped at 1
+    const timeScore = task.estimatedTime
+      ? Math.min(1, task.totalFocusTime / task.estimatedTime)
+      : 1;
+
+    // Risk/complexity multiplier (0-1 normalized)
+    const riskScore = (task.risk?.riskScore || 0) / 5; // assuming max 5
+
+    // Flags reduce productivity
+    let flagPenalty = 0;
+    if (task.flags?.rushedCompletion) flagPenalty += 0.2;
+    if (task.flags?.noProof) flagPenalty += 0.1;
+    if (task.flags?.manualReviewRequired) flagPenalty += 0.1;
+    flagPenalty = Math.min(flagPenalty, 1);
+
+    // Weighted score for this task
+    const taskWeightedScore = (
+      completionScore * completionWeight +
+      timeScore * timeWeight +
+      riskScore * riskWeight
+    ) * (1 - flagPenalty);
+
+    totalWeightedScore += taskWeightedScore;
+    totalWeight += 1;
+  });
+
+  const productivity = (totalWeightedScore / totalWeight) * 100;
+  return Math.min(100, Math.round(productivity));
+};
+
+
 
   const generateRecentActivities = (userTasks) => {
     if (!userTasks || userTasks.length === 0) {

@@ -5,7 +5,7 @@ import User from "../models/user.js";
 import Team from "../models/peergroup_log.js";
 import MentorProjectAssignment from "../models/mentorProjectAssignment.js";
 import { createNotification } from './notificationController.js';
-
+import { detectFreeRiders } from "./peerReviewController.js";
 
 
 // Status weight mapping for weighted progress
@@ -432,23 +432,32 @@ const calculateProjectHealth = (metrics) => {
 //Combines progress + risk + proof + deadlines into ONE score.
 //easier clean up
  */
-const calculateAllProjectMetrics = (tasks, teamMembers) => {
+const calculateAllProjectMetrics = async (tasks, teamMembers, projectId) => {
   const progress = calculateProgress(tasks);
   const timeEfficiency = calculateProjectTimeEfficiency(tasks);
   const projectRisk = calculateProjectRisk(tasks);
   const proofCompliance = calculateProofCompliance(tasks);
   const contributorFairness = calculateContributorFairness(tasks, teamMembers);
   const deadlineHealth = calculateDeadlineHealth(tasks);
-  
+  const detectFR = detectFreeRiders(projectId);
+
+  let freeRiders = {}, freeRiderCheckedAt = {};
+  if (detectFR){
+      const project = await Project.findById(projectId);
+      freeRiders = project.metrics.freeRiders;
+      freeRiderCheckedAt = project.metrics.freeRiderCheckedAt;
+  }
+
   const metrics = {
     progress,
     timeEfficiency,
     projectRisk,
     proofCompliance,
     contributorFairness,
-    deadlineHealth
+    deadlineHealth,
+    freeRiders,
+    freeRiderCheckedAt
   };
-
   const health = calculateProjectHealth(metrics);
 
   return {
@@ -466,7 +475,7 @@ export const updateProjectMetricsInDB = async (projectId) => {
     
     if (!tasks || !project) return;
     
-    const metrics = calculateAllProjectMetrics(tasks, project.team || []);
+    const metrics = await calculateAllProjectMetrics(tasks, project.team || [], project._id);
     
 const mapEfficiencyToStatus = (efficiency) => {
   if (efficiency < 40) return 'low';
@@ -475,9 +484,10 @@ const mapEfficiencyToStatus = (efficiency) => {
   return 'high';
 };
 
+
 await Project.findByIdAndUpdate(projectId, {
   'metrics.lastCalculated': new Date(),
-  'metrics.weightedProgress': metrics.progress.progress,
+  'metrics.weightedProgress': metrics.progress,
   'metrics.timeEfficiency.value': metrics.timeEfficiency.projectEfficiency,
   'metrics.timeEfficiency.status': mapEfficiencyToStatus(metrics.timeEfficiency.projectEfficiency),
   'metrics.projectRiskScore': metrics.projectRisk.projectRiskScore,
@@ -596,6 +606,9 @@ const projectData = {
       statusBreakdown: { not_started: 0, active: 0, paused: 0, completed: 0 },
       totalTasks: 0
     },
+    
+    freeRiders: [],
+    freeRidersCheckedAt: new Date(),
     timeEfficiency: {
       label: 'Low',
       projectEfficiency: 0,
@@ -825,7 +838,7 @@ export const getAllProjects = async (req, res) => {
     const projectsWithMetrics = await Promise.all(
       uniqueProjects.map(async (project) => {
         const tasks = await Task.find({ projectId: project._id }).lean();
-        const metrics = calculateAllProjectMetrics(tasks, project.teamId?.members || []);
+        const metrics = await calculateAllProjectMetrics(tasks, project.teamId?.members || [], project._id);
         return {
           ...project.toObject(),
           metrics
@@ -853,21 +866,20 @@ export const getProjectById = async (req, res) => {
           select: "name email avatar username skills status onlineStatus"
         }
       });
-    
     if (!project) {
       return res.status(404).json({ error: "Project not found" });
     }
     
     // Get tasks and calculate metrics
     const tasks = await Task.find({ projectId }).lean();
-    const metrics = calculateAllProjectMetrics(tasks, project.team || []);
-    
+    const metrics = await calculateAllProjectMetrics(tasks, project.team || [], project._id);
     // Update project metrics in DB (async)
     await updateProjectMetricsInDB(projectId);
     
+
     res.json({
       ...project.toObject(),
-      metrics,
+      metrics: project?.metrics,
       taskCount: tasks.length
     });
   } catch (error) {
@@ -937,7 +949,7 @@ export const getProjectMetrics = async (req, res) => {
       .lean();
 
     // Calculate metrics
-    const metrics = calculateAllProjectMetrics(tasks, project.teamId?.members || []);
+    const metrics = await calculateAllProjectMetrics(tasks, project.teamId?.members || [], project._id);
 
     const tasksWithMetrics = tasks.map(task => ({
       ...task,
@@ -1093,7 +1105,7 @@ export const getContributorAnalytics = async (req, res) => {
       .populate('assignedTo', 'name email avatar')
       .lean();
 
-    const metrics = calculateAllProjectMetrics(tasks, project.teamId?.members || []);
+    const metrics = await calculateAllProjectMetrics(tasks, project.teamId?.members || [], project._id);
 
     // Prepare contributors
     const contributors = (project.teamId?.members || []).map(member => {

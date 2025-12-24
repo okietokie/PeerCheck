@@ -118,7 +118,6 @@ export const fetchUserDetails = async (req, res) => {
   try {
     const user = await User.findById(req.userId).select('-password -resetPasswordToken');
     
-    // Updated query to match new schema structure
     const projects = await Project.find({ "members.user": req.userId })
       .populate('createdBy.user', 'name username avatar email')
       .populate('members.user', 'name username avatar email')

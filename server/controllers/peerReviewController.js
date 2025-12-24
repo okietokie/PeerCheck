@@ -25,10 +25,16 @@ export const applyPeerScoreToGrading = async (req, res) => {
         message: 'Weights must sum to 100%'
       });
     }
+      const project = await Project.findById(projectId)
+        .populate({
+          path: "teamId",
+          select: "members",
+          populate: {
+            path: "members",
+            select: "name username email avatar"
+          }
+        });
 
-    const project = await Project.findById(projectId)
-      .populate('members.userId', 'name email')
-      .populate('tasks');
 
     if (!project) {
       return res.status(404).json({
@@ -201,7 +207,6 @@ export const submitPeerReview = async (req, res) => {
     const { projectId, revieweeId, scores, comment } = req.body;
     const reviewerId = req.user.id;
 
-    console.log("req.body", req.body);
 
     const project = await Project.findById(projectId)
       .populate({
@@ -230,27 +235,52 @@ export const submitPeerReview = async (req, res) => {
     if (!members.includes(reviewerId.toString())) {
       return res.status(403).json({ success: false, message: 'Reviewer must be a project member' });
     }
-    if (existingReview) {
-      return res.status(409).json({ success: false, message: 'Already reviewed this member' });
-    }
+    // if (existingReview) {
+    //   return res.status(409).json({ success: false, message: 'Already reviewed this member' });
+    // }
     if (values.some(v => v < 1 || v > 5)) {
       return res.status(400).json({ success: false, message: 'Scores must be between 1 and 5' });
     }
-
-
-    //calculate totalScore
+      //calculate totalScore
     //const totalScore = (contribution + collaboration + quality + punctuality) / 4;
     const totalScore = values.reduce((a, b) => a + b, 0) / values.length; 
     //values = [contribution, collaboration, quality, punctuality]
+    console.log("existing review: ", existingReview);
+    let peerReview;
 
-    const peerReview = await PeerReview.create({
-      projectId,
-      reviewer: reviewerId,
-      reviewee: revieweeId,
-      scores,
-      comment,
-      totalScore
-    });
+    if (existingReview) {
+      // Ensure reviewedAgain object exists
+      if (!existingReview.reviewedAgain) {
+        existingReview.reviewedAgain = { reviewedAgain: false, reviewCount: 0 };
+      }
+
+      // Update reviewedAgain info
+      existingReview.reviewedAgain.reviewedAgain = true;
+      existingReview.reviewedAgain.reviewCount += 1;
+
+      // Update scores, comment, totalScore
+      existingReview.scores = scores;
+      existingReview.comment = comment;
+      existingReview.totalScore = totalScore;
+      existingReview.submittedAt = new Date();
+
+      // Save changes
+      await existingReview.save();
+
+      peerReview = existingReview;
+
+    } else {
+      // Create new review if it doesn't exist
+      peerReview = await PeerReview.create({
+        projectId,
+        reviewer: reviewerId,
+        reviewee: revieweeId,
+        scores,
+        comment,
+        totalScore
+      });
+    }
+
 
     await updateProjectPeerMetrics(projectId);
 
@@ -311,7 +341,8 @@ export const aggregatePeerScoresForProject = async (projectId) => {
     };
   });
 
-
+const scores = Object.values(results).map(m => m.averageScore);
+const projectAverage = scores.reduce((a, b) => a + b, 0) / scores.length;
 
   return {
     success: true,
@@ -319,7 +350,8 @@ export const aggregatePeerScoresForProject = async (projectId) => {
       members: results,
       summary: {
         totalReviews: reviews.length,
-        membersReviewed: Object.keys(results).length
+        membersReviewed: Object.keys(results).length,
+        projectAverage: projectAverage
       }
     }
   };
@@ -353,7 +385,7 @@ export const updateProjectPeerMetrics = async (projectId) => {
 export const detectFreeRiders = async (projectId) => {
   const project = await Project.findById(projectId).populate({
     path: 'teamId',
-    populate: { path: 'members', select: 'username' }
+    populate: { path: 'members', select: 'username name avatar' }
   });
 
   if (!project) return;
@@ -369,18 +401,20 @@ export const detectFreeRiders = async (projectId) => {
 
     const assigned = tasks.filter(t => t.assignedTo?.toString() === id);
     const completed = assigned.filter(t => t.status === 'completed').length;
+    console.log("completed: ", completed);
 
     const peerScore = peerMetrics[id]?.averageScore ?? 0;
 
     if (peerScore < 2.5 && completed === 0) {
+      console.log("ping ping! free rider!");
       freeRiders.push({
         userId: id,
-        name: member.name,
-        reason: 'Low peer score and no completed tasks'
+        name: member.name || member.username || member.email,
+        reason: 'Low peer score' ? peerScore < 2.5 : "No completed tasks"
       });
     }
   });
-
+  console.log("free riders: ", freeRiders);
   await Project.findByIdAndUpdate(projectId, {
     $set: {
       'metrics.freeRiders': freeRiders,
@@ -389,7 +423,7 @@ export const detectFreeRiders = async (projectId) => {
     }
   });
 
-  return { success: true, freeRiders };
+  return true;
 };
 
 
@@ -429,7 +463,12 @@ export const getPeerScoreForUser = async (req, res) => {
   const punctuality =
     reviews.reduce((s, r) => s + r.scores.punctuality, 0) / (reviews.length || 1);
 
-  const rev = reviews.map(r => r.comment);
+  const rev = reviews.map(r => ({
+    reviewerName: r.reviewer?.name,
+    comment: r.comment,
+    totalScore: r.totalScore
+  }));
+
 
   res.json({
     success: true,
@@ -455,8 +494,9 @@ export const checkPeerReviewCompletion = async (req, res) => {
     const project = await Project.findById(projectId)
       .populate({
         path: 'teamId',
+        select: 'members',
         populate: {
-          path: 'members.userId',
+          path: 'members',
           select: 'name email'
         }
       });
@@ -468,10 +508,39 @@ export const checkPeerReviewCompletion = async (req, res) => {
       });
     }
 
+    // Check if teamId and members exist
+    if (!project.teamId || !project.teamId.members) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          isCompleted: false,
+          completionPercentage: 0,
+          stats: {
+            totalMembers: 0,
+            totalPossibleReviews: 0,
+            completedReviews: 0,
+            remainingReviews: 0
+          },
+          memberCompletion: [],
+          reviewMatrix: {},
+          lockStatus: {
+            isLocked: project.peerReviewLocked || false,
+            lockedAt: project.peerReviewLockedAt,
+            lockedBy: project.peerReviewLockedBy
+          }
+        }
+      });
+    }
+
     const members = project.teamId.members || [];
-    const memberIds = members.map(m => m.userId._id.toString());
+        
+    // Extract member IDs safely
+    const memberIds = members
+      .map(m => m._id.toString())
+      .filter(id => id); // Filter out undefined/null
+
     
-    // Get all submitted reviews
+    // Get all submitted reviews so far
     const reviews = await PeerReview.find({ projectId });
     
     // Create a matrix of who has reviewed whom
@@ -489,10 +558,28 @@ export const checkPeerReviewCompletion = async (req, res) => {
       });
     });
 
-    // Calculate completion stats
+    /**
+     * reviewMatrix gives something like
+     * 
+        {
+          reviewerA: {
+            reviewerB: true,
+            reviewerC: false
+          },
+          reviewerB: {
+            reviewerA: true,
+            reviewerC: true
+          }
+        }
+     */
+
+    // Calculate total possible reviews
+    //Each person reviews everyone except themselves
+    //4 members → 4 × 3 = 12 reviews required
     const totalPossibleReviews = memberIds.length * (memberIds.length - 1);
+
+    //count completed reviews
     let completedReviews = 0;
-    
     Object.keys(reviewMatrix).forEach(reviewerId => {
       Object.keys(reviewMatrix[reviewerId]).forEach(revieweeId => {
         if (reviewMatrix[reviewerId][revieweeId]) {
@@ -500,29 +587,37 @@ export const checkPeerReviewCompletion = async (req, res) => {
         }
       });
     });
-
+    //calucalte percentage completed 
     const completionPercentage = totalPossibleReviews > 0 
       ? Math.round((completedReviews / totalPossibleReviews) * 100)
       : 0;
 
     // Check if all reviews are completed
+    /**
+     * Lock reviews
+     * Notify mentors
+     * Trigger grading
+     */
     const isCompleted = completedReviews === totalPossibleReviews;
     
     // Get individual member completion status
-    const memberCompletion = memberIds.map(memberId => {
+    const memberCompletion = members.map(member => {
+      const userId = member._id.toString();
+      
       const reviewsNeeded = memberIds.length - 1; // Can't review self
       const reviewsCompleted = reviews.filter(
-        review => review.reviewer.toString() === memberId
+        review => review.reviewer.toString() === userId
       ).length;
       
       return {
-        userId: memberId,
-        name: members.find(m => m.userId._id.toString() === memberId)?.userId?.name || 'Unknown',
+        userId: userId,
+        name: member.name || 'Unknown',
+        avatar: member.avatar || null,
         reviewsNeeded,
         reviewsCompleted,
         isComplete: reviewsCompleted === reviewsNeeded
       };
-    });
+    }).filter(m => m !== null); // Remove null entries
 
     res.status(200).json({
       success: true,
@@ -547,6 +642,7 @@ export const checkPeerReviewCompletion = async (req, res) => {
 
   } catch (error) {
     console.error('Check peer review completion error:', error);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Failed to check peer review completion',

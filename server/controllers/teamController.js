@@ -2,6 +2,7 @@
 import mongoose from 'mongoose'; //since some functions need mongoose import
 import Group from "../models/peergroup_log.js";
 import User from "../models/user.js";
+import Connection from '../models/connection.js';
 
 // Get user's teams
 export const getUserTeams = async (req, res) => {
@@ -327,6 +328,7 @@ export const inviteToTeam = async (req, res) => {
       });
     }
 
+    const peer = await User.findOne({username: username});
     //check if users are connected to each other
 
     if (!email && !username) {
@@ -335,9 +337,19 @@ export const inviteToTeam = async (req, res) => {
         message: "Either email or username is required" 
       });
     }
-
-
-
+    //check if members are peers
+    const isPeer = await Connection.findOne({
+      $or : [
+        {fromUser: currentUserId, toUser: peer._id, status: "accepted"},
+        {fromUser: peer._id, toUser: currentUserId, status: "accepted"}
+      ]
+    })
+    if (!isPeer){
+      return res.status(404).json({
+        success: false,
+        message: `You are not peers yet! Request ${username} through your profile!`
+      })
+    }
 
     // Check if team exists and user is a member
     const team = await Group.findOne({

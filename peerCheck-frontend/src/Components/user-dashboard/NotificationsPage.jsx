@@ -178,9 +178,6 @@ const NotificationsPage = () => {
       markAsRead(notification._id);
     }
     
-    if (notification.actionUrl) {
-      navigate(notification.actionUrl);
-    }
   };
 
   const handleFilterClick = (event) => {

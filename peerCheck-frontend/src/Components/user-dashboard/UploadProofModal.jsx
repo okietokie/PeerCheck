@@ -35,7 +35,7 @@ import {
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import axiosClient from '@api/axiosClient';
-import { getAuthToken } from './utils/auth';
+import { getAuthToken } from '../../utils/auth.js';
 
 const UploadProofModal = ({ open, onClose, task, theme, onSuccess }) => {
   const [file, setFile] = useState(null);

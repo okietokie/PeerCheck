@@ -102,7 +102,7 @@ import {
 import { motion } from 'framer-motion';
 import axiosClient from '@/api/axiosClient';
 import { useNavigate, useParams  } from 'react-router-dom';
-import { getAuthToken } from './utils/auth';
+import { getAuthToken } from '../../utils/auth.js';
 import { useInView } from 'react-intersection-observer';
 
 
