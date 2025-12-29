@@ -880,17 +880,27 @@ const calculateProductivity = (userTasks) => {
                             {project.teamId?.members && project.teamId.members.length > 0 && (
                               <AvatarGroup max={3} sx={{ ml: 2 }}>
                                 {project.teamId.members.slice(0, 3).map((member, idx) => (
-                                  <Avatar 
+                                  <Tooltip title={`${member.name}`} >
+                                                                      <Avatar
+                                    src={member.avatar}
                                     key={idx}
-                                    sx={{ 
-                                      width: 32, 
+                                    sx={{
+                                      width: 32,
                                       height: 32,
+                                      ml: idx === 0 ? 0 : -1,
                                       border: `2px solid ${theme.palette.background.paper}`,
-                                      fontSize: 12
+                                      transition: "transform 0.2s, box-shadow 0.2s",
+                                      cursor: "pointer",
+                                      "&:hover": {
+                                        zIndex: 10,
+                                        transform: "scale(1.15)",
+                                        boxShadow: theme.shadows[4],
+                                      }
                                     }}
                                   >
-                                    {member.name?.charAt(0) || member.username?.charAt(0) || 'U'}
+                                    {member.avatar || member.name?.charAt(0) || member.username?.charAt(0) || 'U'}
                                   </Avatar>
+                                  </Tooltip>
                                 ))}
                               </AvatarGroup>
                             )}
@@ -1420,21 +1430,6 @@ const calculateProductivity = (userTasks) => {
         </Alert>
       </Snackbar>
 
-      <Snackbar
-        open={snackbars.activityClick}
-        autoHideDuration={2000}
-        onClose={() => handleCloseSnackbar('activityClick')}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert
-          severity="info"
-          variant="filled"
-          onClose={() => handleCloseSnackbar('activityClick')}
-          icon={<CommentIcon />}
-        >
-          Activity items show recent task updates. Click to see more details!
-        </Alert>
-      </Snackbar>
 
       <Snackbar
         open={snackbars.quickActionClick}

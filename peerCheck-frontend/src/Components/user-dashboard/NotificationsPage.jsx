@@ -41,6 +41,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axiosClient from '@/api/axiosClient';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 const NotificationsPage = () => {
   const theme = useTheme();
@@ -53,6 +54,7 @@ const NotificationsPage = () => {
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const { markAllAsRead } = useNotifications();
 
   const filterTypes = [
     { value: 'all', label: 'All Notifications' },
@@ -134,15 +136,7 @@ const NotificationsPage = () => {
     }
   };
 
-  const markAllAsRead = async () => {
-    try {
-      await axiosClient.put('/user/notifications/read-all');
-      setNotifications(prev => prev.map(notif => ({ ...notif, read: true })));
-      setUnreadCount(0);
-    } catch (error) {
-      console.error('Error marking all as read:', error);
-    }
-  };
+
 
   const deleteNotification = async (notificationId) => {
     try {

@@ -120,7 +120,10 @@ import {
   History,
   Settings,
   Lock,
-  RateReview
+  RateReview,
+  Title,
+  Circle,
+  CalendarMonth
 } from '@mui/icons-material';
 import StarIcon from '@mui/icons-material/Star';
 import RateReviewIcon from '@mui/icons-material/RateReview';
@@ -129,13 +132,14 @@ import LockOpenIcon from '@mui/icons-material/LockOpen';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import axiosClient from '@/api/axiosClient';
-import useInView from '@/hooks/useInView.js';
-import { format, differenceInDays, isBefore } from 'date-fns';
+import { format } from 'date-fns';
 import { CreateTaskModal } from './Projects';
-import { TaskDetailsModal, UploadProofModal } from './Tasks';
+import { UploadProofModal } from './Tasks';
 import { StickyNoteEditor } from './StickyNoteEditor';
 import PeerReviewTab from './PeerReviewTab';
 import { getUserData as getUserDataUtils } from '@/utils/user.js';
+import { TaskTableRow } from './TaskTableRow.jsx';
+import TaskDetailsModal from './TaskDetailsModal';
 
 // Helper functions from Tasks.jsx
 const getUserData = () => {
@@ -164,295 +168,6 @@ const formatTime = (seconds) => {
   }
   return `${minutes}m`;
 };
-
-// Task Table Row Component
-const TaskTableRow = ({ 
-  task, 
-  isSelected, 
-  onSelect, 
-  theme,
-  userRole,
-  onLogTime,
-  onUploadProof,
-  onViewDetails,
-  onStatusChange,
-  userTeacher
-}) => {
-  const [actionsAnchorEl, setActionsAnchorEl] = useState(null);
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'completed': return 'success';
-      case 'active': return 'info';
-      case 'paused': return 'warning';
-      default: return 'default';
-    }
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'completed': return <CheckCircle fontSize="small" />;
-      case 'active': return <PlayArrowIcon fontSize="small" />;
-      case 'paused': return <Pause fontSize="small" />;
-      default: return null;
-    }
-  };
-
-  const getRiskColor = (riskScore) => {
-    if (riskScore >= 4) return 'error';
-    if (riskScore >= 2) return 'warning';
-    return 'success';
-  };
-
-  const getEfficiencyColor = (efficiency) => {
-    if (efficiency < 50) return 'error';
-    if (efficiency < 80) return 'warning';
-    if (efficiency > 120) return 'warning';
-    return 'success';
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    try {
-      const date = new Date(dateString);
-      const today = new Date();
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      
-      if (date.toDateString() === today.toDateString()) return 'Today';
-      if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
-      
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } catch (err) {
-      return 'Invalid';
-    }
-  };
-
-  const isAssignedUser = task.assignedTo?._id === userRole?.userId;
-  const canEdit = isAssignedUser || userRole?.role === 'teacher' || userRole?.role === 'admin';
-
-  return (
-    <TableRow
-      hover
-      selected={isSelected}
-      sx={{
-        '&:hover': {
-          backgroundColor: alpha(theme.palette.primary.main, 0.04),
-        },
-        '&.Mui-selected': {
-          backgroundColor: alpha(theme.palette.primary.main, 0.08),
-        },
-        cursor: 'pointer'
-      }}
-      onClick={() => onViewDetails(task)}
-    >
-      {/* Checkbox */}
-      <TableCell padding="checkbox" onClick={(e) => e.stopPropagation()}>
-        <Checkbox
-          checked={isSelected}
-          onChange={(e) => onSelect(task._id, e.target.checked)}
-        />
-      </TableCell>
-
-      {/* Task Title */}
-      <TableCell>
-        <Box>
-          <Typography variant="body2" fontWeight="medium">
-            {task.taskTitle}
-          </Typography>
-          {task.metrics?.isOverdue && (
-            <Chip
-              label="OVERDUE"
-              size="small"
-              color="error"
-              sx={{ mt: 0.5 }}
-            />
-          )}
-        </Box>
-      </TableCell>
-
-      {/* Assignee */}
-      <TableCell>
-        <Box display="flex" alignItems="center" gap={1}>
-          <Avatar 
-            src={task.assignedTo?.avatar}
-            sx={{ width: 32, height: 32, fontSize: 14 }}
-          >
-            {task.assignedTo?.name?.charAt(0)}
-          </Avatar>
-          <Typography variant="body2">
-            {task.assignedTo?.name?.split(' ')[0] || 'Unassigned'}
-          </Typography>
-        </Box>
-      </TableCell>
-
-      {/* Status */}
-      <TableCell>
-        <Chip
-          icon={getStatusIcon(task.status)}
-          label={task.status.replace('_', ' ').toUpperCase()}
-          color={getStatusColor(task.status)}
-          size="small"
-          sx={{ minWidth: 100 }}
-        />
-      </TableCell>
-
-      {/* Deadline */}
-      <TableCell>
-        <Box>
-          <Typography variant="body2" fontWeight="medium">
-            {formatDate(task.deadline)}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {task.metrics?.daysUntilDeadline > 0 
-              ? `${task.metrics.daysUntilDeadline} days left`
-              : task.metrics?.isOverdue ? 'Overdue' : 'Due soon'}
-          </Typography>
-        </Box>
-      </TableCell>
-
-      {/* Efficiency */}
-      <TableCell>
-        <Box display="flex" alignItems="center" gap={1}>
-          <Speed fontSize="small" color={getEfficiencyColor(task.metrics?.efficiency)} />
-          <Typography 
-            variant="body2" 
-            fontWeight="medium"
-            color={getEfficiencyColor(task.taskMetrics?.efficiency)}
-          >
-            {task.status === "active" ? (
-                <CircularProgress size={18} />
-              ) : (
-                `${task.taskMetrics?.efficiency?.toFixed(1) || 0}%`
-              )} 
-          </Typography>
-        </Box>
-      </TableCell>
-
-      {/* Risk Level */}
-      <TableCell>
-        <Chip
-          label={task.metrics?.riskScore >= 4 ? 'HIGH' : 
-                 task.metrics?.riskScore >= 2 ? 'MEDIUM' : 'LOW'}
-          color={getRiskColor(task.metrics?.riskScore)}
-          size="small"
-          icon={<Security fontSize="small" />}
-        />
-      </TableCell>
-
-      {/* Proof Indicator */}
-      <TableCell>
-        <Badge 
-          badgeContent={task.metrics?.proofCount} 
-          color={task.metrics?.hasProof ? "success" : "error"}
-        >
-          {task.metrics?.hasProof ? (
-            <CheckCircle color="success" fontSize="small" />
-          ) : (
-            <Warning color="error" fontSize="small" />
-          )}
-        </Badge>
-      </TableCell>
-
-      {/* Actions */}
-      <TableCell onClick={(e) => e.stopPropagation()}>
-        <Stack direction="row" spacing={0.5}>
-          {isAssignedUser && task.status !== 'completed' && (
-            <>
-              {task.status === 'not_started' && (
-                <Tooltip title="Start Task">
-                  <IconButton 
-                    size="small"
-                    color="primary"
-                    onClick={() => onStatusChange(task._id, 'active')}
-                  >
-                    <PlayArrowIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-              
-              {task.status === 'active' && (
-                <>
-                  <Tooltip title="Pause Task">
-                    <IconButton 
-                      size="small"
-                      color="warning"
-                      onClick={() => onStatusChange(task._id, 'paused')}
-                    >
-                      <Pause fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Complete Task">
-                    <IconButton 
-                      size="small"
-                      color="success"
-                      onClick={() => onStatusChange(task._id, 'completed')}
-                    >
-                      <CheckCircle fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </>
-              )}
-              
-              {task.status === 'paused' && (
-                <Tooltip title="Resume Task">
-                  <IconButton 
-                    size="small"
-                    color="primary"
-                    onClick={() => onStatusChange(task._id, 'active')}
-                  >
-                    <PlayArrowIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-              
-              <Tooltip title="Log Focus Time">
-                <IconButton 
-                  size="small"
-                  color="info"
-                  onClick={() => onLogTime(task)}
-                >
-                  <Timer fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              
-              <Tooltip title="Upload Proof">
-                <IconButton 
-                  size="small"
-                  color="secondary"
-                  onClick={() => onUploadProof(task)}
-                >
-                  <Upload fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </>
-          )}
-          
-          {userTeacher && (
-            <Tooltip title="Review Task">
-              <IconButton 
-                size="small"
-                color="warning"
-                onClick={() => onViewDetails(task)}
-              >
-                <Assessment fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          )}
-          
-          {userTeacher && (
-            <IconButton 
-            size="small"
-            onClick={(e) => setActionsAnchorEl(e.currentTarget)}
-          >
-            <MoreHoriz fontSize="small" />
-          </IconButton>)}
-        </Stack>
-      </TableCell>
-    </TableRow>
-  );
-};
-
 
 
 const MyProject = () => {
@@ -535,6 +250,49 @@ const handleProofUploadSuccess = () => {
   setProofUploadMessage(true);
 
 };
+const handleTaskFieldUpdate = async (taskId, updates) => {
+  try {
+    const token = getAuthToken();
+    
+    //ex:updates is { field: 'deadline', value: '2024-01-01T23:59:59.999Z' }
+    const response = await axiosClient.patch(`/user/${taskId}/field`, 
+      {
+        field: updates.field,  
+        value: updates.value  
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      }
+    );
+    
+    if (response.data?.success) {
+      // Update local state
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task._id === taskId 
+            ? { 
+                ...task, 
+                [updates.field]: updates.value,
+                ...response.data.task // Merge any additional data from backend
+              }
+            : task
+        )
+      );
+      
+      return response.data;
+    } else {
+      console.error("Error finding link ig");
+      throw new Error(response.data?.error || 'Failed to update task');
+    }
+  } catch (error) {
+    console.error('Error updating task:', error);
+    // Show error toast
+    throw error;
+  }
+};
 
 const fetchCompletionStatus = async () => {
   console.log("response completion: ");
@@ -545,7 +303,6 @@ const fetchCompletionStatus = async () => {
     const response = await axiosClient.get(`/peer-review/completion/${projectId}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    console.log("response completion: ", response.data);
     if (response.data?.success) {
       setCompletionStatus(response.data.data);
     }
@@ -1182,7 +939,6 @@ const togglePinNote = async (noteId) => {
       } catch (mentorError) {
         console.warn('Error fetching mentor:', mentorError);
       }
-      console.log("fetchedData: ", fetchedData);
       // Update project state
       const projectData = {
         projectId: fetchedData.id || projectId,
@@ -1209,8 +965,6 @@ const togglePinNote = async (noteId) => {
 
       setProject(projectData);
       setMembers(fetchedData.teamId?.members || []);
-      console.log("teammebers: ", fetchedData.teamId?.members)
-      console.log("metrics: ", fetchedData.metrics)
 
       
       if (fetchedData.teamId?.members){
@@ -1831,302 +1585,452 @@ if(!projectId){
 
           {/* Project Header */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <Paper
-              elevation={0}
-              sx={{
-                p: { xs: 3, md: 4 },
-                mb: 4,
-                borderRadius: 4,
-                ...getGlassEffect(),
-                position: 'relative',
-                overflow: 'hidden',
-                '&::before': {
-                  content: '""',
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: '100%',
-                  background: `linear-gradient(45deg, 
-                    ${alpha(theme.palette.primary.main, 0.05)} 0%, 
-                    transparent 50%, 
-                    ${alpha(theme.palette.secondary.main, 0.05)} 100%
-                  )`,
-                  zIndex: 0,
-                }
-              }}
+          <Box
+          sx={{display: "flex", gap: 2, alignItems:"stretch"}}
             >
-              <Box sx={{ position: 'relative', zIndex: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-                  <Box sx={{ flex: 1, minWidth: '300px' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                      <Avatar
-
+                      <Paper
+                        elevation={0}
                         sx={{
-                          width: 60,
-                          height: 60,
-                          background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                          fontSize: 24,
-                          fontWeight: 'bold',
-                          boxShadow: `0 8px 25px ${alpha(theme.palette.primary.main, 0.3)}`,
-                          border: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
-                        }}
-                      >
-                        <Psychology />
-                      </Avatar>
-                      <Box>
-                        <Typography variant="h2" sx={{ 
-                          fontFamily: '"Adlam Display", serif',
-                          fontWeight: 500,
-                          mb: 0.5,
-                          background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                          backgroundClip: 'text',
-                          WebkitBackgroundClip: 'text',
-                          WebkitTextFillColor: 'transparent',
-                          textShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.2)}`,
-                        }}>
-                          {project?.projectName || 'Unnamed Project'}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-                          <Chip 
-                            label={project?.status || 'Unknown'} 
-                            color={project?.status === 'ongoing' ? 'primary' : 'default'}
-                            icon={<Rocket fontSize="small" />}
-                            sx={{ 
-                              fontFamily: '"Adlam Display", serif',
-                              fontWeight: 600,
-                              borderRadius: 2,
-                              background: `linear-gradient(135deg, ${getThemeColor('primary')}, ${alpha(getThemeColor('primary'), 0.8)})`,
-                              color: getContrastColor(getThemeColor('primary')),
-                              boxShadow: `0 4px 15px ${alpha(getThemeColor('primary'), 0.3)}`,
-                            }}
-                          />
-                          <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <CalendarToday fontSize="small" />
-                            Deadline: {project?.endDate || 'No date set'}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Box>
-
-                    {/* Progress Section */}
-                    <Box sx={{ mb: 3 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                        <Typography variant="body2" sx={{ 
-                          fontFamily: '"Adlam Display", serif',
-                          fontWeight: 500,
-                        }}>
-                          Project Progress
-                        </Typography>
-                        <Typography variant="body2" fontWeight="bold">
-                          {projectMetrics?.weightedProgress || project?.progress || 0}%
-                        </Typography>
-                      </Box>
-                      <LinearProgress 
-                        variant="determinate" 
-                        value={projectMetrics?.weightedProgress || project?.progress || 0} 
-                        sx={{ 
-                          height: 10, 
-                          borderRadius: 5,
-                          backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                          '& .MuiLinearProgress-bar': {
-                            background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                            borderRadius: 5,
-                            boxShadow: `0 0 10px ${alpha(theme.palette.primary.main, 0.5)}`,
+                          p: { xs: 3, md: 4 },
+                          mb: 4,
+                          borderRadius: 4,
+                          ...getGlassEffect(),
+                          position: 'relative',
+                          overflow: 'hidden',
+                          '&::before': {
+                            content: '""',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: '100%',
+                            background: `linear-gradient(45deg, 
+                              ${alpha(theme.palette.primary.main, 0.05)} 0%, 
+                              transparent 50%, 
+                              ${alpha(theme.palette.secondary.main, 0.05)} 100%
+                            )`,
+                            zIndex: 0,
                           }
                         }}
-                      />
-                    </Box>
-                  </Box>
+                      >
+                        <Box sx={{ position: 'relative', zIndex: 1 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+                            <Box sx={{ flex: 1, minWidth: '300px' }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                                <Avatar
 
-                  {/* Action Buttons */}
-                  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                    <Button 
-                      variant="outlined" 
-                      startIcon={<Edit />}
-                      onClick={handleEditProjectButton}
-                      disabled={project?.status === 'completed' || project?.createdBy?._id !== user?._id}
-                      sx={{ 
-                        fontFamily: '"Adlam Display", serif',
-                        borderRadius: 2,
-                        px: 3,
-                        py: 1,
-                        borderWidth: 2,
-                        borderColor: alpha(theme.palette.primary.main, 0.3),
-                        color: theme.palette.primary.main,
-                        '&:hover': {
-                          borderWidth: 2,
-                          borderColor: theme.palette.primary.main,
-                          backgroundColor: alpha(theme.palette.primary.main, 0.05),
-                        }
-                      }}
-                    >
-                      {isEditing.field}
-                    </Button>
-                    <Button 
-                      variant="contained" 
-                      startIcon={<CheckCircle />}
-                      onClick={async () => {
-                        try {
-                          const token = localStorage.getItem('token');
-                          await axiosClient.patch(`/projects/${projectId}`, {
-                            status: 'completed'
-                          }, {
-                            headers: { Authorization: `Bearer ${token}` }
-                          });
-                          showSnackbar('Project marked as completed', 'success');
-                          setRefresh(true);
-                        } catch (error) {
-                          showSnackbar('Error completing project', 'error');
-                        }
-                      }}
-                      sx={{ 
-                        fontFamily: '"Adlam Display", serif',
-                        borderRadius: 2,
-                        px: 3,
-                        py: 1,
-                        background: `linear-gradient(135deg, ${getThemeColor('success')}, ${alpha(getThemeColor('success'), 0.8)})`,
-                        color: getContrastColor(getThemeColor('success')),
-                        boxShadow: `0 4px 20px ${alpha(getThemeColor('success'), 0.4)}`,
-                        '&:hover': {
-                          boxShadow: `0 8px 25px ${alpha(getThemeColor('success'), 0.6)}`,
-                          transform: 'translateY(-2px)',
-                        },
-                        transition: 'all 0.3s ease',
-                      }}
-                    >
-                      Mark Complete
-                    </Button>
-                  </Box>
-                </Box>
+                                  sx={{
+                                    width: 60,
+                                    height: 60,
+                                    background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                                    fontSize: 24,
+                                    fontWeight: 'bold',
+                                    boxShadow: `0 8px 25px ${alpha(theme.palette.primary.main, 0.3)}`,
+                                    border: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+                                  }}
+                                >
+                                  <Psychology />
+                                </Avatar>
+                                <Box>
+                                  <Typography variant="h2" sx={{ 
+                                    fontFamily: '"Adlam Display", serif',
+                                    fontWeight: 500,
+                                    mb: 0.5,
+                                    background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                                    backgroundClip: 'text',
+                                    WebkitBackgroundClip: 'text',
+                                    WebkitTextFillColor: 'transparent',
+                                    textShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.2)}`,
+                                  }}>
+                                    {project?.projectName || 'Unnamed Project'}
+                                  </Typography>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                                    <Chip 
+                                      label={project?.status || 'Unknown'} 
+                                      color={project?.status === 'ongoing' ? 'primary' : 'default'}
+                                      icon={<Rocket fontSize="small" />}
+                                      sx={{ 
+                                        fontFamily: '"Adlam Display", serif',
+                                        fontWeight: 600,
+                                        borderRadius: 2,
+                                        background: `linear-gradient(135deg, ${getThemeColor('primary')}, ${alpha(getThemeColor('primary'), 0.8)})`,
+                                        color: getContrastColor(getThemeColor('primary')),
+                                        boxShadow: `0 4px 15px ${alpha(getThemeColor('primary'), 0.3)}`,
+                                      }}
+                                    />
+                                    <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      <CalendarToday fontSize="small" />
+                                      Deadline: {project?.endDate || 'No date set'}
+                                    </Typography>
+                                  </Box>
+                                </Box>
+                              </Box>
 
-                {/* Description */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="body1" sx={{ color: theme.palette.text.secondary }}>
-                    {project?.description || 'No description available'}
-                  </Typography>
-                </Box>
+                              {/* Progress Section */}
+                              <Box sx={{ mb: 3 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                  <Typography variant="body2" sx={{ 
+                                    fontFamily: '"Adlam Display", serif',
+                                    fontWeight: 500,
+                                  }}>
+                                    Project Progress
+                                  </Typography>
+                                  <Typography variant="body2" fontWeight="bold">
+                                    {projectMetrics?.weightedProgress || project?.progress || 0}%
+                                  </Typography>
+                                </Box>
+                                <LinearProgress 
+                                  variant="determinate" 
+                                  value={projectMetrics?.weightedProgress || project?.progress || 0} 
+                                  sx={{ 
+                                    height: 10, 
+                                    borderRadius: 5,
+                                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                                    '& .MuiLinearProgress-bar': {
+                                      background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                                      borderRadius: 5,
+                                      boxShadow: `0 0 10px ${alpha(theme.palette.primary.main, 0.5)}`,
+                                    }
+                                  }}
+                                />
+                              </Box>
+                            </Box>
 
-                {/* ToolKit */}
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="body2" sx={{ 
-                    mb: 1.5,
-                    fontFamily: '"Adlam Display", serif',
-                    fontWeight: 500,
-                    color: theme.palette.text.secondary,
-                  }}>
-                    Project Toolkit 
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {isEditing.state ? (
-                      <Autocomplete
-                        multiple
-                        freeSolo
-                        value={project?.toolkit || []}
-                        onChange={(event, newValue) => {
-                          setProject(prev => ({ ...prev, toolkit: newValue }));
-                        }}
-                        options={[]}
-                        renderTags={(value, getTagProps) =>
-                          value.map((option, index) => (
-                            <Chip
-                              variant="outlined"
-                              label={option}
-                              {...getTagProps({ index })}
-                            />
-                          ))
-                        }
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            size="small"
-                            placeholder="Add tool and press Enter"
-                          />
-                        )}
-                      />
-                    ) : (
-                      (project?.toolkit || []).map((tool, index) => (
-                        <Chip 
-                          key={index} 
-                          label={tool} 
-                          icon={<Code fontSize="small" />}
-                          variant="outlined"
-                          sx={{ 
-                            borderRadius: 2,
-                            borderColor: alpha(theme.palette.primary.main, 0.3),
-                            backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                            color: theme.palette.text.primary,
-                            '&:hover': {
-                              backgroundColor: alpha(theme.palette.primary.main, 0.2),
-                              borderColor: theme.palette.primary.main,
-                              transform: 'translateY(-2px)',
-                            },
-                            transition: 'all 0.3s ease',
-                          }}
-                        />
-                      ))
-                    )}
-                  </Box>
-                </Box>
+                            {/* Action Buttons */}
+                            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                              <Button 
+                                variant="outlined" 
+                                startIcon={<Edit />}
+                                onClick={handleEditProjectButton}
+                                disabled={project?.status === 'completed' || project?.createdBy?._id !== user?._id}
+                                sx={{ 
+                                  fontFamily: '"Adlam Display", serif',
+                                  borderRadius: 2,
+                                  px: 3,
+                                  py: 1,
+                                  borderWidth: 2,
+                                  borderColor: alpha(theme.palette.primary.main, 0.3),
+                                  color: theme.palette.primary.main,
+                                  '&:hover': {
+                                    borderWidth: 2,
+                                    borderColor: theme.palette.primary.main,
+                                    backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                                  }
+                                }}
+                              >
+                                {isEditing.field}
+                              </Button>
+                              <Button 
+                                variant="contained" 
+                                startIcon={<CheckCircle />}
+                                onClick={async () => {
+                                  try {
+                                    const token = localStorage.getItem('token');
+                                    await axiosClient.patch(`/projects/${projectId}`, {
+                                      status: 'completed'
+                                    }, {
+                                      headers: { Authorization: `Bearer ${token}` }
+                                    });
+                                    showSnackbar('Project marked as completed', 'success');
+                                    setRefresh(true);
+                                  } catch (error) {
+                                    showSnackbar('Error completing project', 'error');
+                                  }
+                                }}
+                                sx={{ 
+                                  fontFamily: '"Adlam Display", serif',
+                                  borderRadius: 2,
+                                  px: 3,
+                                  py: 1,
+                                  background: `linear-gradient(135deg, ${getThemeColor('success')}, ${alpha(getThemeColor('success'), 0.8)})`,
+                                  color: getContrastColor(getThemeColor('success')),
+                                  boxShadow: `0 4px 20px ${alpha(getThemeColor('success'), 0.4)}`,
+                                  '&:hover': {
+                                    boxShadow: `0 8px 25px ${alpha(getThemeColor('success'), 0.6)}`,
+                                    transform: 'translateY(-2px)',
+                                  },
+                                  transition: 'all 0.3s ease',
+                                }}
+                              >
+                                Mark Complete
+                              </Button>
+                            </Box>
+                          </Box>
 
-                {/* Leadership Team */}
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Avatar
-                    src={project?.createdBy?.avatar}                  
-                    sx={{ 
-                      width: 48, 
-                      height: 48, 
-                      background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${alpha(theme.palette.primary.main, 0.8)})`,
-                      border: `3px solid ${alpha(theme.palette.primary.main, 0.3)}`,
-                      boxShadow: `0 4px 15px ${alpha(theme.palette.primary.main, 0.3)}`,
-                      color: getContrastColor(theme.palette.primary.main),
-                    }}>
-                      {project?.createdBy?.avatar || (project?.createdBy?.name?.charAt(0) || 'P')}
-                    </Avatar>
-                    <Box>
-                      <Tooltip title={project?.createdBy?.email || 'Unknown'}>
-                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                          Creator
-                        </Typography>       
-                      </Tooltip>
-                      <Tooltip title={project?.createdBy?.email || 'Unknown'}>
-                        <Typography variant="body1" fontWeight="600">
-                          {project?.createdBy?.name || 'Unknown Creator'}
-                        </Typography>
-                      </Tooltip>
-                    </Box>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Avatar 
-                    src={project?.mentor?.avatar}                  
+                          {/* Description */}
+                          <Box sx={{ mb: 3 }}>
+                            <Typography variant="body1" sx={{ color: theme.palette.text.secondary }}>
+                              {project?.description || 'No description available'}
+                            </Typography>
+                          </Box>
 
-                    sx={{ 
-                      width: 48, 
-                      height: 48, 
-                      background: `linear-gradient(135deg, ${theme.palette.secondary.main}, ${alpha(theme.palette.secondary.main, 0.8)})`,
-                      border: `3px solid ${alpha(theme.palette.secondary.main, 0.3)}`,
-                      boxShadow: `0 4px 15px ${alpha(theme.palette.secondary.main, 0.3)}`,
-                      color: getContrastColor(theme.palette.secondary.main),
-                    }}>
-                      {project?.mentor?.avatar || (project?.mentor?.name?.charAt(0) || 'M')}
-                    </Avatar>
-                    <Box>
-                      <Tooltip title={project?.mentor?.email || 'No mentor assigned'}>
-                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                          Mentor
-                        </Typography>
-                      </Tooltip>
-                      <Tooltip title={project?.mentor?.email || 'No mentor assigned'}>
-                        <Typography variant="body1" fontWeight="600">
-                          {project?.mentor?.name || 'No Mentor Assigned'}
-                        </Typography>
-                      </Tooltip>
-                    </Box>
-                  </Box>
-                </Box>
-              </Box>
-            </Paper>
+                          {/* ToolKit */}
+                          <Box sx={{ mb: 3 }}>
+                            <Typography variant="body2" sx={{ 
+                              mb: 1.5,
+                              fontFamily: '"Adlam Display", serif',
+                              fontWeight: 500,
+                              color: theme.palette.text.secondary,
+                            }}>
+                              Project Toolkit 
+                            </Typography>
+                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                              {isEditing.state ? (
+                                <Autocomplete
+                                  multiple
+                                  freeSolo
+                                  value={project?.toolkit || []}
+                                  onChange={(event, newValue) => {
+                                    setProject(prev => ({ ...prev, toolkit: newValue }));
+                                  }}
+                                  options={[]}
+                                  renderTags={(value, getTagProps) =>
+                                    value.map((option, index) => (
+                                      <Chip
+                                        variant="outlined"
+                                        label={option}
+                                        {...getTagProps({ index })}
+                                      />
+                                    ))
+                                  }
+                                  renderInput={(params) => (
+                                    <TextField
+                                      {...params}
+                                      size="small"
+                                      placeholder="Add tool and press Enter"
+                                    />
+                                  )}
+                                />
+                              ) : (
+                                (project?.toolkit || []).map((tool, index) => (
+                                  <Chip 
+                                    key={index} 
+                                    label={tool} 
+                                    icon={<Code fontSize="small" />}
+                                    variant="outlined"
+                                    sx={{ 
+                                      borderRadius: 2,
+                                      borderColor: alpha(theme.palette.primary.main, 0.3),
+                                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                                      color: theme.palette.text.primary,
+                                      '&:hover': {
+                                        backgroundColor: alpha(theme.palette.primary.main, 0.2),
+                                        borderColor: theme.palette.primary.main,
+                                        transform: 'translateY(-2px)',
+                                      },
+                                      transition: 'all 0.3s ease',
+                                    }}
+                                  />
+                                ))
+                              )}
+                            </Box>
+                          </Box>
+
+                          {/* Leadership Team */}
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <Avatar
+                              src={project?.createdBy?.avatar}                  
+                              sx={{ 
+                                width: 48, 
+                                height: 48, 
+                                background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${alpha(theme.palette.primary.main, 0.8)})`,
+                                border: `3px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+                                boxShadow: `0 4px 15px ${alpha(theme.palette.primary.main, 0.3)}`,
+                                color: getContrastColor(theme.palette.primary.main),
+                              }}>
+                                {project?.createdBy?.avatar || (project?.createdBy?.name?.charAt(0) || 'P')}
+                              </Avatar>
+                              <Box>
+                                <Tooltip title={project?.createdBy?.email || 'Unknown'}>
+                                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                                    Creator
+                                  </Typography>       
+                                </Tooltip>
+                                <Tooltip title={project?.createdBy?.email || 'Unknown'}>
+                                  <Typography variant="body1" fontWeight="600">
+                                    {project?.createdBy?.name || 'Unknown Creator'}
+                                  </Typography>
+                                </Tooltip>
+                              </Box>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <Avatar 
+                              src={project?.mentor?.avatar}                  
+
+                              sx={{ 
+                                width: 48, 
+                                height: 48, 
+                                background: `linear-gradient(135deg, ${theme.palette.secondary.main}, ${alpha(theme.palette.secondary.main, 0.8)})`,
+                                border: `3px solid ${alpha(theme.palette.secondary.main, 0.3)}`,
+                                boxShadow: `0 4px 15px ${alpha(theme.palette.secondary.main, 0.3)}`,
+                                color: getContrastColor(theme.palette.secondary.main),
+                              }}>
+                                {project?.mentor?.avatar || (project?.mentor?.name?.charAt(0) || 'M')}
+                              </Avatar>
+                              <Box>
+                                <Tooltip title={project?.mentor?.email || 'No mentor assigned'}>
+                                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                                    Mentor
+                                  </Typography>
+                                </Tooltip>
+                                <Tooltip title={project?.mentor?.email || 'No mentor assigned'}>
+                                  <Typography variant="body1" fontWeight="600">
+                                    {project?.mentor?.name || 'No Mentor Assigned'}
+                                  </Typography>
+                                </Tooltip>
+                              </Box>
+                            </Box>
+                          </Box>
+                        </Box>
+                        
+                      </Paper>
+                      {/* Right Column - Sidebar */}
+                      {!isMobile && (
+                        <Box sx={{ width: { lg: 320 }, minWidth: { lg: 320 }}}>
+                          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}>
+                            <Paper
+                              elevation={0}
+                              sx={{
+                                p: 3,
+                                borderRadius: 3,
+                                ...getGlassEffect(),
+                                position: 'sticky',
+                                top: 24,
+                                
+                              }}
+                            >
+                              <Typography variant="h6" sx={{ 
+                                mb: 3,
+                                fontFamily: '"Adlam Display", serif',
+                                fontWeight: 500,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                color: theme.palette.text.primary,
+                              }}>
+                                <Info /> Project Overview
+                              </Typography>
+
+                              <Box sx={{ mb: 3 }}>
+                                <Typography variant="subtitle2" sx={{ mb: 1.5, color: theme.palette.text.secondary }}>
+                                  Project Timeline
+                                </Typography>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                                  <Typography variant="body2">Start Date</Typography>
+                                  <Typography variant="body2" fontWeight="600">
+                                    {project?.startDate || 'Not set'}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                  <Typography variant="body2">End Date</Typography>
+                                  <Typography variant="body2" fontWeight="600">
+                                    {project?.endDate || 'Not set'}
+                                  </Typography>
+                                </Box>
+                              </Box>
+
+                              <Divider sx={{ my: 3, borderColor: alpha(theme.palette.divider, 0.3) }} />
+
+                              <Typography variant="subtitle2" sx={{ mb: 2, color: theme.palette.text.secondary }}>
+                                Tags
+                              </Typography>
+                              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
+                                {(project?.tags || []).map((tag, index) => (
+                                  <Chip
+                                    key={index}
+                                    label={tag}
+                                    size="small"
+                                    sx={{
+                                      borderRadius: 1.5,
+                                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                                      border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
+                                      color: theme.palette.text.primary,
+                                      '&:hover': {
+                                        backgroundColor: alpha(theme.palette.primary.main, 0.2),
+                                      }
+                                    }}
+                                  />
+                                ))}
+                              </Box>
+
+                              <Divider sx={{ my: 3, borderColor: alpha(theme.palette.divider, 0.3) }} />
+
+                              <Typography variant="subtitle2" sx={{ mb: 2, color: theme.palette.text.secondary }}>
+                                Key Metrics
+                              </Typography>
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary">
+                                    Weighted Progress
+                                  </Typography>
+                                  <LinearProgress 
+                                    variant="determinate" 
+                                    value={projectMetrics?.weightedProgress || 0}
+                                    sx={{ 
+                                      height: 6,
+                                      borderRadius: 3,
+                                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                                      '& .MuiLinearProgress-bar': {
+                                        background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                                      }
+                                    }}
+                                  />
+                                  <Typography variant="body2" align="right">
+                                    {projectMetrics?.weightedProgress || 0}%
+                                  </Typography>
+                                </Box>
+
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary">
+                                    Proof Compliance
+                                  </Typography>
+                                  <LinearProgress 
+                                    variant="determinate" 
+                                    value={projectMetrics?.proofComplianceRate || 0}
+                                    sx={{ 
+                                      height: 6,
+                                      borderRadius: 3,
+                                      backgroundColor: alpha(getThemeColor('success'), 0.1),
+                                      '& .MuiLinearProgress-bar': {
+                                        background: `linear-gradient(90deg, ${getThemeColor('success')}, ${alpha(getThemeColor('success'), 0.7)})`,
+                                      }
+                                    }}
+                                  />
+                                  <Typography variant="body2" align="right">
+                                    {projectMetrics?.proofComplianceRate || 0}%
+                                  </Typography>
+                                </Box>
+                              </Box>
+
+                              <Button
+                                fullWidth
+                                variant="outlined"
+                                startIcon={<Assessment />}
+                                sx={{
+                                  mt: 3,
+                                  borderRadius: 2,
+                                  py: 1.5,
+                                  fontFamily: '"Adlam Display", serif',
+                                  borderWidth: 2,
+                                  borderColor: getBorderColor('primary', 0.3),
+                                  color: theme.palette.primary.main,
+                                  '&:hover': {
+                                    borderWidth: 2,
+                                    borderColor: theme.palette.primary.main,
+                                    backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                                    transform: 'translateY(-2px)',
+                                  },
+                                  transition: 'all 0.3s ease',
+                                }}
+                              >
+                                Generate Report
+                              </Button>
+                            </Paper>
+                          </motion.div>
+                        </Box>
+                      )}
+          </Box>
           </motion.div>
 
           {/* Stats Grid with Efficiency Metrics */}
@@ -2482,78 +2386,95 @@ if(!projectId){
                                 borderSpacing: 0,
                               }}
                             >
-                              <TableHead>
-                                <TableRow sx={{ backgroundColor: 'transparent' }}>
-                                  <TableCell 
-                                    padding="checkbox"
-                                    sx={{
-                                      borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                                      backgroundColor: theme.palette.mode === 'dark' 
-                                        ? alpha(theme.palette.background.paper, 0.8)
-                                        : alpha(theme.palette.background.paper, 0.9),
-                                      backdropFilter: 'blur(10px)',
-                                      position: 'sticky',
-                                      top: 0,
-                                      zIndex: 2,
-                                      borderRadius: '12px 0 0 0',
-                                    }}
-                                  >
-                                    <Checkbox
-                                      checked={allSelected}
-                                      indeterminate={selectedTasks.size > 0 && !allSelected}
-                                      onChange={(e) => handleSelectAll(e.target.checked)}
-                                      sx={{
-                                        color: theme.palette.primary.main,
-                                        '&.Mui-checked': {
-                                          color: theme.palette.primary.main,
-                                        },
-                                        '&.MuiCheckbox-indeterminate': {
-                                          color: theme.palette.primary.main,
-                                        }
-                                      }}
-                                    />
-                                  </TableCell>
-                                  {[
-                                    { label: 'TASK TITLE', width: '25%' },
-                                    { label: 'ASSIGNEE', width: '15%' },
-                                    { label: 'STATUS', width: '12%' },
-                                    { label: 'DEADLINE', width: '12%' },
-                                    { label: 'EFFICIENCY', width: '10%' },
-                                    { label: 'RISK LEVEL', width: '10%' },
-                                    { label: 'PROOF', width: '8%' },
-                                    { label: 'ACTIONS', width: '8%' },
-                                  ].map((header, index) => (
-                                    <TableCell 
-                                      key={header.label}
-                                      sx={{
-                                        width: header.width,
-                                        borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                                        backgroundColor: theme.palette.mode === 'dark' 
-                                          ? alpha(theme.palette.background.paper, 0.8)
-                                          : alpha(theme.palette.background.paper, 0.9),
-                                        backdropFilter: 'blur(10px)',
-                                        position: 'sticky',
-                                        top: 0,
-                                        zIndex: 2,
-                                        ...(index === 7 && { borderRadius: '0 12px 0 0' })
-                                      }}
-                                    >
-                                      <Typography 
-                                        variant="subtitle2" 
-                                        sx={{
-                                          fontWeight: 700,
-                                          color: theme.palette.primary.main,
-                                          letterSpacing: '0.05em',
-                                          textTransform: 'uppercase',
-                                          fontSize: '0.8rem',
-                                        }}
-                                      >
-                                        {header.label}
-                                      </Typography>
-                                    </TableCell>
-                                  ))}
-                                </TableRow>
-                              </TableHead>
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: 'transparent' }}>
+                    <TableCell 
+                      padding="checkbox"
+                      sx={{
+                        borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                        backgroundColor: theme.palette.mode === 'dark' 
+                          ? alpha(theme.palette.background.paper, 0.8)
+                          : alpha(theme.palette.background.paper, 0.9),
+                        backdropFilter: 'blur(10px)',
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 2,
+                        borderRadius: '12px 0 0 0',
+                      }}
+                    >
+                      <Checkbox
+                        checked={allSelected}
+                        indeterminate={selectedTasks.size > 0 && !allSelected}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        sx={{
+                          color: theme.palette.primary.main,
+                          '&.Mui-checked': {
+                            color: theme.palette.primary.main,
+                          },
+                          '&.MuiCheckbox-indeterminate': {
+                            color: theme.palette.primary.main,
+                          }
+                        }}
+                      />
+                    </TableCell>
+                    {[
+                      { label: 'TASK TITLE', width: '25%' },
+                      { label: 'STATUS', width: '12%' },
+                      { label: 'ASSIGNEE', width: '15%' },
+                      { label: 'START DATE', width: '12%' },
+                      { label: 'DEADLINE', width: '12%' },
+                      { label: 'PRIORITY', width: '10%' },
+                      { label: 'COMMENTS', width: '10%' },
+
+                      { label: 'EFFICIENCY', width: '10%' },
+                      { label: 'RISK', width: '10%' },
+                      { label: 'PROOF', width: '8%' },
+
+                      { label: 'ACTIONS', width: '8%' },
+                    ].map((header, index) => (
+                      <TableCell 
+                        key={header.label}
+                        sx={{
+                          width: header.width,
+                          borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                          backgroundColor: theme.palette.mode === 'dark' 
+                            ? alpha(theme.palette.background.paper, 0.8)
+                            : alpha(theme.palette.background.paper, 0.9),
+                          backdropFilter: 'blur(10px)',
+                          position: 'sticky',
+                          top: 0,
+                          zIndex: 2,
+                          ...(index === 7 && { borderRadius: '0 12px 0 0' })
+                        }}
+                      >
+                        <Typography 
+                          variant="subtitle2" 
+                          sx={{
+                            fontWeight: 700,
+                            color: theme.palette.primary.main,
+                            fontFamily: '"Inter", sans-serif',
+                            letterSpacing: '0.05em',
+                            textTransform: 'uppercase',
+                            fontSize: '0.8rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                          }}
+                        >
+                          {index === 0 && <Title fontSize="small" />}
+                          {index === 1 && <Person fontSize="small" />}
+                          {index === 2 && <Circle fontSize="small" />}
+                          {index === 3 && <CalendarMonth fontSize="small" />}
+                          {index === 4 && <TrendingUp fontSize="small" />}
+                          {index === 5 && <Warning fontSize="small" />}
+                          {index === 6 && <Task fontSize="small" />}
+                          {index === 7 && <Settings fontSize="small" />}
+                          {header.label}
+                        </Typography>
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead> 
                               <TableBody>
                                 {tasks
                                   .filter(task => {
@@ -2582,6 +2503,8 @@ if(!projectId){
                                       onUploadProof={handleUploadProof}
                                       onViewDetails={handleViewDetails}
                                       onStatusChange={handleStatusChange}
+                                      onTaskUpdate={handleTaskFieldUpdate}
+
                                       userTeacher={userTeacher}
                                     />
                                   ))}
@@ -3577,150 +3500,7 @@ if(!projectId){
               </Paper>
             </Box>
 
-            {/* Right Column - Sidebar */}
-            {!isMobile && (
-              <Box sx={{ width: { lg: 320 }, minWidth: { lg: 320 } }}>
-                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}>
-                  <Paper
-                    elevation={0}
-                    sx={{
-                      p: 3,
-                      borderRadius: 3,
-                      ...getGlassEffect(),
-                      position: 'sticky',
-                      top: 24,
-                    }}
-                  >
-                    <Typography variant="h6" sx={{ 
-                      mb: 3,
-                      fontFamily: '"Adlam Display", serif',
-                      fontWeight: 500,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      color: theme.palette.text.primary,
-                    }}>
-                      <Info /> Project Overview
-                    </Typography>
 
-                    <Box sx={{ mb: 3 }}>
-                      <Typography variant="subtitle2" sx={{ mb: 1.5, color: theme.palette.text.secondary }}>
-                        Project Timeline
-                      </Typography>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="body2">Start Date</Typography>
-                        <Typography variant="body2" fontWeight="600">
-                          {project?.startDate || 'Not set'}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <Typography variant="body2">End Date</Typography>
-                        <Typography variant="body2" fontWeight="600">
-                          {project?.endDate || 'Not set'}
-                        </Typography>
-                      </Box>
-                    </Box>
-
-                    <Divider sx={{ my: 3, borderColor: alpha(theme.palette.divider, 0.3) }} />
-
-                    <Typography variant="subtitle2" sx={{ mb: 2, color: theme.palette.text.secondary }}>
-                      Tags
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
-                      {(project?.tags || []).map((tag, index) => (
-                        <Chip
-                          key={index}
-                          label={tag}
-                          size="small"
-                          sx={{
-                            borderRadius: 1.5,
-                            backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                            border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`,
-                            color: theme.palette.text.primary,
-                            '&:hover': {
-                              backgroundColor: alpha(theme.palette.primary.main, 0.2),
-                            }
-                          }}
-                        />
-                      ))}
-                    </Box>
-
-                    <Divider sx={{ my: 3, borderColor: alpha(theme.palette.divider, 0.3) }} />
-
-                    <Typography variant="subtitle2" sx={{ mb: 2, color: theme.palette.text.secondary }}>
-                      Key Metrics
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">
-                          Weighted Progress
-                        </Typography>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={projectMetrics?.weightedProgress || 0}
-                          sx={{ 
-                            height: 6,
-                            borderRadius: 3,
-                            backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                            '& .MuiLinearProgress-bar': {
-                              background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                            }
-                          }}
-                        />
-                        <Typography variant="body2" align="right">
-                          {projectMetrics?.weightedProgress || 0}%
-                        </Typography>
-                      </Box>
-
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">
-                          Proof Compliance
-                        </Typography>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={projectMetrics?.proofComplianceRate || 0}
-                          sx={{ 
-                            height: 6,
-                            borderRadius: 3,
-                            backgroundColor: alpha(getThemeColor('success'), 0.1),
-                            '& .MuiLinearProgress-bar': {
-                              background: `linear-gradient(90deg, ${getThemeColor('success')}, ${alpha(getThemeColor('success'), 0.7)})`,
-                            }
-                          }}
-                        />
-                        <Typography variant="body2" align="right">
-                          {projectMetrics?.proofComplianceRate || 0}%
-                        </Typography>
-                      </Box>
-                    </Box>
-
-                    <Button
-                      fullWidth
-                      variant="outlined"
-                      startIcon={<Assessment />}
-                      sx={{
-                        mt: 3,
-                        borderRadius: 2,
-                        py: 1.5,
-                        fontFamily: '"Adlam Display", serif',
-                        borderWidth: 2,
-                        borderColor: getBorderColor('primary', 0.3),
-                        color: theme.palette.primary.main,
-                        '&:hover': {
-                          borderWidth: 2,
-                          borderColor: theme.palette.primary.main,
-                          backgroundColor: alpha(theme.palette.primary.main, 0.05),
-                          transform: 'translateY(-2px)',
-                        },
-                        transition: 'all 0.3s ease',
-                      }}
-                    >
-                      Generate Report
-                    </Button>
-                  </Paper>
-                </motion.div>
-              </Box>
-            )}
           </Box>
         </Container>
 

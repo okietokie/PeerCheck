@@ -16,8 +16,7 @@ export const uploadAvatar = async (req, res) => {
     const userId = req.user.id;
 
     const user = await User.findById(userId);
-    console.log("user before: ", user);
-    console.log("avatar data: ", req.file);
+
     
     // Generate a unique key for R2
     const avatarKey = `avatar/${userId}/${Date.now()}-${req.file.originalname}`;
@@ -38,7 +37,6 @@ export const uploadAvatar = async (req, res) => {
   }
 
     const avatarUrl = `${process.env.R2_PUBLIC_DEV_DOMAIN_FOR_AVATAR}/${avatarKey}`;
-    console.log("avatarURL: ", avatarUrl);
     // Update user in DB
     const updatedUser = await User.findByIdAndUpdate(
       req.userId,
@@ -123,8 +121,8 @@ export const fetchUserDetails = async (req, res) => {
       .populate('members.user', 'name username avatar email')
       .populate('tasks');
 
-    console.log("user:", user)
     res.status(200).json({
+      success: true,
       username: req.username,
       user: user,
       userProjects: projects

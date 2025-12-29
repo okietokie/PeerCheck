@@ -15,12 +15,15 @@ import * as upload from '../middleware/uploadMiddleware.js';
 
 import { getMentorById, getMentors } from '../controllers/mentorController.js';
 import notificationRoutes from "./notificationRoutes.js";
+import commentRoutes from "./commentRoutes.js";
 const router = express.Router();
 
 
 router.get("/basic-data", fetchBasicData);
 
 router.use("", notificationRoutes)
+router.use("/comments", commentRoutes);
+
 
 router.use(protect);
 router.get("/dashboard-stats", userController.getDashboardStats);
@@ -66,6 +69,9 @@ router.put("/task/:taskId/status", taskController.updateTaskStatus); // update t
 router.put("/task/:taskId/time", taskController.updateTaskTime); // update task time tracking
 router.delete("/task/:taskId", taskController.deleteTask); // delete task
 router.put("/task/:taskId/assign", taskController.assignTask); // assign task to user
+//Inline editing
+router.patch('/:taskId/field', taskController.updateTaskField); // Update single field
+router.patch('/:taskId/fields', taskController.updateTaskMultipleFields); // Update multiple fields
 
 // Recent activities route
 router.get("/task/activity/recent", userController.getRecentActivities); // route for recent activities

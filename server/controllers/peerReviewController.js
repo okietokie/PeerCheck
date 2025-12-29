@@ -245,7 +245,6 @@ export const submitPeerReview = async (req, res) => {
     //const totalScore = (contribution + collaboration + quality + punctuality) / 4;
     const totalScore = values.reduce((a, b) => a + b, 0) / values.length; 
     //values = [contribution, collaboration, quality, punctuality]
-    console.log("existing review: ", existingReview);
     let peerReview;
 
     if (existingReview) {
@@ -401,12 +400,10 @@ export const detectFreeRiders = async (projectId) => {
 
     const assigned = tasks.filter(t => t.assignedTo?.toString() === id);
     const completed = assigned.filter(t => t.status === 'completed').length;
-    console.log("completed: ", completed);
 
     const peerScore = peerMetrics[id]?.averageScore ?? 0;
 
     if (peerScore < 2.5 && completed === 0) {
-      console.log("ping ping! free rider!");
       freeRiders.push({
         userId: id,
         name: member.name || member.username || member.email,
@@ -414,7 +411,6 @@ export const detectFreeRiders = async (projectId) => {
       });
     }
   });
-  console.log("free riders: ", freeRiders);
   await Project.findByIdAndUpdate(projectId, {
     $set: {
       'metrics.freeRiders': freeRiders,

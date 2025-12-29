@@ -18,6 +18,13 @@ const taskSchema = new mongoose.Schema(
       enum: ["not_started", "active", "paused", "completed"],
       default: "not_started"
     },
+    priority: {
+      type: String,
+      default: "TO DO"
+    },
+    commentsCount:{
+      type: Number
+    },
 
     proofUploads: [
       {

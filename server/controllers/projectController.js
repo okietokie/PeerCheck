@@ -825,6 +825,7 @@ export const getAllProjects = async (req, res) => {
           );
         }
       }
+    
 
     projects = [
       ...projects,
@@ -839,12 +840,20 @@ export const getAllProjects = async (req, res) => {
       uniqueProjects.map(async (project) => {
         const tasks = await Task.find({ projectId: project._id }).lean();
         const metrics = await calculateAllProjectMetrics(tasks, project.teamId?.members || [], project._id);
+        project.teamId.members = await Promise.all(
+          project.teamId.members.map((member) =>
+            User.findById(member, "avatar name")
+          )
+        );
+      
+
         return {
           ...project.toObject(),
           metrics
         };
       })
     );
+
 
     res.json(projectsWithMetrics);
   } catch (error) {
@@ -875,7 +884,7 @@ export const getProjectById = async (req, res) => {
     const metrics = await calculateAllProjectMetrics(tasks, project.team || [], project._id);
     // Update project metrics in DB (async)
     await updateProjectMetricsInDB(projectId);
-    
+  
 
     res.json({
       ...project.toObject(),

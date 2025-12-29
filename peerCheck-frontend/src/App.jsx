@@ -34,6 +34,7 @@ import Dashboard from "./Components/user-dashboard/Dashboard.jsx";
 import { useInView } from "react-intersection-observer";
 import NotificationsPage from "./Components/user-dashboard/NotificationsPage.jsx";
 import MyProjectNull from "./Components/user-dashboard/MyProjectNull.jsx";
+import TaskTableRow from "./Components/user-dashboard/TaskTableRow.jsx";
 
 // Extract theme names dynamically
 const themeNames = Object.keys(themes);
@@ -116,6 +117,7 @@ export default function App() {
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }} ref={ref}>
         <Router>
           <Routes>
+
             <Route path="/" element={<Home />} />
             <Route path="/*" element={<AuthPage />} />
             <Route path="/admin-page" element={<AdminPage />} />

@@ -199,7 +199,7 @@ export default function UserApp() {
       minHeight: '100vh',
       pb: isMobile ? 7 : 0
     }}>
-      {/* Desktop Navigation - UPDATED */}
+      {/* Desktop Navigation */}
       {!isMobile ? (
         <Box sx={{ 
           width: '100%', 
@@ -276,7 +276,7 @@ export default function UserApp() {
           </Container>
         </Box>
       ) : (
-        /* Mobile Top Bar - UPDATED */
+        /* Mobile Top Bar */
         <>
           <AppBar 
             position="fixed" 
@@ -330,7 +330,7 @@ export default function UserApp() {
           {/* Spacer for AppBar */}
           <Toolbar />
           
-          {/* Mobile Bottom Navigation - UPDATED */}
+          {/* Mobile Bottom Navigation */}
           <Paper 
             sx={{ 
               position: 'fixed', 
@@ -384,7 +384,8 @@ export default function UserApp() {
 
       {/* Main Content */}
       <Container 
-        maxWidth="lg" 
+        maxWidth={false}
+
         sx={{ 
           flex: 1,
           py: { xs: 2, sm: 3 },

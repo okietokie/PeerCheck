@@ -29,7 +29,6 @@ export const setupDeadlineChecker = () => {
         }
       }
       
-      console.log(`Checked deadlines for ${projects.length} projects`);
     } catch (error) {
       console.error('Error in deadline checker:', error);
     }

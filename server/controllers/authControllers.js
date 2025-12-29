@@ -443,19 +443,16 @@ export const resetPassword = async (req, res) => {
 
 
   try {
-    console.log("token in try: ", token);
     const user = await User.findOne({
       resetPasswordToken: token,
       resetPasswordExpires: { $gt: Date.now() }, // not expired
     });
 
-    console.log("uesr: ", user);
     const user2 = await User.findOne({
       email: 'okietokie65@gmail.com'
     });
 
 
-    console.log(user2)
     if (!user) return res.status(400).json({ message: "Invalid or expired token" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -464,7 +461,6 @@ export const resetPassword = async (req, res) => {
     user.resetPasswordExpires = undefined;
     await user.save();
 
-    console.log("user", user);
         
      await PasswordReset.create({
       userId: user._id,

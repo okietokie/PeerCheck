@@ -17,12 +17,10 @@ export const getMentorById = async (req, res) => {
     try {
         const projectId = req.params.projectId;
 
-        console.log("Fetching mentor for project ID:", projectId);
 
         const mentor = await MentorProjectAssignment.findOne({ project: projectId })
             .populate('mentor', '_id name email avatar')
             .select('mentor');
-        console.log("Fetched mentor assignment:", mentor);
 
         if (!mentor) {
             
