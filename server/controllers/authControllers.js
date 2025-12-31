@@ -8,6 +8,7 @@ import nodemailer from "nodemailer";
 import crypto from "crypto";
 import dotenv from 'dotenv';
 import path from 'path';
+import TourGuideInfo from "../models/tourguideInfo.js";
 dotenv.config({ path: path.resolve('./server/.env') });
 
 
@@ -29,6 +30,9 @@ export const registerUser = async (req, res) => {
     //saving the user
     const user = new User({ name, username, email, dob, password: hashedPassword, role });
     await user.save();
+
+    const tourInfo = new TourGuideInfo({user: user._id})
+    await tourInfo.save();
 
     res.status(201).json({ message: "User registered successfully" });
   } catch (error) {

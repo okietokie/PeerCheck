@@ -6,6 +6,7 @@ import Team from "../models/peergroup_log.js";
 import MentorProjectAssignment from "../models/mentorProjectAssignment.js";
 import { createNotification } from './notificationController.js';
 import { detectFreeRiders } from "./peerReviewController.js";
+import Notification from "../models/notification.js";
 
 
 // Status weight mapping for weighted progress
@@ -818,7 +819,6 @@ export const getAllProjects = async (req, res) => {
           const daysRemaining = Math.ceil(
             (endDate - now) / (1000 * 60 * 60 * 24)
           );
-
           await notifyProjectEvents.deadlineApproaching(
             project._id,
             daysRemaining
@@ -1347,11 +1347,21 @@ export const notifyProjectEvents = {
       const project = await Project.findById(projectId).populate('teamId');
       
       if (!project) return null;
-      const team = await Team.findById("members", "name username email");
+      const team = await Team.findById(project.teamId)
+        .populate("members", "name username email");
 
       // Get all team members
       const teamMembers = team.members || [];
+
+
+      const message = `Project "${project.projectName}" is due in ${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}`
+      const lastNotification = await Notification.findOne({ message }).sort({ createdAt: -1 });
+
+      const now = Date.now();
+      const sixHours = 6 * 60 * 60 * 1000;
+      const notified = lastNotification  && (now - lastNotification.createdAt.getTime()) <= (sixHours);
       
+      if(!notified){
       const notifications = [];
       for (const member of teamMembers) {
         const notification = await createNotification({
@@ -1370,8 +1380,10 @@ export const notifyProjectEvents = {
         });
         notifications.push(notification);
       }
+            return notifications;
 
-      return notifications;
+      }
+
     } catch (error) {
       console.error('Error creating deadline notifications:', error);
       return null;

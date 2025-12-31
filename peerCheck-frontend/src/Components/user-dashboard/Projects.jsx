@@ -254,11 +254,6 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
       setError('End date is required');
       return false;
     }
-
-    if(!formData.assignedTo) {
-      setError('Please assign the task to someone!');
-      return false;
-    }
     
     const start = new Date(formData.startDate);
     const end = new Date(formData.endDate);
@@ -2730,8 +2725,9 @@ const TeamMembersPopover = ({ anchorEl, open, onClose, teamMembers, theme, proje
       overflow: 'hidden',
     }
   }}
+  
 >
-  <Box sx={{ p: 0 }}>
+  <Box sx={{ p: 0 }} >
     {/* Header */}
     <Box sx={{
       p: 2.5,

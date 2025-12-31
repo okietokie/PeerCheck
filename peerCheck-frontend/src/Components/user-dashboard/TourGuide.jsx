@@ -37,6 +37,8 @@ import { getDashboardSteps } from './TourGuideComponents/dashboardSteps';
 import { getProfileSteps } from './TourGuideComponents/profileSteps';
 import { getTaskTabSteps } from './TourGuideComponents/taskTabSteps';
 import { getTaskModalSteps } from './TourGuideComponents/getTaskModalSteps';
+import axiosClient from '@/api/axiosClient';
+import { getAuthToken } from '@/utils/auth';
 
 const TourGuide = ({ page = 'dashboard', showAppBarButton = false }) => {
   const theme = useTheme();
@@ -46,6 +48,7 @@ const TourGuide = ({ page = 'dashboard', showAppBarButton = false }) => {
   const [highlightedElement, setHighlightedElement] = useState(null);
   const [highlightStyle, setHighlightStyle] = useState({});
   const [isPositioning, setIsPositioning] = useState(false);
+  const [hasSeenTour, setHasSeenTour] = useState(null);
   const dialogRef = useRef(null);
   const observerRef = useRef(null);
 
@@ -263,10 +266,20 @@ if (typeof position.left === 'number') {
     setActiveStep(0);
   };
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
     setTourOpen(false);
     setActiveStep(0);
     localStorage.setItem(`peercheck-tour-${page}-completed`, 'true');
+    try{
+      const token = getAuthToken();
+      await axiosClient.patch("/user/tour-complete", { page: page } , {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+    }catch(error){
+      console.error("Could not update tour guide completion data", error);
+    }
   };
 
   const handleSkip = () => {
@@ -282,22 +295,42 @@ if (typeof position.left === 'number') {
 
   // Auto-start tour on first visit
   useEffect(() => {
-    const hasSeenTour = localStorage.getItem(`peercheck-tour-${page}-completed`);
-    
-    if (!hasSeenTour && page === 'dashboard') {
-      const timer = setTimeout(() => {
-        handleStart();
-      }, 1500);
-      
-      return () => clearTimeout(timer);
+  const checkTour = async () => {
+    try {
+      const token = getAuthToken();
+      const res = await axiosClient.get(`/user/tour-completion-check/${page}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const completed = res?.data?.status;
+
+      setHasSeenTour(completed);
+
+    } catch(error) {
+      console.error("Error fetching tour completion data:", error);
+      setHasSeenTour(true);
     }
-    if (!hasSeenTour && page === 'navigation') {
-        // Auto-start after a short delay
+  };
+
+  checkTour();
+
+  if(hasSeenTour === false){
+      if (!hasSeenTour && page !== 'navigation' ) {
         const timer = setTimeout(() => {
-          setTourOpen(true);
-        }, 1000);
+          handleStart();
+        }, 1500);
         return () => clearTimeout(timer);
+
+      }else if(!hasSeenTour && page === 'navigation'){
+        const timer = setTimeout(() => {
+          handleStart();
+        }, 1500);       
+        setTourOpen(true);
+        return () => clearTimeout(timer);
+
       }
+      
+  }
+
   }, [page, tourOpen]);
 
   return (

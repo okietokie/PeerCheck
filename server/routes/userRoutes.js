@@ -117,4 +117,7 @@ router.get("/suggested-users", userDiscoveryController.getSuggestedUsers); // ge
 router.get("/search-users", userDiscoveryController.searchUsers); // search users by name or email
 router.get("/user-profile/:userId", userDiscoveryController.getUserProfile);  // get user profile by ID
 
+
+router.get("/tour-completion-check/:page", userController.checkTourguideComplete);
+router.patch("/tour-complete", userController.markTourguideComplete);
 export default router;

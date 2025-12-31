@@ -8,6 +8,7 @@ import Connection from "../models/connection.js";
 import { r2Client, R2_BUCKET_NAME} from "../r2Client.js";
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import dotenv from 'dotenv';
+import TourGuideInfo from "../models/tourguideInfo.js";
 
 dotenv.config({path : path.resolve('./server/.env')});
 
@@ -632,3 +633,63 @@ export const getRecentActivities = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+
+export const checkTourguideComplete = async (req, res) => {
+  try{
+    const userId = req.user.id;
+    const { page } = req.params;
+    let tourGuide = await TourGuideInfo.findOne({ user: userId });
+
+        // If user has no tour record → create it
+        if (!tourGuide) {
+          tourGuide = await TourGuideInfo.create({
+            user: userId,
+            status: { [page]: false }
+          });
+        }
+
+        // If page key does NOT exist → create it
+        if (!tourGuide.status.has(page)) {
+          tourGuide.status.set(page, false);
+          await tourGuide.save();
+        }
+
+  return res.status(200).json({
+    success: true,
+    status: tourGuide.status[page]
+  })
+  }catch(error){
+
+    return res.status(500).json({
+        success: false,
+        message:  `Error: ${error}`
+      })
+    }
+}
+export const markTourguideComplete = async (req, res) => {
+  try{
+      const userId = req.user.id;
+      const { page } = req.body;
+
+      const tourGuide = await TourGuideInfo.findOneAndUpdate({user: userId}, {$set: { [`status.${page}`]: true }}, {new: true});
+
+      if (!tourGuide){
+        return res.status(404).json({
+          success: false,
+          message: "No tour guide info found!"
+        })
+      }
+
+      return res.status(200).json({
+        success: true,
+        status: tourGuide.status
+      })
+
+  }catch(error){
+
+    return res.status(500).json({
+        success: false,
+        message:  `Error: ${error}`
+      })
+    }
+}
