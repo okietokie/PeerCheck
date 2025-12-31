@@ -18,7 +18,8 @@ import {
   BottomNavigation,
   BottomNavigationAction,
   Paper,
-  Tooltip
+  Tooltip,
+  alpha
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -29,7 +30,9 @@ import {
   Logout as LogoutIcon,
   VisibilityOutlined,
   Menu as MenuIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  AccountCircle,
+  HelpOutline
 
 } from '@mui/icons-material';
 
@@ -38,16 +41,19 @@ import { useEffect } from 'react';
 
 import axiosClient from '@/api/axiosClient';
 import NotificationBell from './NotificationBell';
+import { getUserData } from '@/utils/user';
+import TourGuide from './TourGuide';
 export default function UserApp() {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  
+  const [user, setUser] = useState();
   const [selectedTab, setSelectedTab] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [bottomNavValue, setBottomNavValue] = useState(0);
+  const [guide, setGuide] = useState(null);
 
   // Map paths to tab values
   const pathToValue = {
@@ -66,12 +72,18 @@ export default function UserApp() {
   const navItems = [
     { label: 'Dashboard', icon: <DashboardIcon />, path: '/user-app/dashboard' },
     { label: 'Projects', icon: <ProjectsIcon />, path: '/user-app/projects' },
-    { label: 'Tasks', icon: <TasksIcon />, path: '/user-app/tasks' },
+    { label: 'Tasks', icon: <TasksIcon />, path: '/user-app/tasks'},
     { label: 'My Project', icon: <VisibilityOutlined />, path: '/user-app/my-project' },
-    { label: 'PeerTeams', icon: <TeamsIcon />, path: '/user-app/peerteams' },
-    { label: 'Profile', icon: <ProfileIcon />, path: '/user-app/profile' },
+    { label: 'PeerTeams', icon: <TeamsIcon />, path: '/user-app/peerteams'},
+    { label: 'Profile', icon: <AccountCircle />, path: '/user-app/profile' },
   ];
-
+  useEffect(() => {
+    const settingUser = async () =>{
+      const u = await getUserData();
+      setUser(u);
+    }
+    settingUser();
+  },[])
   // Set initial tab value based on current route
   useEffect(() => {
     const currentPath = location.pathname;
@@ -117,6 +129,8 @@ export default function UserApp() {
     setMobileOpen(!mobileOpen);
   };
 
+
+
   // Mobile Drawer Content
   const drawerContent = (
     <Box sx={{ width: 250, height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -160,7 +174,8 @@ export default function UserApp() {
               minWidth: 40,
               color: selectedTab === index ? 'primary.main' : 'inherit'
             }}>
-              {item.icon}
+
+            {item.icon}
             </ListItemIcon>
             <ListItemText 
               primary={item.label} 
@@ -173,7 +188,8 @@ export default function UserApp() {
       </List>
 
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>        
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>    
+            
         <IconButton 
           onClick={handleLogout}
           sx={{
@@ -193,7 +209,8 @@ export default function UserApp() {
   );
 
   return (
-    <Box sx={{ 
+    <>
+        <Box sx={{ 
       display: 'flex', 
       flexDirection: 'column',
       minHeight: '100vh',
@@ -244,14 +261,18 @@ export default function UserApp() {
                     key={item.label}
                     icon={item.icon}
                     iconPosition="start"
-                    label={item.label}
+                    label={item.label === 'Profile' ? user?.username : item.label}
                     sx={{
                       minWidth: '120px',
                     }}
                   />
                 ))}
               </Tabs>
-              
+
+              {/* Tour Guide Icon */}
+              <TourGuide page="navigation" showAppBarButton={true} />
+
+                          
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 {/* Notification Bell */}
                 <NotificationBell />
@@ -397,5 +418,7 @@ export default function UserApp() {
         <Outlet />
       </Container>
     </Box>
+
+    </>
   );
 }

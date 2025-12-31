@@ -100,10 +100,11 @@ import {
   
 } from '@mui/icons-material';
 import axiosClient from '@/api/axiosClient';
-import { getAuthToken } from '../../utils/auth.js';
+import { getAuthToken } from '@/utils/auth.js';
 import TaskTableRow from './TaskTableRow.jsx';
-import CommentTab from './CommentsTab.jsx';
+import CommentTab from '@/Components/user-dashboard/CommentsTab.jsx';
 import { getUserData } from '@/utils/user.js';
+import TourGuide from '../TourGuide.jsx';
 
 // Task Details Modal 
 export const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate,  onUploadProof, onStatusChange }) => {
@@ -552,14 +553,19 @@ const deleteProofFile = async (taskId, proofId) => {
           pt: 3.5,
           px: 4,
         }}>
+          
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            
             <Box sx={{ maxWidth: 'calc(100% - 48px)' }}>
+              
               <Typography variant="h4" fontWeight="800" gutterBottom sx={{ 
                 fontFamily: '"Alkatra", cursive',
                 color: theme.palette.text.primary,
                 lineHeight: 1.2,
                 wordBreak: 'break-word',
               }}>
+                <TourGuide page='taskModal' showAppBarButton={true} />
+
                 {updatedTask?.taskTitle || 'Task'}
               </Typography>
               
@@ -611,7 +617,9 @@ const deleteProofFile = async (taskId, proofId) => {
                 )}
               </Box>
             </Box>
+
             
+
             <IconButton 
               onClick={onClose} 
               disabled={loading} 
@@ -631,7 +639,7 @@ const deleteProofFile = async (taskId, proofId) => {
                 height: 44,
                 borderRadius: 2,
               }}
-            >
+            > 
               <Close />
             </IconButton>
           </Box>
@@ -639,7 +647,7 @@ const deleteProofFile = async (taskId, proofId) => {
       </Box>
       
       {/* Minimalist Tab Navigation */}
-      <Box sx={{ 
+      <Box className='modal-tabs' sx={{ 
         borderBottom: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
         px: 4,
         pt: 1,
@@ -658,6 +666,8 @@ const deleteProofFile = async (taskId, proofId) => {
               onClick={() => setActiveTab(tab.key)}
               variant={activeTab === tab.key ? 'contained' : 'text'}
               size="medium"
+              data-tour-tab={tab.key}
+              data-tour-label={tab.label}
               startIcon={tab.icon}
               sx={{ 
                 textTransform: 'capitalize',
@@ -695,11 +705,12 @@ const deleteProofFile = async (taskId, proofId) => {
       }}>
         {/* Overview Tab */}
         {activeTab === 'overview' && (
-          <Box sx={{ p: 4 }}>
+          <Box sx={{ p: 4 }} >
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               
               {/* Task Description Card */}
               <Paper 
+               className='task-description'
                 elevation={0}
                 sx={{ 
                   p: 3.5, 
@@ -760,14 +771,15 @@ const deleteProofFile = async (taskId, proofId) => {
                 </Box>
               </Paper>
 
-              {/* Key Information Row - Compact Flex Layout */}
-              <Box sx={{ 
+              {/* Key Information Row */}
+              <Box className='assignee-deadline' sx={{ 
                 display: 'flex', 
                 flexDirection: { xs: 'column', sm: 'row' },
                 gap: 3,
               }}>
                 {/* Assignee */}
                 <Paper 
+                
                   elevation={0}
                   sx={{ 
                     flex: 1,
@@ -920,8 +932,8 @@ const deleteProofFile = async (taskId, proofId) => {
                 </Paper>
               </Box>
 
-              {/* Time Tracking & Efficiency - Side by side */}
-              <Box sx={{ 
+              {/* Time Tracking & Efficiency */}
+              <Box className='time-tracking' sx={{ 
                 display: 'flex', 
                 flexDirection: { xs: 'column', sm: 'row' },
                 gap: 3,

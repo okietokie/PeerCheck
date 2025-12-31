@@ -102,11 +102,12 @@ import {
 import { motion } from 'framer-motion';
 import axiosClient from '@/api/axiosClient';
 import { useNavigate, useParams  } from 'react-router-dom';
-import { getAuthToken } from '../../utils/auth.js';
+import { getAuthToken } from '@/utils/auth.js';
 import { useInView } from 'react-intersection-observer';
-import TaskTableRow from './TaskTableRow.jsx';
-import TaskDetailsModal from './TaskDetailsModal.jsx';
+import TaskTableRow from '@/Components/user-dashboard/TaskComponents/TaskTableRow.jsx';
+import TaskDetailsModal from '@/Components/user-dashboard/TaskComponents/TaskDetailsModal.jsx';
 import ErrorSnack from './ErrorSnack.jsx';
+import TourGuide from './TourGuide.jsx';
 
 
 
@@ -683,6 +684,50 @@ const handleTaskFieldUpdate = async (taskId, updates) => {
     throw error;
   }
 };
+const handleTaskFieldsUpdate = async (taskId, updates) => {
+  try {
+    const token = getAuthToken();
+    
+
+    console.log("updating field: ", updates);
+    const response = await axiosClient.patch(`/user/${taskId}/fields`, 
+      {
+        field: updates.field,  
+        value: updates.value  
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      }
+    );
+    
+    if (response.data?.success) {
+      // Update local state
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task._id === taskId 
+            ? { 
+                ...task, 
+                [updates.field]: updates.value,
+                ...response.data.task // Merge any additional data from backend
+              }
+            : task
+        )
+      );
+      
+      return response.data;
+    } else {
+      console.error("Error finding link ig");
+      throw new Error(response.data?.error || 'Failed to update task');
+    }
+  } catch (error) {
+    console.error('Error updating task:', error);
+    // Show error toast
+    throw error;
+  }
+};
 
   const handleFetchError = (err) => {
     if (err.response?.status === 401) {
@@ -1017,7 +1062,7 @@ useEffect(() => {
 
       {/* Stats Cards */}
       {!authError && tasks.length > 0 && (
-        <Box sx={{ 
+        <Box className='stats-cards-section' sx={{ 
           mb: 4,
           display: 'grid',
           gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
@@ -1710,7 +1755,9 @@ useEffect(() => {
         newError={error}
         onClose={() => setError(null)}
       />
+      <TourGuide page='task-tab' />
     </Box>
+
   );
 };
 

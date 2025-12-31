@@ -43,6 +43,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import  useInView  from '../../hooks/useInView';
+import TourGuide from './TourGuide';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -380,7 +381,9 @@ const calculateProductivity = (userTasks) => {
       >
         <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 } }}>
           {/* Header */}
-          <Box sx={{ 
+          <Box 
+          className="dashboard-header"
+          sx={{ 
             mb: 5, 
             display: 'flex', 
             justifyContent: 'space-between', 
@@ -462,7 +465,9 @@ const calculateProductivity = (userTasks) => {
           </Box>
 
           {/* Stats Cards */}
-          <Box sx={{ 
+          <Box 
+          className="stats-cards-section" 
+          sx={{ 
             mb: 5,
             display: 'grid',
             gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
@@ -725,6 +730,7 @@ const calculateProductivity = (userTasks) => {
             <Box sx={{ flex: 1 }}>
               {/* Projects Section */}
               <Card
+                className='projects-section'
                 sx={{
                   borderRadius: 3,
                   background: theme.palette.background.paper,
@@ -954,6 +960,7 @@ const calculateProductivity = (userTasks) => {
 
               {/* Recent Activity */}
               <Card
+                className="recent-activity-section" 
                 sx={{
                   borderRadius: 3,
                   background: theme.palette.background.paper,
@@ -1073,6 +1080,7 @@ const calculateProductivity = (userTasks) => {
             <Box sx={{ width: { xs: '100%', lg: 360 } }}>
               {/* Quick Actions Card */}
               <Card
+                className='quick-actions-section'
                 sx={{
                   borderRadius: 3,
                   background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
@@ -1122,23 +1130,6 @@ const calculateProductivity = (userTasks) => {
                       Create New Task
                     </Button>
                     
-                    <Button
-                      variant="outlined"
-                      startIcon={<FolderIcon />}
-                      onClick={handleCreateProject}
-                      sx={{
-                        borderColor: 'rgba(255,255,255,0.3)',
-                        color: 'white',
-                        borderRadius: 2,
-                        py: 1.5,
-                        '&:hover': {
-                          borderColor: 'white',
-                          background: 'rgba(255,255,255,0.1)'
-                        }
-                      }}
-                    >
-                      Start New Project
-                    </Button>
                     
                     <Button
                       variant="outlined"
@@ -1166,6 +1157,7 @@ const calculateProductivity = (userTasks) => {
 
               {/* Performance Insights */}
               <Card
+                className='performance-section'
                 sx={{
                   borderRadius: 3,
                   background: theme.palette.background.paper,
@@ -1324,29 +1316,6 @@ const calculateProductivity = (userTasks) => {
 
       {/* Snackbars */}
       <Snackbar
-        open={snackbars.welcome}
-        autoHideDuration={4000}
-        onClose={() => handleCloseSnackbar('welcome')}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        TransitionComponent={Slide}
-      >
-        <Alert
-          severity="success"
-          variant="filled"
-          onClose={() => handleCloseSnackbar('welcome')}
-          icon={<NotificationsActiveIcon />}
-          sx={{ 
-            width: '100%',
-            backdropFilter: 'blur(10px)',
-            background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.9)} 0%, ${alpha(theme.palette.secondary.main, 0.9)} 100%)`,
-          }}
-        >
-          <AlertTitle>Welcome to your Dashboard!</AlertTitle>
-          Your data has been loaded successfully. Here's your daily overview.
-        </Alert>
-      </Snackbar>
-
-      <Snackbar
         open={snackbars.dataLoaded}
         autoHideDuration={3000}
         onClose={() => handleCloseSnackbar('dataLoaded')}
@@ -1463,6 +1432,7 @@ const calculateProductivity = (userTasks) => {
           Track your productivity and task completion rates here!
         </Alert>
       </Snackbar>
+      <TourGuide page='dashboard'/>
     </>
   );
 }

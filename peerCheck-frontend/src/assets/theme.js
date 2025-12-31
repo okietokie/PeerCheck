@@ -37,6 +37,8 @@ function makeTheme(mode, primaryColor, secondaryColor, backgroundColor) {
 }
 
 const themes = {
+    "midnight-ocean": makeTheme("dark", "#4ABAF2", "#0277BD", "#001829"),
+
   "dark-high-contrast": makeTheme("dark", "#8AB4F8", "#FF8FA3", "#0D0D0D"),
   "dark-medium-contrast": makeTheme("dark", "#64A2F3", "#E26A6A", "#171717"),
   "light-high-contrast": makeTheme("light", "#1565C0", "#C62828", "#FFFFFF"),
@@ -57,7 +59,6 @@ const themes = {
   "cyber-neon": makeTheme("dark", "#F200C9", "#00F28C", "#050007"),
 
   "sunset-glow": makeTheme("light", "#FF7B57", "#FFAE70", "#FFF4E9"),
-  "midnight-ocean": makeTheme("dark", "#4ABAF2", "#0277BD", "#001829"),
   "forest-haze": makeTheme("light", "#78CC8C", "#43A047", "#E9F6EC"),
   "royal-purple": makeTheme("dark", "#C88CE0", "#973DB4", "#15001C"),
   "deep-space": makeTheme("dark", "#8FBDFB", "#495CFF", "#01000D"),

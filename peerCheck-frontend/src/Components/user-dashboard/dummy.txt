@@ -1,0 +1,552 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { driver } from 'driver.js';
+import 'driver.js/dist/driver.css';
+import { 
+  Box, 
+  IconButton,
+  Tooltip,
+  useTheme,
+  alpha,
+  Avatar,
+  Typography,
+  Button
+} from '@mui/material';
+import TourIcon from '@mui/icons-material/HelpOutline';
+import CloseIcon from '@mui/icons-material/Close';
+
+const TourGuide = ({ page = 'dashboard' }) => {
+  const theme = useTheme();
+  const driverRef = useRef(null);
+  const [tourStarted, setTourStarted] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [totalSteps, setTotalSteps] = useState(0);
+
+  // Get tour configuration based on page
+  const getTourConfig = () => {
+    const baseConfig = {
+      nextBtnText: 'Next →',
+      prevBtnText: '← Back',
+      progressText: 'Step {{current}} of {{total}}',
+      doneBtnText: 'Finish Tour',
+      closeBtnText: 'Skip Tour',
+      showProgress: true,
+      animate: true,
+      smoothScroll: true,
+      allowClose: true,
+      overlayOpacity: 0.5,
+      stagePadding: 10,
+      stageRadius: 12,
+      popoverOffset: 10,
+      popoverClass: 'driverjs-theme'}
+
+    switch(page) {
+      case 'dashboard':
+        return {
+          ...baseConfig,
+          steps: [
+            {
+              element: 'body',
+              popover: {
+                title: `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                          <div style="width: 32px; height: 32px; border-radius: 50%; background: ${theme.palette.primary.main}; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px;">👋</div>
+                          <span style="font-size: 1.1rem; font-weight: 600; color: ${theme.palette.primary.main};">Welcome to PeerCheck Dashboard</span>
+                        </div>`,
+                description: `<div style="font-size: 0.875rem; line-height: 1.5;">
+                                <p style="margin-bottom: 12px;">Let's take a quick tour of your productivity dashboard. I'll show you all the key features to help you get started.</p>
+                                <div style="background: ${alpha(theme.palette.info.main, 0.05)}; padding: 12px; border-radius: 8px; border-left: 4px solid ${theme.palette.info.main};">
+                                  <strong style="color: ${theme.palette.info.main};">Tip:</strong> You can pause or skip this tour anytime.
+                                </div>
+                              </div>`,
+                side: "center",
+                align: "center",
+
+              }
+            },
+            {
+              element: '.dashboard-header',
+              popover: {
+                title: `<div style="display: flex; align-items: center; gap: 8px; color: ${theme.palette.primary.main};">
+                          <span style="font-size: 1.1rem; font-weight: 600;">📋 Dashboard Header</span>
+                        </div>`,
+                description: `<div style="font-size: 0.875rem; line-height: 1.5;">
+                                <p>Your command center for quick actions:</p>
+                                <ul style="margin: 8px 0; padding-left: 20px;">
+                                  <li>Personalized welcome message</li>
+                                  <li>Refresh dashboard button</li>
+                                  <li>Quick project creation</li>
+                                  <li>Instant data updates</li>
+                                </ul>
+                                <div style="background: ${alpha(theme.palette.success.main, 0.05)}; padding: 8px 12px; border-radius: 6px; margin-top: 8px; border-left: 3px solid ${theme.palette.success.main};">
+                                  <small style="color: ${theme.palette.success.main};">Data auto-refreshes every 30 seconds!</small>
+                                </div>
+                              </div>`,
+                side: "bottom",
+                align: "start"
+              }
+            },
+            {
+              element: '.stats-cards-section',
+              popover: {
+                title: `<div style="display: flex; align-items: center; gap: 8px; color: ${theme.palette.info.main};">
+                          <span style="font-size: 1.1rem; font-weight: 600;">📊 Performance Metrics</span>
+                        </div>`,
+                description: `<div style="font-size: 0.875rem; line-height: 1.5;">
+                                <p>Track your productivity at a glance:</p>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0;">
+                                  <div style="background: ${alpha(theme.palette.primary.main, 0.1)}; padding: 6px 10px; border-radius: 4px; font-size: 0.8rem; text-align: center;">Active Projects</div>
+                                  <div style="background: ${alpha(theme.palette.info.main, 0.1)}; padding: 6px 10px; border-radius: 4px; font-size: 0.8rem; text-align: center;">Task Progress</div>
+                                  <div style="background: ${alpha(theme.palette.success.main, 0.1)}; padding: 6px 10px; border-radius: 4px; font-size: 0.8rem; text-align: center;">Productivity</div>
+                                  <div style="background: ${alpha(theme.palette.error.main, 0.1)}; padding: 6px 10px; border-radius: 4px; font-size: 0.8rem; text-align: center;">Alerts</div>
+                                </div>
+                                <div style="background: ${alpha(theme.palette.warning.main, 0.05)}; padding: 8px 12px; border-radius: 6px; border-left: 3px solid ${theme.palette.warning.main};">
+                                  <small style="color: ${theme.palette.warning.main};">Click any card for detailed insights!</small>
+                                </div>
+                              </div>`,
+                side: "bottom",
+                align: "start"
+              }
+            },
+            {
+              element: '.projects-section',
+              popover: {
+                title: `<div style="display: flex; align-items: center; gap: 8px; color: ${theme.palette.primary.main};">
+                          <span style="font-size: 1.1rem; font-weight: 600;">📁 Projects Overview</span>
+                        </div>`,
+                description: `<div style="font-size: 0.875rem; line-height: 1.5;">
+                                <p>Manage all your projects efficiently:</p>
+                                <ul style="margin: 8px 0; padding-left: 20px;">
+                                  <li>View project status and progress</li>
+                                  <li>See team members and deadlines</li>
+                                  <li>Track milestones and updates</li>
+                                  <li>Access detailed project views</li>
+                                </ul>
+                                <div style="background: ${alpha(theme.palette.primary.main, 0.05)}; padding: 8px 12px; border-radius: 6px; margin-top: 8px; border-left: 3px solid ${theme.palette.primary.main};">
+                                  <small style="color: ${theme.palette.primary.main};">Create your first project to get started!</small>
+                                </div>
+                              </div>`,
+                side: "right",
+                align: "start"
+              }
+            },
+            {
+              element: '.quick-actions-section',
+              popover: {
+                title: `<div style="display: flex; align-items: center; gap: 8px; color: ${theme.palette.warning.main};">
+                          <span style="font-size: 1.1rem; font-weight: 600;">⚡ Quick Actions Panel</span>
+                        </div>`,
+                description: `<div style="font-size: 0.875rem; line-height: 1.5;">
+                                <p>One-click access to common tasks:</p>
+                                <div style="margin: 8px 0;">
+                                  <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                                    <div style="width: 6px; height: 6px; border-radius: 50%; background: ${theme.palette.success.main};"></div>
+                                    <span style="font-size: 0.85rem;">Create New Task</span>
+                                  </div>
+                                  <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                                    <div style="width: 6px; height: 6px; border-radius: 50%; background: ${theme.palette.primary.main};"></div>
+                                    <span style="font-size: 0.85rem;">Start New Project</span>
+                                  </div>
+                                  <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                                    <div style="width: 6px; height: 6px; border-radius: 50%; background: ${theme.palette.info.main};"></div>
+                                    <span style="font-size: 0.85rem;">Invite Team Members</span>
+                                  </div>
+                                </div>
+                                <div style="background: ${alpha(theme.palette.success.main, 0.05)}; padding: 8px 12px; border-radius: 6px; border-left: 3px solid ${theme.palette.success.main};">
+                                  <small style="color: ${theme.palette.success.main};">Save time with these shortcuts!</small>
+                                </div>
+                              </div>`,
+                side: "left",
+                align: "start"
+              }
+            },
+            {
+              element: '.performance-section',
+              popover: {
+                title: `<div style="display: flex; align-items: center; gap: 8px; color: ${theme.palette.success.main};">
+                          <span style="font-size: 1.1rem; font-weight: 600;">📈 Performance Analytics</span>
+                        </div>`,
+                description: `<div style="font-size: 0.875rem; line-height: 1.5;">
+                                <p>Monitor your work efficiency:</p>
+                                <ul style="margin: 8px 0; padding-left: 20px;">
+                                  <li>Task completion rate</li>
+                                  <li>Productivity trends</li>
+                                  <li>Priority task alerts</li>
+                                  <li>Performance insights</li>
+                                </ul>
+                                <div style="background: ${alpha(theme.palette.error.main, 0.05)}; padding: 8px 12px; border-radius: 6px; margin-top: 8px; border-left: 3px solid ${theme.palette.error.main};">
+                                  <small style="color: ${theme.palette.error.main};">High-priority items need immediate attention</small>
+                                </div>
+                              </div>`,
+                side: "left",
+                align: "start"
+              }
+            },
+            {
+              element: '.recent-activity-section',
+              popover: {
+                title: `<div style="display: flex; align-items: center; gap: 8px; color: ${theme.palette.info.main};">
+                          <span style="font-size: 1.1rem; font-weight: 600;">🔄 Recent Activity Feed</span>
+                        </div>`,
+                description: `<div style="font-size: 0.875rem; line-height: 1.5;">
+                                <p>Stay updated with real-time activity:</p>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0;">
+                                  <div style="background: ${alpha(theme.palette.grey[200], 0.5)}; padding: 6px 10px; border-radius: 4px; font-size: 0.8rem; text-align: center;">Task Updates</div>
+                                  <div style="background: ${alpha(theme.palette.grey[200], 0.5)}; padding: 6px 10px; border-radius: 4px; font-size: 0.8rem; text-align: center;">Completions</div>
+                                  <div style="background: ${alpha(theme.palette.grey[200], 0.5)}; padding: 6px 10px; border-radius: 4px; font-size: 0.8rem; text-align: center;">Reviews</div>
+                                  <div style="background: ${alpha(theme.palette.grey[200], 0.5)}; padding: 6px 10px; border-radius: 4px; font-size: 0.8rem; text-align: center;">Team Actions</div>
+                                </div>
+                                <div style="background: ${alpha(theme.palette.info.main, 0.05)}; padding: 8px 12px; border-radius: 6px; border-left: 3px solid ${theme.palette.info.main};">
+                                  <small style="color: ${theme.palette.info.main};">Updates in real-time as your team works!</small>
+                                </div>
+                              </div>`,
+                side: "top",
+                align: "start"
+              }
+            },
+            {
+              element: 'body',
+              popover: {
+                title: `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                          <div style="width: 32px; height: 32px; border-radius: 50%; background: ${theme.palette.success.main}; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px;">🎉</div>
+                          <span style="font-size: 1.1rem; font-weight: 600; color: ${theme.palette.success.main};">Tour Complete!</span>
+                        </div>`,
+                description: `<div style="font-size: 0.875rem; line-height: 1.5;">
+                                <p style="margin-bottom: 12px;">You're now ready to boost your productivity with PeerCheck Dashboard!</p>
+                                
+                                <div style="background: ${alpha(theme.palette.primary.main, 0.05)}; padding: 16px; border-radius: 8px; margin-bottom: 12px; border: 1px solid ${alpha(theme.palette.primary.main, 0.1)};">
+                                  <div style="font-weight: 600; margin-bottom: 8px; color: ${theme.palette.primary.main}; display: flex; align-items: center; gap: 8px;">📋 Quick Start Checklist:</div>
+                                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                      <div style="width: 16px; height: 16px; border-radius: 50%; background: ${theme.palette.success.main}; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">✓</div>
+                                      <span style="font-size: 0.85rem;">Create your first project</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                      <div style="width: 16px; height: 16px; border-radius: 50%; background: ${theme.palette.success.main}; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">✓</div>
+                                      <span style="font-size: 0.85rem;">Add team members</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                      <div style="width: 16px; height: 16px; border-radius: 50%; background: ${theme.palette.success.main}; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">✓</div>
+                                      <span style="font-size: 0.85rem;">Set up tasks with deadlines</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                      <div style="width: 16px; height: 16px; border-radius: 50%; background: ${theme.palette.success.main}; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">✓</div>
+                                      <span style="font-size: 0.85rem;">Monitor progress daily</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                <div style="background: ${alpha(theme.palette.info.main, 0.05)}; padding: 12px; border-radius: 6px; border-left: 3px solid ${theme.palette.info.main};">
+                                  <small style="color: ${theme.palette.info.main};">Need help again? Click the tour icon in the bottom right corner.</small>
+                                </div>
+                              </div>`,
+                side: "center",
+                align: "center",
+                
+              }
+            }
+          ]
+        };
+
+      default:
+        return {
+          ...baseConfig,
+          steps: [
+            {
+              element: 'body',
+              popover: {
+                title: `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                          <div style="width: 32px; height: 32px; border-radius: 50%; background: ${theme.palette.primary.main}; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px;">👋</div>
+                          <span style="font-size: 1.1rem; font-weight: 600; color: ${theme.palette.primary.main};">Welcome to PeerCheck!</span>
+                        </div>`,
+                description: `<div style="font-size: 0.875rem; line-height: 1.5;">
+                                <p>Let me show you around this page.</p>
+                              </div>`,
+                side: "center",
+                align: "center"
+              }
+            }
+          ]
+        };
+    }
+  };
+
+  const startTour = () => {
+    if (driverRef.current) {
+      driverRef.current.destroy();
+    }
+
+    const config = getTourConfig();
+    setTotalSteps(config.steps.length);
+
+    // Initialize driver
+    driverRef.current = new driver({
+      ...config,
+      onHighlightStarted: (element,  step) => {
+        setCurrentStep(step.index+1);
+
+        if (element && element.style) {
+          element.style.transition = 'all 0.3s ease';
+          element.style.boxShadow = `0 0 0 4px ${alpha(theme.palette.primary.main, 0.3)}, 0 0 30px rgba(0,0,0,0.2)`;
+        }
+      },
+      onHighlighted: (element, step) => {
+        setCurrentStep(step.index + 1);
+        if (element && element.style) {
+          element.style.boxShadow = `0 0 0 4px ${theme.palette.primary.main}, 0 0 30px rgba(0,0,0,0.2)`;
+        }
+      },
+      onDeselected: (element) => {
+        if (element && element.style) {
+          element.style.boxShadow = '';
+        }
+      },
+
+      onReset: () => {
+        setCurrentStep(1);
+        setTourStarted(false);
+      },
+      onDestroyStarted: () => {
+        // Clean up styles
+        const highlightedElements = document.querySelectorAll('.driver-highlighted-element');
+        highlightedElements.forEach(el => {
+          if (el && el.style) {
+            el.style.boxShadow = '';
+          }
+        });
+      },
+      onDestroyed: () => {
+        setTourStarted(false);
+        setCurrentStep(1);
+        localStorage.setItem(`peercheck-tour-${page}-completed`, 'true');
+      }
+    });
+
+    setTourStarted(true);
+    driverRef.current.drive();
+  };
+
+  const stopTour = () => {
+    if (driverRef.current) {
+      driverRef.current.destroy();
+      setTourStarted(false);
+      setCurrentStep(1);
+    }
+  };
+
+
+  // Auto-start tour on first visit
+  useEffect(() => {
+    const hasSeenTour = localStorage.getItem(`peercheck-tour-${page}-completed`);
+    
+    if (!hasSeenTour && page === 'dashboard') {
+      const timer = setTimeout(() => {
+        startTour();
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [page]);
+
+  // Add CSS styles on mount
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .driverjs-theme {
+        background: white !important;
+        border-radius: 12px !important;
+        padding: 20px !important;
+        max-width: 400px !important;
+        font-family: 'Inter', sans-serif !important;
+        border: 2px solid ${alpha(theme.palette.primary.main, 0.2)} !important;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3) !important;
+      }
+
+      .driverjs-theme .driver-popover-title {
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        margin-bottom: 8px !important;
+        color: ${theme.palette.primary.main} !important;
+      }
+
+      .driverjs-theme .driver-popover-description {
+        font-size: 0.875rem !important;
+        line-height: 1.5 !important;
+        color: #333 !important;
+      }
+
+      .driverjs-theme .driver-popover-description ul {
+        margin: 8px 0 !important;
+        padding-left: 20px !important;
+      }
+
+      .driverjs-theme .driver-popover-description li {
+        margin-bottom: 4px !important;
+        font-size: 0.85rem !important;
+      }
+
+      .driverjs-theme .driver-popover-footer {
+        margin-top: 20px !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+      }
+
+      .driver-popover-progress {
+        font-size: 0.75rem !important;
+        color: #666 !important;
+        margin-right: 10px !important;
+        font-weight: 500 !important;
+      }
+
+      .driver-highlighted-element {
+        border-radius: 12px !important;
+        transition: all 0.3s ease !important;
+      }
+
+      .driver-overlay {
+        background: rgba(0, 0, 0, 0.5) !important;
+      }
+
+      .driver-popover-next-btn {
+        background: linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%) !important;
+        color: white !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        padding: 8px 16px !important;
+        border: none !important;
+      }
+
+      .driver-popover-next-btn:hover {
+        opacity: 0.9 !important;
+        transform: translateY(-1px) !important;
+      }
+
+      .driver-popover-prev-btn {
+        color: ${theme.palette.text.secondary} !important;
+        border: 1px solid ${alpha(theme.palette.divider, 0.3)} !important;
+        border-radius: 8px !important;
+        padding: 8px 16px !important;
+        background: transparent !important;
+      }
+
+      .driver-popover-prev-btn:hover {
+        background: ${alpha(theme.palette.action.hover, 0.1)} !important;
+      }
+
+      .driver-popover-close-btn {
+        color: ${theme.palette.text.secondary} !important;
+      }
+
+      .driver-popover-close-btn:hover {
+        color: ${theme.palette.error.main} !important;
+      }
+
+      @media (max-width: 600px) {
+        .driverjs-theme {
+          max-width: 300px !important;
+          margin: 0 10px !important;
+        }
+        
+        .driverjs-theme .driver-popover-title {
+          font-size: 1rem !important;
+        }
+        
+        .driverjs-theme .driver-popover-description {
+          font-size: 0.8rem !important;
+        }
+      }
+    `;
+    
+    document.head.appendChild(style);
+    
+    return () => {
+      if (style && style.parentNode) {
+        style.parentNode.removeChild(style);
+      }
+    };
+  }, [theme]);
+
+  return (
+    <>
+      {/* Floating Tour Button */}
+    <Tooltip title={tourStarted ? "Stop Tour" : "Start Guided Tour"}>
+        <Box
+
+        >
+          <IconButton
+            onClick={tourStarted ? stopTour : startTour}
+            sx={{
+              width: 56,
+              height: 56,
+              background: tourStarted 
+                ? `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${theme.palette.warning.main} 100%)`
+                : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+              color: 'white',
+              boxShadow: `0 8px 25px ${alpha(theme.palette.primary.main, 0.3)}`,
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: `0 12px 30px ${alpha(theme.palette.primary.main, 0.4)}`,
+                background: tourStarted
+                  ? `linear-gradient(135deg, ${theme.palette.error.dark} 0%, ${theme.palette.warning.dark} 100%)`
+                  : `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.secondary.dark} 100%)`,
+              },
+              transition: 'all 0.3s ease'
+            }}
+          >
+            <TourIcon />
+          </IconButton>
+        </Box>
+      </Tooltip>
+
+      {/* Step Progress Indicator */}
+      {tourStarted && totalSteps > 0 && (
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 20,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            bgcolor: alpha(theme.palette.background.paper, 0.9),
+            backdropFilter: 'blur(4px)',
+            padding: '8px 16px',
+            borderRadius: '20px',
+            border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
+          }}
+         >
+          <Avatar sx={{ 
+            width: 24, 
+            height: 24, 
+            bgcolor: theme.palette.primary.main,
+            fontSize: '0.75rem',
+            fontWeight: 'bold'
+          }}>
+            {currentStep}
+          </Avatar>
+          <Typography variant="caption" sx={{ fontWeight: 500 }}>
+            Step {currentStep} of {totalSteps}
+          </Typography>
+          <Button
+            size="small"
+            onClick={stopTour}
+            sx={{ 
+              ml: 1, 
+              minWidth: 'auto',
+              color: theme.palette.text.secondary,
+              '&:hover': {
+                color: theme.palette.error.main
+              }
+            }}
+          >
+            <CloseIcon fontSize="small" />
+          </Button>
+        </Box>
+      )}
+    </>
+  );
+};
+
+export default TourGuide;

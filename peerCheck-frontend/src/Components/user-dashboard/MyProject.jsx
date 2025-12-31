@@ -138,8 +138,8 @@ import { UploadProofModal } from './Tasks';
 import { StickyNoteEditor } from './StickyNoteEditor';
 import PeerReviewTab from './PeerReviewTab';
 import { getUserData as getUserDataUtils } from '@/utils/user.js';
-import { TaskTableRow } from './TaskTableRow.jsx';
-import TaskDetailsModal from './TaskDetailsModal';
+import { TaskTableRow } from './TaskComponents/TaskTableRow.jsx';
+import TaskDetailsModal from './TaskComponents/TaskDetailsModal';
 
 // Helper functions from Tasks.jsx
 const getUserData = () => {

@@ -34,6 +34,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import CelebrationIcon from '@mui/icons-material/Celebration';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { HourglassEmpty } from '@mui/icons-material';
+import TourGuide from './TourGuide';
 
 
 export default function Profile() {
@@ -688,7 +689,8 @@ const handleCloseSnackbar = (snackbar) => {
           )}
 
           {/* Profile Header Section */}
-          <Card sx={{ 
+          <Card  className='profile-header'
+          sx={{ 
             borderRadius: 4,
             overflow: 'hidden',
             mb: 4,
@@ -710,7 +712,7 @@ const handleCloseSnackbar = (snackbar) => {
             }
           }}>
             {/* Cover Photo Area */}
-            <Box sx={{
+            <Box  sx={{
               height: 160,
               bgcolor: alpha(theme.palette.primary.main, 0.08),
               background: `linear-gradient(135deg, 
@@ -911,7 +913,8 @@ const handleCloseSnackbar = (snackbar) => {
                 )}
 
                 {/* Profile Stats Cards */}
-                <Box sx={{ 
+                <Box 
+                sx={{ 
                   display: 'flex', 
                   gap: 2,
                   mb: 3,
@@ -1049,13 +1052,13 @@ const handleCloseSnackbar = (snackbar) => {
                 </Box>
 
                 {/* Profile Completion */}
-                <Card sx={{ 
+                <Card className='profile-completion' sx={{ 
                   p: 2, 
                   borderRadius: 2,
                   bgcolor: alpha(theme.palette.primary.main, 0.02),
                   border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`
                 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1, alignItems: 'center' }} >
                     <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
                       Profile Completion
                     </Typography>
@@ -1085,9 +1088,9 @@ const handleCloseSnackbar = (snackbar) => {
           </Card>
 
           {/* Main Content Area */}
-          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 4 }}>
+          <Box  sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 4 }}>
             {/* Connections Overview Card */}
-            <Card sx={{ 
+            <Card className='network-stats' sx={{ 
               width: { xs: '100%', lg: 300 }, 
               flexShrink: 0,
               borderRadius: 3,
@@ -1263,14 +1266,17 @@ const handleCloseSnackbar = (snackbar) => {
                 overflow: 'hidden'
               }}>
                 {/* Tab Navigation */}
-                <Box sx={{ 
+                <Box 
+                 sx={{ 
                   display: 'flex', 
                   borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
                   background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.05)} 100%)`
-                }}>
+                }}
+                >
                   <Button
                     fullWidth
                     variant={activeTab === 0 ? "contained" : "text"}
+                    className='find-peers-tab'
                     onClick={() => {
                       setActiveTab(0);
                       setSearchQuery('');
@@ -1306,6 +1312,8 @@ const handleCloseSnackbar = (snackbar) => {
                   </Button>
                   
                   <Button
+                                  className='connection-requests-tab'
+
                     fullWidth
                     variant={activeTab === 1 ? "contained" : "text"}
                     onClick={() => setActiveTab(1)}
@@ -1325,7 +1333,7 @@ const handleCloseSnackbar = (snackbar) => {
                       }
                     }}
                   >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }} >
                       <NotificationsIcon fontSize="small" />
                       Connection Requests
                       {incomingRequests.length > 0 && (
@@ -2709,6 +2717,7 @@ const handleCloseSnackbar = (snackbar) => {
           Avatar uploaded successfully!
         </Alert>
       </Snackbar> 
+      <TourGuide page='profile'/>
     </>
   );
 }

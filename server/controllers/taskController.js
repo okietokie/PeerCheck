@@ -2289,7 +2289,6 @@ export const updateTaskField = async (req, res) => {
     const { taskId } = req.params;
     const { field, value } = req.body; // field can be: 'taskTitle', 'priority', 'startDate', 'deadline'
     const userId = req.user.id;
-    console.log("update task field");
     const task = await Task.findById(taskId);
     if (!task) {
       return res.status(404).json({
@@ -2515,7 +2514,7 @@ export const updateTaskField = async (req, res) => {
 export const updateTaskMultipleFields = async (req, res) => {
   try {
     const { taskId } = req.params;
-    const updates = req.body; // Object with field: value pairs
+    const { field, value } = req.body; 
     const userId = req.user.id;
 
     const task = await Task.findById(taskId);
@@ -2528,8 +2527,8 @@ export const updateTaskMultipleFields = async (req, res) => {
 
     // Check permissions
     const project = await Project.findById(task.projectId);
-    const isCreator = project?.createdBy?.toString() === userId;
-    const isAssignee = task.assignedTo?.toString() === userId;
+    const isCreator = project?.createdBy?.toString() === userId.toString();
+    const isAssignee = task.assignedTo?.toString() === userId.toString();
     const isAdmin = req.user.role === 'admin';
     const isTeacher = req.user.role === 'teacher';
     
@@ -2545,97 +2544,77 @@ export const updateTaskMultipleFields = async (req, res) => {
     // Process each update
     for (const [field, value] of Object.entries(updates)) {
       if (field === 'status') {
-        // Status updates should use the dedicated updateTaskStatus endpoint
+        // Status updates uses the dedicated updateTaskStatus endpoint
         continue;
       }
 
-      if (field === 'deadline' || field === 'startDate') {
-        const newDate = new Date(value);
-        if (isNaN(newDate.getTime())) {
+      if (field === 'deadline') {
+        try {
+          console.log("updating deadline!");
+          newValue = new Date(value);
+          console.log("newvalue: ", newValue);
+          if (isNaN(newValue.getTime())) {
+            return res.status(400).json({
+              success: false,
+              error: "Invalid date format"
+            });
+          }
+          if (!isAssignee) {
+            return res.status(403).json({
+              success: false,
+              error: "You are not authorized to change deadline of tasks. Please contact your project lead."
+            });
+          }
+          
+          // Set time to end of day for deadline
+          newValue.setHours(23, 59, 59, 999);
+          eventType = 'deadline_updated';
+        } catch (err) {
           return res.status(400).json({
             success: false,
-            error: `Invalid date format for ${field}`
+            error: "Invalid date format"
           });
-        }
-        
-        const oldDate = task[field];
-        if (field === 'deadline') {
-          newDate.setHours(23, 59, 59, 999);
-        } else {
-          newDate.setHours(0, 0, 0, 0);
-        }
-        
-        if (!oldDate || newDate.getTime() !== oldDate.getTime()) {
-          changes.push({
-            field,
-            oldValue: oldDate,
-            newValue: newDate
-          });
-          task[field] = newDate;
         }
       } else if (field === 'priority') {
         const validPriorities = ['urgent', 'high', 'normal', 'low'];
         if (!validPriorities.includes(value)) {
           return res.status(400).json({
             success: false,
-            error: "Invalid priority value"
+            error: "Invalid priority value. Must be: urgent, high, normal, low"
           });
         }
-        
-        if (task[field] !== value) {
-          changes.push({
-            field,
-            oldValue: task[field],
-            newValue: value
+        if (!isAssignee) {
+          return res.status(403).json({
+            success: false,
+            error: "You are not authorized to change priority of tasks. Please contact your project lead."
           });
-          task[field] = value;
         }
+        newValue = value;
+        eventType = 'priority_updated';
       } else if (field === 'estimatedTime') {
         const minutes = parseInt(value);
         if (isNaN(minutes) || minutes <= 0) {
           return res.status(400).json({
             success: false,
-            error: "Estimated time must be a positive number"
+            error: "Estimated time must be a positive number in minutes"
           });
         }
-        
-        const seconds = minutes * 60;
-        if (task[field] !== seconds) {
-          changes.push({
-            field,
-            oldValue: task[field],
-            newValue: seconds
-          });
-          task[field] = seconds;
-        }
+        newValue = minutes * 60; // Convert minutes to seconds
+        eventType = 'estimated_time_updated';
+
       } else if (field === 'taskTitle') {
-        const trimmedValue = value.trim();
-        if (trimmedValue === '') {
+        if (!value || value.trim() === '') {
           return res.status(400).json({
             success: false,
             error: "Task title cannot be empty"
           });
         }
-        
-        if (task[field] !== trimmedValue) {
-          changes.push({
-            field,
-            oldValue: task[field],
-            newValue: trimmedValue
-          });
-          task[field] = trimmedValue;
-        }
-      } else if (task.schema.path(field)) {
-        // For any other valid field
-        if (task[field] !== value) {
-          changes.push({
-            field,
-            oldValue: task[field],
-            newValue: value
-          });
-          task[field] = value;
-        }
-      }
+        newValue = value.trim();
+        eventType = 'title_updated';
+
+      } 
+      
+    changes.push({field: value});
     }
 
     if (changes.length === 0) {
