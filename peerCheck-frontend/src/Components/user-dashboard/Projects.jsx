@@ -84,6 +84,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { set } from 'date-fns';
 import { useInView } from 'react-intersection-observer';
 import { useNotifications } from '@/contexts/NotificationContext';
+import TourGuide from './TourGuide';
 
 // Helper to get auth token properly
 const getAuthToken = () => {
@@ -3897,7 +3898,7 @@ const Projects = () => {
   };
 
   const navigateToTeams = () => {
-    navigate('/peer-teams');
+    navigate('/user-app/peerteams');
   };
 
   const hasTeams = teams.length > 0;
@@ -3975,6 +3976,7 @@ const Projects = () => {
               variant="contained"
               onClick={() => setCreateModalOpen(true)}
               startIcon={<Add />}
+              className='create-project-step'
               disabled={!hasTeams || authError}
               sx={{
                 borderRadius: 2,
@@ -4724,6 +4726,7 @@ const Projects = () => {
         project={selectedProject}
         theme={theme}
       />
+      {hasTeams ? <TourGuide page='projects-tab'  /> : <TourGuide page='noprojects-tab' /> }
     </Box> 
   );
 };

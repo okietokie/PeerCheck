@@ -43,6 +43,7 @@ import {
 import axiosClient from '@/api/axiosClient';
 import TeamDetails from './PeerTeams/TeamDetails';
 import Profile from './Profile.jsx';
+import TourGuide from './TourGuide';
 
 export default function PeerTeams() {
   const theme = useTheme();
@@ -250,7 +251,7 @@ const leaveTeam = async (teamId) => {
   // No teams and no peer connections
   if (teams.length === 0 && peerConnections.length === 0) {
     return (
-      <Container maxWidth="md" sx={{ py: 8 }}>
+      <Container maxWidth="md" sx={{ py: 8 }} className='peer-connections-preview'>
         {error && (
           <Alert severity="error" sx={{ mb: 4 }} onClose={() => setError('')}>
             {error}
@@ -321,6 +322,7 @@ const leaveTeam = async (teamId) => {
             You need to connect with peers before you can create teams
           </Typography>
         </Box>
+        <TourGuide page='nopeerteams' />
       </Container>
     );
   }
@@ -523,7 +525,9 @@ const leaveTeam = async (teamId) => {
             </Button>
           </DialogActions>
         </Dialog>
+        <TourGuide page='nopeerteams' />
       </Container>
+
     );
   }
 
@@ -722,7 +726,7 @@ const leaveTeam = async (teamId) => {
         </Box>
 
         {/* Members Preview - Horizontal Scrolling */}
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }} >
           <Typography
             variant="subtitle2"
             sx={{
@@ -764,6 +768,7 @@ const leaveTeam = async (teamId) => {
           >
             {team.members?.map((member, index) => (
               <Box
+              className='team-members'
                 key={member._id || member.user?._id || index}
                 sx={{
                   width: '140px',
@@ -803,7 +808,7 @@ const leaveTeam = async (teamId) => {
                         position: 'absolute',
                         bottom: -4,
                         right: -4,
-                        bgcolor: 'primary.main',
+                        bgcolor: 'gold',
                         color: 'white',
                         borderRadius: '50%',
                         width: 20,
@@ -814,7 +819,7 @@ const leaveTeam = async (teamId) => {
                         border: `2px solid ${theme.palette.background.paper}`
                       }}
                     >
-                      <Star sx={{ fontSize: 12 }} />
+                      <Star sx={{ fontSize: 12, color:"red" }} />
                     </Box>
                   )}
                 </Box>
@@ -977,6 +982,8 @@ const leaveTeam = async (teamId) => {
           </Button>
         </DialogActions>
       </Dialog>
+      
+    <TourGuide page='peerteams' />
       
     </Container>
   );

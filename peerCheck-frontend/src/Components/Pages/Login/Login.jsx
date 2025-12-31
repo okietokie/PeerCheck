@@ -41,9 +41,12 @@ export default function Login() {
 
       if (res.data.role === "admin") {
         navigate("/admin-page");
-      } else {
-        navigate("/user-app");
+      } else if(res.data?.role === 'teacher'){
+        navigate("/teacher-dash")
       }
+      else{
+        navigate("/user-app");
+      } 
     } catch (err) {
       setMessage(err.response?.data?.message || "Login failed");
       setLoading(false);

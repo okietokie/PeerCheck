@@ -39,6 +39,10 @@ import { getTaskTabSteps } from './TourGuideComponents/taskTabSteps';
 import { getTaskModalSteps } from './TourGuideComponents/getTaskModalSteps';
 import axiosClient from '@/api/axiosClient';
 import { getAuthToken } from '@/utils/auth';
+import { getPeerTeamsTourSteps } from './TourGuideComponents/peerteamsSteps';
+import { getNoTeamsTourSteps } from './TourGuideComponents/nopeerteamsSteps';
+import { getProjectsTourSteps } from './TourGuideComponents/projectTourSteps';
+import { getNoProjectsTourSteps } from './TourGuideComponents/noprojectSteps';
 
 const TourGuide = ({ page = 'dashboard', showAppBarButton = false }) => {
   const theme = useTheme();
@@ -79,6 +83,15 @@ const TourGuide = ({ page = 'dashboard', showAppBarButton = false }) => {
             return getTaskModalSteps(theme);
         case 'task-tab':
             return getTaskTabSteps(theme);
+        case 'peerteams':
+          return getPeerTeamsTourSteps(theme);
+        case 'nopeerteams':
+          return getNoTeamsTourSteps(theme);
+        case 'projects-tab':
+          return getProjectsTourSteps(theme);
+        case 'noprojects-tab':
+          return getNoProjectsTourSteps(theme);
+
         default:
         return [
           {

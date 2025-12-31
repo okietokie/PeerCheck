@@ -1516,7 +1516,7 @@ if(!projectId){
           ))}
         </Box>
 
-        <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 1, py: 4 }}>
+        <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 1, py: 4, }}>
           {/* Header */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
@@ -1586,11 +1586,18 @@ if(!projectId){
           {/* Project Header */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <Box
-          sx={{display: "flex", gap: 2, alignItems:"stretch"}}
-            >
+            sx={{
+              display: "flex", 
+              gap: 2, 
+              alignItems:"stretch",
+              alignContent: 'center'
+            }}
+          >
                       <Paper
                         elevation={0}
                         sx={{
+                          flex:1,
+                          height:'auto',
                           p: { xs: 3, md: 4 },
                           mb: 4,
                           borderRadius: 4,
@@ -1895,9 +1902,12 @@ if(!projectId){
                                 p: 3,
                                 borderRadius: 3,
                                 ...getGlassEffect(),
-                                position: 'sticky',
                                 top: 24,
-                                
+                                height: '100%',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                mb:2
+                                                                
                               }}
                             >
                               <Typography variant="h6" sx={{ 

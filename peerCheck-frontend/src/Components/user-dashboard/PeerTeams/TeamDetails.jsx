@@ -345,7 +345,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
 
   // Handle create project
   const handleCreateProject = () => {
-    navigate('/projects', { state: { createNew: true, teamId: team._id } });
+    navigate('/user-app/projects', { state: { createNew: true, teamId: team._id } });
   };
 
   // Handle leave team
