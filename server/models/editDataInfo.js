@@ -7,4 +7,5 @@ const editedDataInfoSchema = new mongoose.Schema({
     editMadeAt: {type: Date, default: Date.now}
 })
 
-export default mongoose.model("EditedTaskData", editedDataInfoSchema);
+const EditedTaskData = mongoose.model("EditedTaskData", editedDataInfoSchema);
+export default EditedTaskData;

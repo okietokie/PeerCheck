@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
-import Navbar from "./Navbar";
-import image1 from "./collaboration.jpg";
+import Navbar from "./Helper Components/Navbar";
+import image1 from "@/assets/collaboration.jpg";
 import {
   Button,
   Container,
@@ -39,12 +39,15 @@ import {
   Facebook,
   Instagram,
   LinkedIn,
-  VerifiedUser
+  VerifiedUser,
+  Edit, 
+  Delete, 
+   
 } from "@mui/icons-material";
 import { useState, useEffect, useCallback } from "react";
 import axiosClient from "@/api/axiosClient";
 import { motion, AnimatePresence } from "framer-motion";
-import ReviewDialog from "./ReviewDialog";
+import ReviewDialog from "@/Components/Pages/Login/Helper Components/ReviewDialog";
 import useInView from "@/hooks/useInView";
 
 export default function Home() {
@@ -72,7 +75,98 @@ export default function Home() {
     reviews: 0,
     satisfaction: 0
   });
+// Add these state variables to your component
+const [currentUser, setCurrentUser] = useState(null); // From your auth context
+const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+const [loadingDelete, setLoadingDelete] = useState(false);
 
+// Handle opening update dialog
+const handleOpenUpdateDialog = (review) => {
+  setReviewDialogOpen(review);
+  setUpdateDialogOpen(true);
+};
+
+// Handle closing update dialog
+const handleCloseUpdateDialog = () => {
+  setUpdateDialogOpen(false);
+  setSelectedReview(null);
+};
+
+// Handle delete review
+const handleDeleteReview = async (reviewId) => {
+  if (!window.confirm('Are you sure you want to delete this review?')) {
+    return;
+  }
+
+  setLoadingDelete(true);
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axiosClient.delete(`/reviews/${reviewId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+      if (response.data.success) {
+        const data = response.data;
+        console.log("reposnose data:" , response.data)
+        setStats({
+          activeUsers: data.activeUsers || 0,
+          totalUsers: data.totalUsers || 0,
+          newUsersLast30Days: data.newUsersLast30Days || 0,
+          reviewStats: data.reviewStats || {
+            averageRating: 0,
+            totalReviews: 0,
+            helpfulVotes: 0,
+            satisfactionRate: 0
+          },
+          recentReviews: data.recentReviews || []
+        });
+
+        // Animate stats
+        animateStats(data);}
+
+  } catch (error) {
+    console.error('Delete error:', error);
+    console.error(error.response?.data?.message || 'Failed to delete review');
+  } finally {
+    setLoadingDelete(false);
+  }
+};
+
+// Handle update review
+const handleUpdateReview = async (updatedData) => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axiosClient.put(
+      `/reviews/${selectedReview._id}`,
+      updatedData,
+      {
+        headers: { Authorization: `Bearer ${token}` }
+      }
+    );
+      if (response.data.success) {
+        const data = response.data;
+        console.log("reposnose data:" , response.data)
+        setStats({
+          activeUsers: data.activeUsers || 0,
+          totalUsers: data.totalUsers || 0,
+          newUsersLast30Days: data.newUsersLast30Days || 0,
+          reviewStats: data.reviewStats || {
+            averageRating: 0,
+            totalReviews: 0,
+            helpfulVotes: 0,
+            satisfactionRate: 0
+          },
+          recentReviews: data.recentReviews || []
+        });
+
+        // Animate stats
+        animateStats(data);
+    }
+  } catch (error) {
+    console.error('Update error:', error);
+    console.error(error.response?.data?.message || 'Failed to update review');
+  }
+};
   // Helper functions
   const getGlassEffect = () => ({
     backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.2 : 0.9),
@@ -104,6 +198,7 @@ export default function Home() {
       
       if (response.data.success) {
         const data = response.data;
+        console.log("reposnose data:" , response.data)
         setStats({
           activeUsers: data.activeUsers || 0,
           totalUsers: data.totalUsers || 0,
@@ -184,7 +279,7 @@ export default function Home() {
   useEffect(() => {
     const interval = setInterval(() => {
       fetchLiveData();
-    }, 30000);
+    }, 300000);
 
     return () => clearInterval(interval);
   }, [fetchLiveData]);
@@ -1204,122 +1299,199 @@ export default function Home() {
                 </Paper>
               </motion.div>
             ) : (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <Box sx={{
-                  display: 'flex',
-                  flexDirection: { xs: 'column', md: 'row' },
-                  gap: 4,
-                  flexWrap: 'wrap',
-                  justifyContent: 'center'
+<motion.div
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  exit={{ opacity: 0 }}
+>
+  <Box sx={{
+    display: 'flex',
+    flexDirection: { xs: 'column', md: 'row' },
+    gap: 4,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  }}>
+    {stats.recentReviews.slice(0, 3).map((review, idx) => (
+      <Box key={review._id || idx} sx={{ 
+        flex: { xs: '0 0 100%', md: '0 0 calc(33.333% - 16px)' },
+        minWidth: { xs: '100%', md: '500px' },
+      }}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ delay: idx * 0.1 }}
+          viewport={{ once: true }}
+        >
+          <Paper
+            elevation={0}
+            sx={{
+              background: getCardGradient('primary'),
+              borderRadius: 3,
+              padding: { xs: 3, md: 4 },
+              height: "100%",
+              border: `1.5px solid ${getBorderColor('primary', 0.3)}`,
+              transition: "all 0.3s ease",
+              "&:hover": {
+                transform: "translateY(-8px)",
+                boxShadow: `0 20px 40px ${alpha(theme.palette.primary.main, 0.15)}`,
+                borderColor: getBorderColor('primary', 0.5),
+              },
+              display: 'flex',
+              flexDirection: 'column',
+              position: 'relative', // For absolute positioning of buttons
+            }}
+          >
+
+
+              <Box sx={{
+                position: 'absolute',
+                top: -16,
+                right: -16,
+                display: 'flex',
+                gap: 1,
+                zIndex: 1,
+              }}>
+                {/* Update Button */}
+                <IconButton
+                  size="small"
+                  onClick={() => handleOpenUpdateDialog(review)}
+                  sx={{
+                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                    '&:hover': {
+                      bgcolor: alpha(theme.palette.primary.main, 0.2),
+                    }
+                  }}
+                >
+                  <Edit fontSize="small" sx={{ color: theme.palette.primary.main }} />
+                </IconButton>
+
+                {/* Delete Button */}
+                <IconButton
+                  size="small"
+                  onClick={() => handleDeleteReview(review._id)}
+                  sx={{
+                    bgcolor: alpha(theme.palette.error.main, 0.1),
+                    '&:hover': {
+                      bgcolor: alpha(theme.palette.error.main, 0.2),
+                    }
+                  }}
+                >
+                  <Delete fontSize="small" sx={{ color: theme.palette.error.main }} />
+                </IconButton>
+              </Box>
+
+
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+              <Avatar sx={{ 
+                bgcolor: theme.palette.primary.main, 
+                mr: 2,
+                width: 48,
+                height: 48,
+                boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+              }}>
+                {review.user?.name?.charAt(0) || 'U'}
+              </Avatar>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="h6" sx={{ 
+                  fontWeight: 600, 
+                  color: theme.palette.primary.main,
+                  fontFamily: '"Adlam Display", serif',
                 }}>
-                  {stats.recentReviews.slice(0, 3).map((review, idx) => (
-                    <Box key={idx} sx={{ 
-                      flex: { xs: '0 0 100%', md: '0 0 calc(33.333% - 16px)' },
-                      minWidth: { xs: '100%', md: '300px' }
-                    }}>
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.1 }}
-                        viewport={{ once: true }}
-                      >
-                        <Paper
-                          elevation={0}
-                          sx={{
-                            background: getCardGradient('primary'),
-                            borderRadius: 3,
-                            padding: { xs: 3, md: 4 },
-                            height: "100%",
-                            border: `1.5px solid ${getBorderColor('primary', 0.3)}`,
-                            transition: "all 0.3s ease",
-                            "&:hover": {
-                              transform: "translateY(-8px)",
-                              boxShadow: `0 20px 40px ${alpha(theme.palette.primary.main, 0.15)}`,
-                              borderColor: getBorderColor('primary', 0.5),
-                            },
-                            display: 'flex',
-                            flexDirection: 'column',
-                          }}
-                        >
-                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                            <Avatar sx={{ 
-                              bgcolor: theme.palette.primary.main, 
-                              mr: 2,
-                              width: 48,
-                              height: 48,
-                              boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
-                            }}>
-                              {review.user?.name?.charAt(0) || 'U'}
-                            </Avatar>
-                            <Box sx={{ flex: 1 }}>
-                              <Typography variant="h6" sx={{ 
-                                fontWeight: 600, 
-                                color: theme.palette.primary.main,
-                                fontFamily: '"Adlam Display", serif',
-                              }}>
-                                {review.user?.name || 'Anonymous'}
-                              </Typography>
-                              <Typography variant="body2" sx={{ 
-                                color: theme.palette.text.secondary,
-                                fontFamily: '"Inter", sans-serif',
-                              }}>
-                                {review.user?.username ? `@${review.user.username}` : 'Student'}
-                              </Typography>
-                            </Box>
-                            {renderStars(review.rating)}
-                          </Box>
-                          
-                          <Typography 
-                            variant="h6" 
-                            sx={{ 
-                              color: theme.palette.text.primary, 
-                              mb: 2,
-                              fontWeight: 600,
-                              fontSize: { xs: '1.1rem', md: '1.25rem' },
-                              fontFamily: '"Adlam Display", serif',
-                              lineHeight: 1.4,
-                            }}
-                          >
-                            "{review.title}"
-                          </Typography>
-                          
-                          <Typography sx={{ 
-                            color: theme.palette.text.secondary, 
-                            lineHeight: 1.6, 
-                            mb: 2,
-                            fontStyle: 'italic',
-                            fontSize: '0.95rem',
-                            fontFamily: '"Inter", sans-serif',
-                            flex: 1,
-                          }}>
-                            {review.content}
-                          </Typography>
-                          
-                          <Box sx={{ 
-                            display: 'flex', 
-                            justifyContent: 'space-between', 
-                            alignItems: 'center', 
-                            mt: 3, 
-                            flexWrap: 'wrap', 
-                            gap: 1 
-                          }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <AccessTime fontSize="small" sx={{ color: theme.palette.text.disabled }} />
-                              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
-                                {formatDate(review.createdAt)}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        </Paper>
-                      </motion.div>
-                    </Box>
-                  ))}
-                </Box>
-              </motion.div>
+                  {review.user?.name || 'Anonymous'}
+                </Typography>
+                <Typography variant="body2" sx={{ 
+                  color: theme.palette.text.secondary,
+                  fontFamily: '"Inter", sans-serif',
+                }}>
+                  {review.user?.username ? `@${review.user.username}` : 'Student'}
+                </Typography>
+              </Box>
+              {renderStars(review.rating)}
+            </Box>
+            
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                color: theme.palette.text.primary, 
+                mb: 2,
+                fontWeight: 600,
+                fontSize: { xs: '1.1rem', md: '1.25rem' },
+                fontFamily: '"Adlam Display", serif',
+                lineHeight: 1.4,
+              }}
+            >
+              "{review.title}"
+            </Typography>
+            
+            <Typography sx={{ 
+              color: theme.palette.text.secondary, 
+              lineHeight: 1.6, 
+              mb: 2,
+              fontStyle: 'italic',
+              fontSize: '0.95rem',
+              fontFamily: '"Inter", sans-serif',
+              flex: 1,
+            }}>
+              {review.content}
+            </Typography>
+            
+            {/* Tags display */}
+            {review.tags && review.tags.length > 0 ? (
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+                {review.tags.map((tag, tagIdx) => (
+                  <Chip
+                    key={tagIdx}
+                    label={tag}
+                    size="small"
+                    sx={{
+                      bgcolor: alpha(theme.palette.primary.main, 0.1),
+                      color: theme.palette.primary.main,
+                      fontSize: '0.75rem',
+                    }}
+                  />
+                ))}
+              </Box>
+            ) : (
+                  <Chip
+                    label='No tags!'
+                    size="small"
+                    sx={{
+                      bgcolor: alpha(theme.palette.primary.main, 0.1),
+                      color: theme.palette.primary.main,
+                      fontSize: '0.75rem',
+                    }}
+                  />
+
+            )}
+
+            
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              mt: 'auto',
+              pt: 2,
+              borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+              flexWrap: 'wrap', 
+              gap: 1 
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <AccessTime fontSize="small" sx={{ color: theme.palette.text.disabled }} />
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                  {formatDate(review.createdAt)}
+                </Typography>
+              </Box>
+              <Typography variant="caption"> 
+                Login in to delete or update review!
+              </Typography>
+
+            </Box>
+          </Paper>
+        </motion.div>
+      </Box>
+    ))}
+  </Box>
+</motion.div>
             )}
           </AnimatePresence>
 

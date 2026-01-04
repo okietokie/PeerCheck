@@ -3,8 +3,8 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./Components/Pages/Login/Home.jsx";
 import AuthPage from "./Components/Pages/Login/AuthPage.jsx";
 import UserApp from "./Components/user-dashboard/UserApp.jsx";
-import ForgotPassword from "./Components/Pages/Login/ForgotPassword.jsx";
-import ResetPassword from "./Components/Pages/Login/ResetPassword.jsx";
+import ForgotPassword from "@/Components/Pages/Login/Helper Components/ForgotPassword.jsx";
+import ResetPassword from "@/Components/Pages/Login/Helper Components/ResetPassword.jsx";
 import AdminPage from "./Components/Pages/AdminComponents/AdminPage.jsx";
 import SecNAuth from "./Components/Pages/AdminComponents/SecNAuth/SecNAuth.jsx";
 

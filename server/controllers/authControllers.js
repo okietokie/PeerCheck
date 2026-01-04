@@ -43,22 +43,20 @@ export const registerUser = async (req, res) => {
 export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const ipAddress = req.headers['x-forwarded-for'] || req.ip;
 
 
     const user = await User.findOne({ email });
     if (!user) {
-      await userData.create({email, ipAddress, status: "Failed", reason: "User not found"})
       return res.status(400).json({ message: "User not found" });
     }
     if (user.status === "banned") {
-      await userData.create({email, ipAddress, status: "Failed", reason: "User not found"})
+      await userData.create({email, status: "Failed", reason: "User not found"})
       return res.status(400).json({ message: "User is BANNED! We are so sorry! Do YOU think we made a mistake? Contact us via email!" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      await userData.create({email, ipAddress, status: "Failed", reason: "Invalid credentials" });
+      await userData.create({email, status: "Failed", reason: "Invalid credentials" });
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
@@ -74,13 +72,11 @@ export const loginUser = async (req, res) => {
     )
 
 
-
-
-    await userData.create({email, ipAddress})
+    await userData.create({email})
 
     //save into login_logs
     
-    const loginLog = new userData({email, ipAddress, status: "Success"});
+    const loginLog = new userData({email, status: "Success"});
   
     await loginLog.save();
     

@@ -6,57 +6,41 @@ export const fetchBasicData = async (req, res) => {
     // Active users count
     const activeUsers = await User.countDocuments({ onlineStatus: 'active' });
     const totalUsers = await User.countDocuments();
-    
-    // Get review statistics
-    const reviewStats = await Review.aggregate([
-      {
-        $match: { verified: true }
-      },
-      {
-        $group: {
-          _id: null,
-          averageRating: { $avg: '$rating' },
-          totalReviews: { $sum: 1 },
-          helpfulVotes: { $sum: '$helpfulVotes' }
-        }
-      }
-    ]);
 
-    // Get recent verified reviews
-    const recentReviews = await Review.find({ verified: true })
-      .populate('user', 'name username avatar')
+    const allReviews = await Review.find();
+
+    const recentReviews = await Review.find()
       .sort({ createdAt: -1 })
-      .limit(3)
-      .lean();
+      .limit(3);
+    // Get review statistics
+    const totalRating = allReviews.reduce((sum, review) => sum + review.rating, 0);
+    const reviewStats = allReviews.length > 0 ? totalRating / allReviews.length : 0;
 
-    // Calculate satisfaction rate based on reviews (4-5 stars)
-    const satisfactionStats = await Review.aggregate([
-      {
-        $match: { verified: true }
-      },
-      {
-        $group: {
-          _id: null,
-          totalReviews: { $sum: 1 },
-          satisfiedReviews: {
-            $sum: {
-              $cond: [{ $gte: ['$rating', 4] }, 1, 0]
-            }
-          }
-        }
+
+
+const satisfactionStats = await Review.aggregate([
+  {
+    $group: {
+      _id: null,
+      totalReviews: { $sum: 1 },
+      satisfiedReviews: {
+        $sum: { $cond: [{ $gte: ['$rating', 4] }, 1, 0] }
       }
-    ]);
+    }
+  }
+]);
+const stats = satisfactionStats[0] || { totalReviews: 0, satisfiedReviews: 0 };
+const satisfactionRate =
+  stats.totalReviews > 0
+    ? Math.round((stats.satisfiedReviews / stats.totalReviews) * 100)
+    : 0;
 
-    const satisfactionRate = satisfactionStats.length > 0 && satisfactionStats[0].totalReviews > 0
-      ? Math.round((satisfactionStats[0].satisfiedReviews / satisfactionStats[0].totalReviews) * 100)
-      : 0;
 
     // Get user growth in last 30 days
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const newUsers = await User.countDocuments({
       createdAt: { $gte: thirtyDaysAgo }
     });
-
 
     res.status(200).json({
       success: true,
@@ -75,6 +59,7 @@ export const fetchBasicData = async (req, res) => {
         title: review.title,
         content: review.content,
         user: review.user,
+        tags: review.tags,
         createdAt: review.createdAt,
         formattedDate: new Date(review.createdAt).toLocaleDateString('en-US', {
           year: 'numeric',

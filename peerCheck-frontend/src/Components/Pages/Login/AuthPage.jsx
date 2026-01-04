@@ -1,5 +1,5 @@
 import { Routes, Route, useLocation } from "react-router-dom";
-import SignUp from "./Signup";
+import SignUp from "./Helper Components/Signup";
 import Login from "./Login";
 
 

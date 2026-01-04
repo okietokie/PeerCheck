@@ -13,7 +13,7 @@ import {
   alpha,
 } from "@mui/material";
 import { motion } from "framer-motion";
-import Navbar from "./Navbar";
+import Navbar from "./Helper Components/Navbar";
 import axiosClient from "@/api/axiosClient";
 
 export default function Login() {
