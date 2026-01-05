@@ -99,7 +99,7 @@ import {
   DeleteForeverSharp,
   
 } from '@mui/icons-material';
-import axiosClient from '@/api/axiosClient';
+import axiosClient from '@/api/axiosClient.js';
 import { getAuthToken } from '@/utils/auth.js';
 import TaskTableRow from './TaskTableRow.jsx';
 import CommentTab from '@/Components/user-dashboard/CommentsTab.jsx';

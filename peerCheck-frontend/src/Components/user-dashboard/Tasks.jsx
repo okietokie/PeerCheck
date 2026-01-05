@@ -100,7 +100,7 @@ import {
   
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import axiosClient from '@/api/axiosClient';
+import axiosClient from '@/api/axiosClient.js';
 import { useNavigate, useParams  } from 'react-router-dom';
 import { getAuthToken } from '@/utils/auth.js';
 import { useInView } from 'react-intersection-observer';
