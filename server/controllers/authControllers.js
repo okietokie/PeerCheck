@@ -477,17 +477,20 @@ export const resetPassword = async (req, res) => {
 
 export const logoutUser = async (req, res) => {
   try {
-    const userId  = req.userId;
+    const userId  = req.userId || req.user.id;
     const user = await User.findById(userId);
-
-    await User.findByIdAndUpdate(userId, 
+    console.log("userId: ", userId);
+    if (user.role !== "admin"){
+          await User.findByIdAndUpdate(userId, 
       {
         $set: { onlineStatus: "offline"}
       }
     );
 
+    }
     res.json({ success: true, message: "Logged out successfully" });
   } catch (err) {
+    console.log(`error:`, err);
     res.status(500).json({ error: err.message });
   }
 };

@@ -4,6 +4,7 @@ import cors from "cors";
 import dotenv from "dotenv";  //to load and handle .env files
 import mongoose from "mongoose";
 import path from "path";
+import connectDB from "./mongodbConnectivity.js";
 
 //dotenv.config() loads .env file
 //path.resolve() provides exact file location to load it 
@@ -16,13 +17,9 @@ const app = express();
 app.use(cors());  //allows your frontend (React) to access your backend. Without it, browsers block requests for security.
 app.use(express.json()); //allows Express to understand JSON data sent from the frontend (like { email: "...", password: "..." }).
 
+//establish connectivity
+connectDB();
 
-// Connect MongoDB
-mongoose
-  .connect(process.env.MONGO_URI)  //connects to mongoDB db, processes the variables in .env file(like mongoDB link)
-  .then(() => console.log("MongoDB Connected"))
-  .catch((err) => console.log("DB Connection Error:", err));
-  
 
 // Routes
 import authRoutes from "./routes/authRoutes.js";
@@ -33,11 +30,11 @@ import reviewRoutes from "./routes/reviewRoutes.js";
 import peerReviewRoutes from "./routes/peerReviewRoutes.js";
 import stickyNoteRoutes from "./routes/stickyNoteRoutes.js";
 import { fileURLToPath } from "url";
-import { setupDeadlineChecker } from './controllers/deadlineChecker.js';
+// import { setupDeadlineChecker } from './controllers/deadlineChecker.js';
 
 
 
-setupDeadlineChecker();
+// setupDeadlineChecker();
 
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);

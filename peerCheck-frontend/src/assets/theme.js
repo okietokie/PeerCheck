@@ -1,5 +1,6 @@
 // //peerCheck-frontend/src/assets/theme.js
-import { createTheme } from "@mui/material/styles";
+import { createTheme, darken, lighten } from "@mui/material/styles";
+
 import '@fontsource/inter/300.css';
 import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
@@ -25,24 +26,41 @@ const typographyConfig = {
 };
 
 function makeTheme(mode, primaryColor, secondaryColor, backgroundColor) {
+  const isDark = mode === 'dark';
   return createTheme({
     typography: typographyConfig,
-  palette: {
-      mode: mode,
-      primary: { main: primaryColor, contrastText: mode === 'dark' ? '#fff' : '#000' },
-      secondary: { main: secondaryColor, contrastText: mode === 'dark' ? '#fff' : '#000' },
-      background: { default: backgroundColor, paper: backgroundColor },
+palette: {
+      mode,
+      primary: {
+        main: primaryColor,
+        // Automatically creates a lighter version for "Soft" chips
+        light: isDark ? lighten(primaryColor, 0.2) : lighten(primaryColor, 0.4),
+        // Automatically creates a darker version for hover states
+        dark: darken(primaryColor, 0.2),
+        contrastText: isDark ? '#fff' : '#000',
+      },
+      secondary: {
+        main: secondaryColor,
+        light: lighten(secondaryColor, 0.3),
+        dark: darken(secondaryColor, 0.3),
+      },
+      background: {
+        default: backgroundColor,
+        // Make 'paper' slightly different so cards "pop"
+        paper: isDark ? lighten(backgroundColor, 0.05) : darken(backgroundColor, 0.02),
+      },
     },
   });
 }
 
 const themes = {
+  
     "midnight-ocean": makeTheme("dark", "#4ABAF2", "#0277BD", "#001829"),
 
   "dark-high-contrast": makeTheme("dark", "#8AB4F8", "#FF8FA3", "#0D0D0D"),
   "dark-medium-contrast": makeTheme("dark", "#64A2F3", "#E26A6A", "#171717"),
   "light-high-contrast": makeTheme("light", "#1565C0", "#C62828", "#FFFFFF"),
-  "light-medium-contrast": makeTheme("light", "#1E88E5", "#EF5350", "#F5F6FA"),
+  "light-medium-contrast": makeTheme("light", "#1E88E5", "#EF535  0", "#F5F6FA"),
 
   "pastel-lavender": makeTheme("light", "#AFA3E8", "#D4A5E6", "#F7F2FF"),
   "pastel-mint": makeTheme("light", "#7ACFC0", "#48B8A5", "#E6FAF6"),

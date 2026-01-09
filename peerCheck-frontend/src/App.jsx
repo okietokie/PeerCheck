@@ -1,25 +1,28 @@
 // App.js
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Home from "./Components/Pages/Login/Home.jsx";
-import AuthPage from "./Components/Pages/Login/AuthPage.jsx";
-import UserApp from "./Components/user-dashboard/UserApp.jsx";
-import ForgotPassword from "@/Components/Pages/Login/Helper Components/ForgotPassword.jsx";
-import ResetPassword from "@/Components/Pages/Login/Helper Components/ResetPassword.jsx";
-import AdminPage from "./Components/Pages/AdminComponents/AdminPage.jsx";
-import SecNAuth from "./Components/Pages/AdminComponents/SecNAuth/SecNAuth.jsx";
+import Home from "./Components/Login/Home.jsx";
+import AuthPage from "./Components/Login/AuthPage.jsx";
+import ForgotPassword from "@/Components/Login/Helper Components/ForgotPassword.jsx";
+import ResetPassword from "@/Components/Login/Helper Components/ResetPassword.jsx";
+import AdminPage from "./Components/AdminComponents/AdminPage.jsx";
+import SecNAuth from "./Components/AdminComponents/SecNAuth.jsx";
 
 import { useEffect, useState } from "react";
+
 import ProtectedRoute from "./Components/ProtectedRoute.jsx";
 import { ThemeProvider } from "@mui/material/styles";
 import { Box } from "@mui/material";
+
 import themes from './assets/theme.js';
+import { useInView } from "react-intersection-observer";
+
+import UserApp from "./Components/user-dashboard/UserApp.jsx";
 import Tasks from "./Components/user-dashboard/Tasks.jsx";
 import Projects from "./Components/user-dashboard/Projects.jsx";
 import MyProject from "./Components/user-dashboard/MyProject.jsx";
 import PeerTeams from "./Components/user-dashboard/PeerTeams.jsx";
 import Profile from "./Components/user-dashboard/Profile.jsx";
 import Dashboard from "./Components/user-dashboard/Dashboard.jsx";
-import { useInView } from "react-intersection-observer";
 import NotificationsPage from "./Components/user-dashboard/NotificationsPage.jsx";
 import MyProjectNull from "./Components/user-dashboard/MyProjectNull.jsx";
 

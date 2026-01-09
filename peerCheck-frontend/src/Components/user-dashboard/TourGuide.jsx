@@ -43,8 +43,10 @@ import { getPeerTeamsTourSteps } from './TourGuideComponents/peerteamsSteps';
 import { getNoTeamsTourSteps } from './TourGuideComponents/nopeerteamsSteps';
 import { getProjectsTourSteps } from './TourGuideComponents/projectTourSteps';
 import { getNoProjectsTourSteps } from './TourGuideComponents/noprojectSteps';
+import { welcomeTourSteps } from './TourGuideComponents/welcomeTourSteps';
+import { useDefaultDates } from '@mui/x-date-pickers/internals';
 
-const TourGuide = ({ page = 'dashboard', showAppBarButton = false }) => {
+const TourGuide = ({ page = 'dashboard', showAppBarButton = false, autoStart=false }) => {
   const theme = useTheme();
   const location = useLocation();
   const [tourOpen, setTourOpen] = useState(false);
@@ -73,6 +75,8 @@ const TourGuide = ({ page = 'dashboard', showAppBarButton = false }) => {
   // Get tour steps based on page
   const getTourSteps = useCallback(() => {
     switch(page) {
+        case 'welcome-tour':
+          return welcomeTourSteps(theme);
         case 'dashboard':
             return getDashboardSteps(theme);
         case 'navigation':
@@ -241,6 +245,16 @@ if (typeof position.left === 'number') {
   }, [currentStep, highlightedElement, isPositioning]);
 
   useEffect(() => {
+    if (autoStart){
+      const timer = setTimeout(() => {
+        setTourOpen(true);
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  },[])
+
+  useEffect(() => {
     if (tourOpen) {
       if (currentStep.element) {
         const element = document.querySelector(currentStep.element);
@@ -310,6 +324,7 @@ if (typeof position.left === 'number') {
   useEffect(() => {
   const checkTour = async () => {
     try {
+      if(page === 'welcome-tour') return;
       const token = getAuthToken();
       const res = await axiosClient.get(`/user/tour-completion-check/${page}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -476,7 +491,7 @@ if (typeof position.left === 'number') {
       )}
 
       {/* Tour Dialog */}
-      <Dialog
+      {page !== "welcome-tour" ?       <Dialog
         open={tourOpen}
         onClose={handleSkip}
         disableScrollLock
@@ -646,14 +661,161 @@ if (typeof position.left === 'number') {
             </Button>
           </Box>
         </DialogActions>
-      </Dialog>
+      </Dialog> :       <Dialog
+        open={tourOpen}
+        onClose={handleSkip}
+        disableScrollLock
+        PaperProps={{
+          ref: dialogRef,
+          sx: {
+            position: 'fixed',
+            ...getDialogPosition(),
+            m: 0,
+            width: 380,
+            maxHeight: '80vh',
+            margin: 2,
 
-      {/* Add missing icons */}
-      {(() => {
-        const PeopleIcon = () => <span>👥</span>;
-        const CalendarTodayIcon = () => <span>📅</span>;
-        return null;
-      })()}
+            borderRadius: 4,
+            border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+            zIndex: 9998,
+            overflowY: 'auto',
+            transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            transform: isPositioning ? 'scale(0.95)' : 'scale(1)',
+            opacity: isPositioning ? 0.8 : 1
+          }
+        }}
+        BackdropProps={{
+          sx: {
+            backgroundColor: 'transparent',
+            backdropFilter: 'none'
+          }
+        }}
+      >
+        {/* Arrow pointing to element */}
+        {currentStep.element && highlightedElement && currentStep.position !== 'center' && (
+          <Box
+            sx={{
+              position: 'absolute',
+              width: 0,
+              height: 0,
+              borderStyle: 'solid',
+              ...(currentStep.position === 'bottom' && {
+                top: '-10px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                borderWidth: '0 12px 12px 12px',
+                borderColor: `transparent transparent ${theme.palette.background.paper} transparent`
+              }),
+              ...(currentStep.position === 'top' && {
+                bottom: '-10px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                borderWidth: '12px 12px 0 12px',
+                borderColor: `${theme.palette.background.paper} transparent transparent transparent`
+              }),
+              ...(currentStep.position === 'left' && {
+                top: '50%',
+                right: '-12px',
+                transform: 'translateY(-50%)',
+                borderWidth: '12px 0 12px 12px',
+                borderColor: `transparent transparent transparent ${theme.palette.background.paper}`
+              }),
+              ...(currentStep.position === 'right' && {
+                top: '50%',
+                left: '-12px',
+                transform: 'translateY(-50%)',
+                borderWidth: '12px 12px 12px 0',
+                borderColor: `transparent ${theme.palette.background.paper} transparent transparent`
+              }),
+              filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.1))',
+              transition: 'all 0.3s ease'
+            }}
+          />
+        )}
+
+        <DialogContent sx={{ p: 3, pb: 2 }}>
+          <Zoom in={!isPositioning} timeout={200}>
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
+              <Avatar sx={{ 
+                bgcolor: alpha(theme.palette.primary.main, 0.1), 
+                color: theme.palette.primary.main,
+                width: 48, 
+                height: 48 
+              }}>
+                {currentStep.icon}
+              </Avatar>
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+                  {currentStep.title}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  {currentStep.description}
+                </Typography>
+              </Box>
+            </Box>
+          </Zoom>
+
+          <Fade in={!isPositioning} timeout={300}>
+            <Box sx={{ mb: 3 }}>
+              {currentStep.content}
+            </Box>
+          </Fade>
+        </DialogContent>
+
+        <DialogActions sx={{ p: 2, pt: 0 }}>
+          <Button
+            onClick={handleSkip}
+            sx={{ 
+              color: theme.palette.text.secondary,
+              '&:hover': {
+                color: theme.palette.error.main,
+                bgcolor: alpha(theme.palette.error.main, 0.1)
+              }
+            }}
+          >
+            Skip
+          </Button>
+          
+          <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
+            <Button
+              onClick={handleBack}
+              disabled={activeStep === 0}
+              sx={{
+                color: theme.palette.text.secondary,
+                minWidth: 'auto',
+                px: 2,
+                '&:hover:not(:disabled)': {
+                  bgcolor: alpha(theme.palette.action.hover, 0.1)
+                }
+              }}
+            >
+              <ArrowBackIcon />
+            </Button>
+            
+            <Button
+              onClick={handleNext}
+              variant="contained"
+              sx={{
+                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+                color: 'white',
+                borderRadius: 2,
+                px: 3,
+                fontWeight: 600,
+                '&:hover': {
+                  transform: 'translateY(-1px)',
+                  boxShadow: `0 8px 25px ${alpha(theme.palette.primary.main, 0.3)}`
+                }
+              }}
+            >
+              {activeStep === steps.length - 1 ? 'Don’t guess, measure!' : 'Curious?'}
+            </Button>
+          </Box>
+        </DialogActions>
+      </Dialog>
+      }
+      
+
     </>
   );
 };

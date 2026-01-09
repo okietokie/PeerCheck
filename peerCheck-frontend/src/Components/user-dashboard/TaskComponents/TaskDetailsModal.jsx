@@ -104,7 +104,7 @@ import { getAuthToken } from '@/utils/auth.js';
 import TaskTableRow from './TaskTableRow.jsx';
 import CommentTab from '@/Components/user-dashboard/CommentsTab.jsx';
 import { getUserData } from '@/utils/user.js';
-import TourGuide from '../../TourGuide.jsx';
+import TourGuide from '../TourGuide.jsx';
 
 export const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate,  onUploadProof, onStatusChange }) => {
   const [activeTab, setActiveTab] = useState('overview');

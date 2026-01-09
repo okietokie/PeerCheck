@@ -135,11 +135,11 @@ import axiosClient from '@/api/axiosClient';
 import { format } from 'date-fns';
 import { CreateTaskModal } from './Projects';
 import { UploadProofModal } from './Tasks';
-import { StickyNoteEditor } from './StickyNoteEditor';
-import PeerReviewTab from './PeerReviewTab';
+import { StickyNoteEditor } from './StickyNoteEditor.jsx';
+import PeerReviewTab from './PeerReviewTab.jsx';
 import { getUserData as getUserDataUtils } from '@/utils/user.js';
-import { TaskTableRow } from './PeerTeams/TaskComponents/TaskTableRow.jsx';
-import TaskDetailsModal from './PeerTeams/TaskComponents/TaskDetailsModal';
+import { TaskTableRow } from './TaskComponents/TaskTableRow.jsx';
+import TaskDetailsModal from './TaskComponents/TaskDetailsModal.jsx';
 
 // Helper functions from Tasks.jsx
 const getUserData = () => {

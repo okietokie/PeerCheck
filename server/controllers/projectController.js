@@ -433,7 +433,7 @@ const calculateProjectHealth = (metrics) => {
 //Combines progress + risk + proof + deadlines into ONE score.
 //easier clean up
  */
-const calculateAllProjectMetrics = async (tasks, teamMembers, projectId) => {
+export const calculateAllProjectMetrics = async (tasks, teamMembers, projectId) => {
   const progress = calculateProgress(tasks);
   const timeEfficiency = calculateProjectTimeEfficiency(tasks);
   const projectRisk = calculateProjectRisk(tasks);
