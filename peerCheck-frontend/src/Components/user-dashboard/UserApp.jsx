@@ -40,9 +40,9 @@ import { useNavigate, useLocation, Routes, Route, Outlet } from 'react-router-do
 import { useEffect } from 'react';
 
 import axiosClient from '@/api/axiosClient';
-import NotificationBell from './NotificationBell';
+import NotificationBell from '../Notifications/NotificationBell';
 import { getUserData } from '@/utils/user';
-import TourGuide from './TourGuide';
+import TourGuide from '../TourGuide';
 export default function UserApp() {
   const navigate = useNavigate();
   const location = useLocation();

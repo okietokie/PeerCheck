@@ -107,7 +107,7 @@ import { useInView } from 'react-intersection-observer';
 import TaskTableRow from '@/Components/user-dashboard/TaskComponents/TaskTableRow.jsx';
 import TaskDetailsModal from '@/Components/user-dashboard/TaskComponents/TaskDetailsModal.jsx';
 import ErrorSnack from './ErrorSnack.jsx';
-import TourGuide from './TourGuide.jsx';
+import TourGuide from '../TourGuide.jsx';
 
 
 

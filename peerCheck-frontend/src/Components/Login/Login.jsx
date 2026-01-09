@@ -42,7 +42,7 @@ export default function Login() {
       if (res.data.role === "admin") {
         navigate("/admin-page");
       } else if(res.data?.role === 'teacher'){
-        navigate("/teacher-dash")
+        navigate("/teacher-app")
       }
       else{
         navigate("/user-app");

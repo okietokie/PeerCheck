@@ -23,13 +23,20 @@ import MyProject from "./Components/user-dashboard/MyProject.jsx";
 import PeerTeams from "./Components/user-dashboard/PeerTeams.jsx";
 import Profile from "./Components/user-dashboard/Profile.jsx";
 import Dashboard from "./Components/user-dashboard/Dashboard.jsx";
-import NotificationsPage from "./Components/user-dashboard/NotificationsPage.jsx";
+import NotificationsPage from "./Components/Notifications/NotificationsPage.jsx";
 import MyProjectNull from "./Components/user-dashboard/MyProjectNull.jsx";
 
 // Import new components
 import ThemePicker from "./Components/ThemesComponents/ThemePicker.jsx";
 import ThemeToggleButton from "./Components/ThemesComponents/ThemeToggleButton.jsx";
 import { getThemeNames } from "./utils/themeUtils.js";
+import TeacherApp from "./Components/teacher-dashboard/teacher-dash-app.jsx";
+import TeacherDashboard from "./Components/teacher-dashboard/Dashboard.jsx";
+import TeacherClasses from "./Components/teacher-dashboard/TeacherClasses.jsx";
+import TeacherProjects from "./Components/teacher-dashboard/TeacherProjects.jsx";
+import Reviews from "./Components/teacher-dashboard/Reviews.jsx";
+import { Analytics } from "@mui/icons-material";
+import Feedback from "./Components/teacher-dashboard/Feedback.jsx";
 
 // Extract theme names dynamically
 const themeNames = getThemeNames(themes);
@@ -75,6 +82,7 @@ export default function App() {
             <Route path="/sec-n-auth" element={<SecNAuth />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
+            
             <Route
               path="/user-app/*"
               element={
@@ -92,6 +100,17 @@ export default function App() {
                 <Route path="peerteams" element={<PeerTeams />} />
                 <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="profile" element={<Profile />} />
+            </Route>
+
+            <Route path="/teacher-app/*" element={<ProtectedRoute> <TeacherApp /> </ProtectedRoute>}>
+              <Route path="dashboard" element={<TeacherDashboard />} />
+              <Route path="classes" element={<TeacherClasses />} />
+              <Route path="projects" element={<TeacherProjects />} />
+              <Route path="peer-teams" element={<PeerTeams />} />
+              <Route path="reviews" element={<Reviews />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="feedback" element={<Feedback />} />
+              <Route path="profile" element={<Profile />} />
             </Route>
           </Routes>
         </Router>

@@ -17,6 +17,7 @@ import {
   Schedule,
   Person,
   Flag,
+  Close,
 } from "@mui/icons-material";
 import {
   TextField,
@@ -38,7 +39,8 @@ import {
   Stack,
   IconButton,
   CircularProgress,
-  Button
+  Button,
+  ClickAwayListener
 } from '@mui/material';
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -83,6 +85,7 @@ export const TaskTableRow = ({
   const [dueDatePickerAnchor, setDueDatePickerAnchor] = useState(null);
   const [datePickerValue, setDatePickerValue] = useState();
   const [user, setUser] = useState(null);
+  const [openModal, setOpenModal] = useState(false);
 
   const navigate = useNavigate();
 
@@ -146,6 +149,7 @@ export const TaskTableRow = ({
     }
   };
 
+
   const calculateDaysUntilDeadline = () => {
     if (!task.deadline) return null;
 
@@ -177,12 +181,17 @@ export const TaskTableRow = ({
 
   const handleStatusClick = (event) => {
     event.stopPropagation();
-    setStatusAnchorEl(event.currentTarget);
+    if(isAssignedUser){
+      setStatusAnchorEl(event.currentTarget);
+    }
+    
   };
 
   const handlePriorityClick = (event) => {
     event.stopPropagation();
-    setPriorityAnchorEl(event.currentTarget);
+    if(isAssignedUser){
+      setPriorityAnchorEl(event.currentTarget);
+    }
   };
 
   const handleStatusSelect = (status) => {
@@ -285,6 +294,7 @@ export const TaskTableRow = ({
   const isAssignedUser = task.assignedTo?._id === userRole?.userId;
 
   return (
+  <>
     <TableRow
       hover
       selected={isSelected}
@@ -328,7 +338,7 @@ export const TaskTableRow = ({
             },
           }}
         >
-          {isEditing ? (
+          {isEditing && isAssignedUser ? (
             <TextField
               value={editedTask.taskTitle}
               onChange={handleTaskNameChange}
@@ -360,16 +370,26 @@ export const TaskTableRow = ({
               >
                 {task.taskTitle}
               </Typography>
-              <Edit
-                className="edit-indicator"
-                fontSize="small"
-                sx={{
-                  opacity: 0,
-                  fontSize: 14,
-                  color: theme.palette.text.secondary,
-                  transition: 'opacity 0.2s ease',
-                }}
-              />
+                {isAssignedUser && (
+                                <Edit
+                                className="edit-indicator"
+                                fontSize="small"
+                                sx={{
+                                  opacity: 0,
+                                  fontSize: 14,
+                                  color: theme.palette.text.secondary,
+                                  transition: 'opacity 0.2s ease',
+                                  cursor: 'pointer',
+                                  '&:hover': {
+                                    cursor: 'grab'
+                                  },
+                                  '&:active': {
+                                    cursor: 'grabbing'
+                                  }
+
+                                }}
+                              />
+                )}
             </Stack>
           )}
           {task.metrics?.isOverdue && (
@@ -443,15 +463,16 @@ export const TaskTableRow = ({
               }}
             >
               <ListItemIcon sx={{ minWidth: 36 }}>
-                {option.icon}
+                {option.icon} 
               </ListItemIcon>
               <ListItemText
-                primary={option.label}
+                primary={isAssignedUser ? `${option.label}` : `${option.label}` }
                 primaryTypographyProps={{
                   fontSize: '0.875rem',
                   fontWeight: 500,
                 }}
               />
+              
             </MenuItem>
           ))}
         </Menu>
@@ -542,133 +563,139 @@ export const TaskTableRow = ({
           </Box>
         </Box>
 
-        {/* Date Picker Popover */}
-        <Popover
-          open={Boolean(dueDatePickerAnchor)}
-          anchorEl={dueDatePickerAnchor}
-          onClose={() => setDueDatePickerAnchor(null)}
-          anchorOrigin={{
-            vertical: 'bottom',
-            horizontal: 'left',
-          }}
-          transformOrigin={{
-            vertical: 'top',
-            horizontal: 'left',
-          }}
-          PaperProps={{
-            sx: {
-              borderRadius: 3,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-              overflow: 'hidden',
-              border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-            },
-          }}
-        >
-          <Box sx={{ p: 2.5, width: 320 }}>
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle1" fontWeight="600" gutterBottom>
-                Set Due Date
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {task.taskTitle}
-              </Typography>
-            </Box>
 
-            <LocalizationProvider dateAdapter={AdapterDateFns}>
-              <DatePicker
-                value={datePickerValue || (task.deadline ? new Date(task.deadline) : null)}
-                onChange={(date) => {
-                  setDatePickerValue(date);
-                  if (date) {
-                    handleDateChange('deadline', date);
-                  }
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    fullWidth
-                    size="medium"
-                    autoFocus
+      </TableCell>
+              {/* Date Picker Popover */}
+        {
+          isAssignedUser && (
+            <Popover
+              open={Boolean(dueDatePickerAnchor)}
+              anchorEl={dueDatePickerAnchor}
+              onClose={() => setDueDatePickerAnchor(null)}
+              disableRestoreFocus //focuses on bouncing back
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+              PaperProps={{
+                sx: {
+                  width: 340,
+                  borderRadius: 3,
+                  boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
+                  border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
+                  overflow: 'hidden',
+                },
+              }}
+            >
+              <ClickAwayListener onClickAway={() => setDueDatePickerAnchor(null)}>
+              <Box sx={{ p: 3 }}>
+                
+                {/* Header */}
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  justifyContent="space-between"
+                  sx={{ mb: 2 }}
+                >
+                  <Box>
+                    <Typography variant="subtitle1" fontWeight={600}>
+                      Set Due Date
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {task.taskTitle}
+                    </Typography>
+                  </Box>
+
+                  <IconButton
+                    size="small"
+                    onClick={() => setDueDatePickerAnchor(null)}
                     sx={{
-                      mb: 2,
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 2,
-                        '&:hover fieldset': {
-                          borderColor: theme.palette.primary.main,
+                      color: 'text.secondary',
+                      '&:hover': {
+                        backgroundColor: alpha(theme.palette.error.main, 0.08),
+                        color: theme.palette.error.main,
+                      },
+                    }}
+                  >
+                    <Close />
+                  </IconButton>
+                </Stack>
+
+                {/* Date Picker */}
+                <LocalizationProvider dateAdapter={AdapterDateFns}>
+                  <DatePicker
+                    value={datePickerValue || (task.deadline ? new Date(task.deadline) : null)}
+                    onChange={(date) => setDatePickerValue(date)}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: 'medium',
+                        autoFocus: true,
+                        sx: {
+                          mb: 2.5,
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: 2,
+                          },
                         },
                       },
                     }}
                   />
-                )}
-              />
-            </LocalizationProvider>
+                </LocalizationProvider>
 
-            <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-              {[
-                { label: 'Today', days: 0 },
-                { label: 'Tomorrow', days: 1 },
-                { label: 'Next Week', days: 7 }
-              ].map((option) => (
-                <Button
-                  key={option.label}
-                  size="small"
-                  variant="outlined"
-                  onClick={() => {
-                    const date = new Date();
-                    date.setDate(date.getDate() + option.days);
-                    date.setHours(23, 59, 59, 999);
-                    setDatePickerValue(date);
-                    handleDateChange('deadline', date);
-                  }}
-                  sx={{
-                    flex: 1,
-                    borderRadius: 1.5,
-                    py: 1,
-                    fontSize: '0.75rem',
-                    textTransform: 'none',
-                  }}
-                >
-                  {option.label}
-                </Button>
-              ))}
-            </Stack>
+                {/* Quick Select Buttons */}
+                <Stack direction="row" spacing={1} sx={{ mb: 2.5 }}>
+                  {[
+                    { label: 'Today', days: 0 },
+                    { label: 'Tomorrow', days: 1 },
+                    { label: 'Next Week', days: 7 },
+                  ].map((option) => (
+                    <Button
+                      key={option.label}
+                      size="small"
+                      variant="outlined"
+                      onClick={() => {
+                        const date = new Date();
+                        date.setDate(date.getDate() + option.days);
+                        date.setHours(23, 59, 59, 999);
+                        setDatePickerValue(date);
+                      }}
+                      sx={{
+                        flex: 1,
+                        borderRadius: 2,
+                        py: 1,
+                        fontSize: '0.75rem',
+                        textTransform: 'none',
+                      }}
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </Stack>
 
-            <Stack direction="row" spacing={1} justifyContent="flex-end">
-              <Button
-                size="small"
-                onClick={() => {
-                  handleDateChange('deadline', null);
-                  setDueDatePickerAnchor(null);
-                }}
-                disabled={!task.deadline}
-                sx={{
-                  textTransform: 'none',
-                  borderRadius: 1.5,
-                }}
-              >
-                Clear
-              </Button>
-              <Button
-                size="small"
-                variant="contained"
-                onClick={() => {
-                  if (datePickerValue) {
-                    handleDateChange('deadline', datePickerValue);
-                  }
-                  setDueDatePickerAnchor(null);
-                }}
-                sx={{
-                  textTransform: 'none',
-                  borderRadius: 1.5,
-                  px: 2,
-                }}
-              >
-                Apply
-              </Button>
-            </Stack>
-          </Box>
-        </Popover>
-      </TableCell>
+                {/* Actions */}
+                <Stack direction="row" spacing={1} justifyContent="flex-end">
+                  <Button
+                    size="small"
+                    variant="contained"
+                    onClick={() => {
+                      if (datePickerValue) {
+                        handleDateChange('deadline', datePickerValue);
+                      }
+                      setDueDatePickerAnchor(null);
+                    }}
+                    sx={{
+                      textTransform: 'none',
+                      borderRadius: 2,
+                      px: 2.5,
+                    }}
+                  >
+                    Apply
+                  </Button>
+                </Stack>
+              </Box>
+              </ClickAwayListener>
+            </Popover>
+
+          )
+        }
 
       {/* Priority */}
       <TableCell>
@@ -743,10 +770,6 @@ export const TaskTableRow = ({
       <TableCell>
         <IconButton
           size="small"
-          onClick={(e) => {
-            e.stopPropagation();
-            // Handle comments dialog
-          }}
           sx={{
             '&:hover': {
               backgroundColor: alpha(theme.palette.primary.main, 0.08),
@@ -966,6 +989,9 @@ export const TaskTableRow = ({
         </Stack>
       </TableCell>
     </TableRow>
+
+
+  </>
   );
 };
 

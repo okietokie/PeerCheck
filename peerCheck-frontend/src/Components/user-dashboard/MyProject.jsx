@@ -190,6 +190,7 @@ const MyProject = () => {
   const [activeMemberCount, setActiveMemberCount] = useState(0);
   const [createTaskModalOpen, setCreateTaskModalOpen] = useState(false);
   const [teams, setTeams] = useState(null);
+  const [projectCompleted, setProjectCompleted] = useState(false);
 
   const [selectedTaskForProof, setSelectedTaskForProof] = useState(null);
   const [proofUploadMessage, setProofUploadMessage] = useState(null);
@@ -253,7 +254,7 @@ const handleProofUploadSuccess = () => {
 const handleTaskFieldUpdate = async (taskId, updates) => {
   try {
     const token = getAuthToken();
-    
+    console.log("update data: ", updates);
     //ex:updates is { field: 'deadline', value: '2024-01-01T23:59:59.999Z' }
     const response = await axiosClient.patch(`/user/${taskId}/field`, 
       {
@@ -262,7 +263,6 @@ const handleTaskFieldUpdate = async (taskId, updates) => {
       },
       {
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         }
       }
@@ -285,6 +285,7 @@ const handleTaskFieldUpdate = async (taskId, updates) => {
       return response.data;
     } else {
       console.error("Error finding link ig");
+      setSnackbarMessage(response.data?.error || 'Failed to update');
       throw new Error(response.data?.error || 'Failed to update task');
     }
   } catch (error) {
@@ -293,6 +294,21 @@ const handleTaskFieldUpdate = async (taskId, updates) => {
     throw error;
   }
 };
+
+const handleProjectComplete = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    await axiosClient.patch(`/projects/${projectId}`, {
+      status: 'completed'
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    showSnackbar('Project marked as completed', 'success');
+    setRefresh(true);
+  } catch (error) {
+    showSnackbar('Error completing project', error);
+  }
+}
 
 const fetchCompletionStatus = async () => {
   console.log("response completion: ");
@@ -965,7 +981,8 @@ const togglePinNote = async (noteId) => {
 
       setProject(projectData);
       setMembers(fetchedData.teamId?.members || []);
-
+      setProjectCompleted(projectData.status);
+      console.log("projectData: ", projectData);
       
       if (fetchedData.teamId?.members){
         const count = fetchedData.teamId?.members.filter(member => {
@@ -1386,7 +1403,7 @@ useEffect(() => {
       const user = getUserData();
       if (user) {
         setUserRole({
-          role: user.role || 'peer',
+          role: user.role || 'student',
           userId: user.id || user._id
         });
         setUserTeacher(user.role === 'teacher');
@@ -1730,26 +1747,15 @@ if(!projectId){
                               <Button 
                                 variant="contained" 
                                 startIcon={<CheckCircle />}
-                                onClick={async () => {
-                                  try {
-                                    const token = localStorage.getItem('token');
-                                    await axiosClient.patch(`/projects/${projectId}`, {
-                                      status: 'completed'
-                                    }, {
-                                      headers: { Authorization: `Bearer ${token}` }
-                                    });
-                                    showSnackbar('Project marked as completed', 'success');
-                                    setRefresh(true);
-                                  } catch (error) {
-                                    showSnackbar('Error completing project', 'error');
-                                  }
-                                }}
+                                onClick={handleProjectComplete}
                                 sx={{ 
                                   fontFamily: '"Adlam Display", serif',
                                   borderRadius: 2,
                                   px: 3,
                                   py: 1,
-                                  background: `linear-gradient(135deg, ${getThemeColor('success')}, ${alpha(getThemeColor('success'), 0.8)})`,
+                                  background: projectCompleted.status === 'completed'
+                                              ? `darkyellow`
+                                              :  `linear-gradient(135deg, ${getThemeColor('success')}, ${alpha(getThemeColor('success'), 0.8)})`,
                                   color: getContrastColor(getThemeColor('success')),
                                   boxShadow: `0 4px 20px ${alpha(getThemeColor('success'), 0.4)}`,
                                   '&:hover': {
@@ -1759,7 +1765,7 @@ if(!projectId){
                                   transition: 'all 0.3s ease',
                                 }}
                               >
-                                Mark Complete
+                                {projectCompleted.status === 'completed' ? "Project Completed" : "Mark Complete"  }
                               </Button>
                             </Box>
                           </Box>

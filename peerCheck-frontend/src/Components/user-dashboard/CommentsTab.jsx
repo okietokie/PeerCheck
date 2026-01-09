@@ -299,6 +299,7 @@ const CommentTab = ({ taskId, projectId, currentUser }) => {
             mb: 2.5,
             ml: isReply ? 4.5 : 0,
             position: 'relative',
+          padding:2
           }}
         >
           {/* Reply connector line */}
@@ -553,6 +554,7 @@ const CommentTab = ({ taskId, projectId, currentUser }) => {
         pb: 2.5,
         borderBottom: '1px solid',
         borderColor: alpha(theme.palette.divider, 0.3),
+        padding:2
       }}>
         <Typography variant="h6" fontWeight="600" sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <ChatBubbleOutline sx={{ color: theme.palette.primary.main }} />
@@ -774,22 +776,6 @@ const CommentTab = ({ taskId, projectId, currentUser }) => {
             />
             <Box display="flex" justifyContent="space-between" alignItems="center" mt={2}>
               <Box display="flex" gap={1}>
-                <Tooltip title="Attach file">
-                  <IconButton 
-                    size="small" 
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={submitting}
-                    sx={{
-                      color: theme.palette.text.secondary,
-                      '&:hover': {
-                        color: theme.palette.primary.main,
-                        bgcolor: alpha(theme.palette.primary.main, 0.08),
-                      }
-                    }}
-                  >
-                    <AttachFile fontSize="small" />
-                  </IconButton>
-                </Tooltip>
                 <input
                   type="file"
                   ref={fileInputRef}

@@ -34,7 +34,7 @@ import InfoIcon from '@mui/icons-material/Info';
 import CelebrationIcon from '@mui/icons-material/Celebration';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { HourglassEmpty } from '@mui/icons-material';
-import TourGuide from './TourGuide';
+import TourGuide from '../TourGuide';
 
 
 export default function Profile() {

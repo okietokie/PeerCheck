@@ -43,7 +43,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import  useInView  from '../../hooks/useInView';
-import TourGuide from './TourGuide';
+import TourGuide from '../TourGuide';
 
 export default function Dashboard() {
   const navigate = useNavigate();

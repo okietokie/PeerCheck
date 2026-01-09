@@ -48,7 +48,7 @@ import axiosClient from "@/api/axiosClient";
 import { motion, AnimatePresence } from "framer-motion";
 import ReviewDialog from "@/Components/Login/Helper Components/ReviewDialog";
 import useInView from "@/hooks/useInView";
-import TourGuide from "@/Components/user-dashboard/TourGuide";
+import TourGuide from "../TourGuide";
 
 export default function Home() {
   const theme = useTheme();

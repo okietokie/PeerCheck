@@ -32,18 +32,18 @@ import FolderIcon from '@mui/icons-material/Folder';
 
 import { AccountCircle, Add, AddCircle, AddTask, Analytics, Assessment, Assignment, AssignmentTurnedIn, CalendarToday, Celebration, CheckCircle, Checklist, Comment, ConnectWithoutContact, CreateNewFolder, Dashboard, Description, Diversity3, Explore, FlashOn, Folder, FolderOpen, Forum, GroupAdd, Groups, Handshake, HelpOutline, Info, Insights, Lightbulb, Navigation, NotificationsActive, People, Person, PersonAdd, PlayCircle, PriorityHigh, RocketLaunch, Schedule, School, Security, Settings, Speed, Star, Timeline, TrendingUp, Update, ViewList, Visibility, VisibilityOutlined, Warning, Workspaces } from '@mui/icons-material';
 import { useLocation } from 'react-router-dom';
-import { getNavigationSteps } from './TourGuideComponents/navigationSteps';
-import { getDashboardSteps } from './TourGuideComponents/dashboardSteps';
-import { getProfileSteps } from './TourGuideComponents/profileSteps';
-import { getTaskTabSteps } from './TourGuideComponents/taskTabSteps';
-import { getTaskModalSteps } from './TourGuideComponents/getTaskModalSteps';
+import { getNavigationSteps } from './user-dashboard/TourGuideComponents/navigationSteps';
+import { getDashboardSteps } from './user-dashboard/TourGuideComponents/dashboardSteps';
+import { getProfileSteps } from './user-dashboard/TourGuideComponents/profileSteps';
+import { getTaskTabSteps } from './user-dashboard/TourGuideComponents/taskTabSteps';
+import { getTaskModalSteps } from './user-dashboard/TourGuideComponents/getTaskModalSteps';
 import axiosClient from '@/api/axiosClient';
 import { getAuthToken } from '@/utils/auth';
-import { getPeerTeamsTourSteps } from './TourGuideComponents/peerteamsSteps';
-import { getNoTeamsTourSteps } from './TourGuideComponents/nopeerteamsSteps';
-import { getProjectsTourSteps } from './TourGuideComponents/projectTourSteps';
-import { getNoProjectsTourSteps } from './TourGuideComponents/noprojectSteps';
-import { welcomeTourSteps } from './TourGuideComponents/welcomeTourSteps';
+import { getPeerTeamsTourSteps } from './user-dashboard/TourGuideComponents/peerteamsSteps';
+import { getNoTeamsTourSteps } from './user-dashboard/TourGuideComponents/nopeerteamsSteps';
+import { getProjectsTourSteps } from './user-dashboard/TourGuideComponents/projectTourSteps';
+import { getNoProjectsTourSteps } from './user-dashboard/TourGuideComponents/noprojectSteps';
+import { welcomeTourSteps } from './user-dashboard/TourGuideComponents/welcomeTourSteps';
 import { useDefaultDates } from '@mui/x-date-pickers/internals';
 
 const TourGuide = ({ page = 'dashboard', showAppBarButton = false, autoStart=false }) => {

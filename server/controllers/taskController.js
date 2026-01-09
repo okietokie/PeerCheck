@@ -2290,6 +2290,7 @@ export const updateTaskField = async (req, res) => {
     const { field, value } = req.body; // field can be: 'taskTitle', 'priority', 'startDate', 'deadline'
     const userId = req.user.id;
     const task = await Task.findById(taskId);
+    console.log("updating task!");
     if (!task) {
       return res.status(404).json({
         success: false,
@@ -2299,13 +2300,13 @@ export const updateTaskField = async (req, res) => {
 
     // Check permissions
     const project = await Project.findById(task.projectId);
-    const isCreator = project?.createdBy?.toString() === userId.toString();
     const isAssignee = task.assignedTo?.toString() === userId.toString();
-    const isAdmin = req.user.role === 'admin';
-    const isTeacher = req.user.role === 'teacher';
+
     
     // Allow edit if: assignee, creator, teacher, or admin
-    if (!isAssignee && !isCreator && !isTeacher && !isAdmin) {
+    console.log("isAssignee", isAssignee);
+
+    if (!isAssignee) {
       return res.status(403).json({
         success: false,
         error: "Not authorized to edit this task"

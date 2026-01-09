@@ -84,7 +84,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { set } from 'date-fns';
 import { useInView } from 'react-intersection-observer';
 import { useNotifications } from '@/contexts/NotificationContext';
-import TourGuide from './TourGuide';
+import TourGuide from '../TourGuide';
 
 // Helper to get auth token properly
 const getAuthToken = () => {

@@ -101,10 +101,10 @@ import {
 } from '@mui/icons-material';
 import axiosClient from '@/api/axiosClient.js';
 import { getAuthToken } from '@/utils/auth.js';
-import TaskTableRow from './TaskTableRow.jsx';
 import CommentTab from '@/Components/user-dashboard/CommentsTab.jsx';
 import { getUserData } from '@/utils/user.js';
-import TourGuide from '../TourGuide.jsx';
+import TourGuide from '@/Components/TourGuide.jsx';
+
 
 export const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate,  onUploadProof, onStatusChange }) => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -124,6 +124,11 @@ export const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskU
     message: '',
     severity: 'success'
   });
+  const isAssignedUser = task?.assignedTo?._id.toString() === userRole?.userId.toString();
+  console.log("userrole: ", userRole);
+  console.log("task.assignedTo?._id ", task?.assignedTo?._id);
+
+
 
   useEffect(() => {
     if (task) {
@@ -566,6 +571,21 @@ const deleteProofFile = async (taskId, proofId) => {
                 <TourGuide page='taskModal' showAppBarButton={true} />
 
                 {updatedTask?.taskTitle || 'Task'}
+              </Typography>
+              <Typography >
+                Assigned To: <Chip 
+                label={isAssignedUser ?  user?.name : updatedTask?.assignedTo?.name } 
+                color={theme.palette.secondary.main}
+                sx={{
+                  fontWeight: 700,
+                  borderRadius:2 ,
+                  height: 28,
+                  fontSize: '0.75rem',
+                  boxShadow: `0 3px 8px ${alpha(getStatusColor(updatedTask?.status) === 'primary' ? theme.palette.primary.main : 
+                                          getStatusColor(updatedTask?.status) === 'success' ? theme.palette.success.main : 
+                                          getStatusColor(updatedTask?.status) === 'warning' ? theme.palette.warning.main : 
+                                          theme.palette.error.main, 0.2)}`,
+                }}/>
               </Typography>
               
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mt: 1 }}>

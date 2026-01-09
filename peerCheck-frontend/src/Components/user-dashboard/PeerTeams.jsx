@@ -43,7 +43,7 @@ import {
 import axiosClient from '@/api/axiosClient';
 import TeamDetails from './PeerTeams/TeamDetails';
 import Profile from './Profile.jsx';
-import TourGuide from './TourGuide';
+import TourGuide from '../TourGuide';
 
 export default function PeerTeams() {
   const theme = useTheme();
