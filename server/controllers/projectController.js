@@ -576,10 +576,10 @@ export const calculateTaskMetrics = (task) => {
 
 export const createProject = async (req, res) => {
   try {
-    const { projectName, description, startDate, endDate, teamId, teamName, tags, gradingCriteria, mentorId} = req.body;
+    const { projectName, description, startDate, deadline, teamId, teamName, tags, gradingCriteria, mentorId} = req.body;
     const userId = req.user.id;
     // Basic validation
-    if (!projectName || !description || !startDate || !endDate || !teamId) {
+    if (!projectName || !description || !startDate || !deadline || !teamId) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -592,7 +592,7 @@ const projectData = {
   projectName,
   description,
   startDate,
-  endDate,
+  deadline,
   teamName: teamName || team.name || 'Unnamed Team',
   tags: tags || [],
   teamId: team._id,
@@ -765,11 +765,11 @@ export const updateProject = async (req, res) => {
     }
     // Check permissions
     const isCreator = project.createdBy.toString() === req.user.id;
-    const isAdmin = req.user.role === 'admin';
-    if (!isCreator && !isAdmin) {
+    const isAuthorized = req.user.role === 'admin' || req.user.role === "teacher";
+    if (!isCreator && !isAuthorized) {
       return res.status(403).json({ error: "Not authorized to update this project" });
     }
-        const oldStatus = project.status;
+    const oldStatus = project.status;
     const newStatus = updateData.status;
     const statusChanged = newStatus && oldStatus !== newStatus;
     // Update project fields
@@ -778,15 +778,17 @@ export const updateProject = async (req, res) => {
         project[key] = updateData[key];
       }
     });
+
     await project.save();
 
+    
     if (statusChanged) {
-    await notifyProjectEvents.editProject(
-      projectId,
-      req.user.id,
-      oldStatus,
-      newStatus
-    );
+      await notifyProjectEvents.editProject(
+        projectId,
+        req.user.id,
+        oldStatus,
+        newStatus
+      );
     }
     res.json(project);
   } catch (error) {
@@ -813,11 +815,11 @@ export const getAllProjects = async (req, res) => {
       sevenDaysFromNow.setDate(now.getDate() + 7);
 
       for (const project of projects) {
-        const endDate = new Date(project.endDate);
+        const deadline = new Date(project.deadline);
 
-        if (endDate > now && endDate <= sevenDaysFromNow) {
+        if (deadline > now && deadline <= sevenDaysFromNow) {
           const daysRemaining = Math.ceil(
-            (endDate - now) / (1000 * 60 * 60 * 24)
+            (deadline - now) / (1000 * 60 * 60 * 24)
           );
           await notifyProjectEvents.deadlineApproaching(
             project._id,
@@ -939,11 +941,13 @@ export const getProjectMetrics = async (req, res) => {
         error: "Project not found" 
       });
     }
-
+    const isTeacher = await MentorProjectAssignment.find({project: project._id, mentor: userId});
     // Check access
     const hasAccess = 
       project.createdBy._id.toString() === userId ||
-      project.teamId?.members.some(member => member._id.toString() === userId);
+      project.teamId?.members.some(member => member._id.toString() === userId) ||
+      isTeacher
+      
 
     if (!hasAccess) {
       return res.status(403).json({ 
@@ -978,7 +982,7 @@ export const getProjectMetrics = async (req, res) => {
         team: project.teamId,
         createdBy: project.createdBy,
         startDate: project.startDate,
-        endDate: project.endDate,
+        deadline: project.deadline,
         status: project.status
       },
       metrics,
@@ -1372,7 +1376,7 @@ export const notifyProjectEvents = {
           data: {
             projectId: project._id,
             projectName: project.projectName,
-            deadline: project.endDate,
+            deadline: project.deadline,
             daysRemaining
           },
           priority: daysRemaining <= 3 ? 'urgent' : 'high',

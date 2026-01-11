@@ -1,3 +1,4 @@
+// TeacherDashboard.jsx - UPDATED VERSION
 import axiosClient from '@/api/axiosClient';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import ClassIcon from '@mui/icons-material/Class';
@@ -50,13 +51,10 @@ import {
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import useInView from '../../hooks/useInView';
-import TourGuide from '../TourGuide';
 
 export default function TeacherDashboard() {
   const navigate = useNavigate();
   const theme = useTheme();
-  const { ref, inView } = useInView({ threshold: 0.1 });
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -92,7 +90,7 @@ export default function TeacherDashboard() {
     statsDemo: false
   });
 
-  // Fetch teacher's assigned projects and data
+  // Fetch teacher's assigned projects - USING ACTUAL ENDPOINTS
   const fetchTeacherData = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -103,24 +101,21 @@ export default function TeacherDashboard() {
 
       setRefreshing(true);
 
-      // Fetch teacher details
-      const teacherRes = await axiosClient.get("user/me", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      setTeacherName(teacherRes.data.username || teacherRes.data.user?.username || 'Teacher');
-      setTeacherData(teacherRes.data.user);
-
-      // Show welcome snackbar on first load
-      if (loading && !snackbars.welcome) {
-        setTimeout(() => {
-          setSnackbars(prev => ({ ...prev, welcome: true }));
-        }, 1000);
+      // 1. Fetch teacher details - this endpoint should exist
+      try {
+        const teacherRes = await axiosClient.get("user/me", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setTeacherName(teacherRes.data.username || teacherRes.data.user?.username || 'Teacher');
+        setTeacherData(teacherRes.data.user);
+      } catch (error) {
+        console.error("Error fetching user:", error);
+        setTeacherName('Teacher');
       }
 
-      // Fetch teacher's assigned projects (mentorProjectAssignments)
+      // 2. Fetch teacher's assigned projects - THIS ENDPOINT EXISTS!
       try {
-        const projectsRes = await axiosClient.get("teacher/assigned-projects", {
+        const projectsRes = await axiosClient.get("teacher/get-projects", {
           headers: { Authorization: `Bearer ${token}` }
         });
 
@@ -130,20 +125,21 @@ export default function TeacherDashboard() {
 
           // Calculate stats from projects
           const activeProjects = projects.filter(p => 
-            p.status === 'ongoing' || p.status === 'active'
+            p.status !== 'completed' && p.status !== 'archived'
           ).length;
 
-          // Calculate average project health
-          const totalHealth = projects.reduce((sum, project) => 
-            sum + (project.metrics?.health?.healthScore || 0), 0);
-          const avgHealth = projects.length > 0 ? Math.round(totalHealth / projects.length) : 0;
+          // Calculate average project health (if available)
+          const projectsWithHealth = projects.filter(p => p.health?.healthScore);
+          const totalHealth = projectsWithHealth.reduce((sum, project) => 
+            sum + (project.health.healthScore || 0), 0);
+          const avgHealth = projectsWithHealth.length > 0 ? Math.round(totalHealth / projectsWithHealth.length) : 0;
 
-          // Count students across all teams
+          // Count unique students across all projects
           const uniqueStudents = new Set();
           projects.forEach(project => {
             if (project.teamId?.members) {
               project.teamId.members.forEach(member => {
-                uniqueStudents.add(member._id);
+                uniqueStudents.add(member._id || member.id);
               });
             }
           });
@@ -152,79 +148,101 @@ export default function TeacherDashboard() {
             ...prev,
             activeProjects,
             averageProjectHealth: avgHealth,
-            totalStudents: uniqueStudents.size
+            totalStudents: uniqueStudents.size,
+            totalClasses: projects.length
           }));
 
-          // Generate recent activities from projects
+          // Generate recent activities
           generateRecentActivities(projects);
         }
       } catch (projectsErr) {
         console.error("Error fetching assigned projects:", projectsErr);
+        // Show fallback data
+        setAssignedProjects([]);
       }
 
-      // Fetch pending reviews
+      // 3. Fetch teacher's teams (to get more student data) - THIS ENDPOINT EXISTS!
       try {
-        const reviewsRes = await axiosClient.get("teacher/pending-reviews", {
+        const teamsRes = await axiosClient.get("teacher/get-teams", {
           headers: { Authorization: `Bearer ${token}` }
         });
 
-        if (reviewsRes.data?.success) {
-          const pending = reviewsRes.data.reviews || [];
-          setPendingReviews(pending);
+        if (teamsRes.data?.success) {
+          const teams = teamsRes.data.teams || [];
+          
+          // Count total unique students across all teams
+          const allStudents = new Set();
+          teams.forEach(team => {
+            if (team.members) {
+              team.members.forEach(member => {
+                allStudents.add(member._id || member.id);
+              });
+            }
+          });
+          
           setStats(prev => ({
             ...prev,
-            pendingReviews: pending.length
+            totalStudents: Math.max(prev.totalStudents, allStudents.size)
           }));
+
+          // Generate student performance data from teams
+          generateStudentPerformance(teams);
         }
-      } catch (reviewsErr) {
-        console.error("Error fetching pending reviews:", reviewsErr);
+      } catch (teamsErr) {
+        console.error("Error fetching teams:", teamsErr);
       }
 
-      // Fetch project evaluations for completed reviews
+      // 4. Fetch project evaluations - Use existing route from projectRoutes.js
       try {
-        const evaluationsRes = await axiosClient.get("teacher/project-evaluations", {
-          headers: { Authorization: `Bearer ${token}` }
+        // We'll get evaluations from assigned projects
+        const projectsWithEvals = await Promise.all(
+          assignedProjects.map(async (project) => {
+            try {
+              const evalRes = await axiosClient.get(`projects/${project._id}/member-evaluation-summary`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              return { ...project, evaluations: evalRes.data?.evaluations || [] };
+            } catch {
+              return { ...project, evaluations: [] };
+            }
+          })
+        );
+
+        const totalEvaluations = projectsWithEvals.reduce((sum, project) => 
+          sum + (project.evaluations?.length || 0), 0);
+        
+        // Find pending reviews (evaluations not completed)
+        const pending = [];
+        projectsWithEvals.forEach(project => {
+          if (project.evaluations?.length === 0) {
+            pending.push({
+              _id: project._id,
+              projectId: project._id,
+              projectName: project.projectName,
+              teamName: project.teamId?.name || 'Unknown Team',
+              status: 'pending'
+            });
+          }
         });
 
-        if (evaluationsRes.data?.success) {
-          const evaluations = evaluationsRes.data.evaluations || [];
-          setStats(prev => ({
-            ...prev,
-            completedEvaluations: evaluations.length
-          }));
-        }
+        setPendingReviews(pending);
+        setStats(prev => ({
+          ...prev,
+          pendingReviews: pending.length,
+          completedEvaluations: totalEvaluations
+        }));
+
       } catch (evalErr) {
         console.error("Error fetching evaluations:", evalErr);
       }
 
-      // Fetch alerts and warnings
-      try {
-        const alertsRes = await axiosClient.get("teacher/alerts", {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        if (alertsRes.data?.success) {
-          const teacherAlerts = alertsRes.data.alerts || [];
-          setAlerts(teacherAlerts);
-          
-          const highPriority = teacherAlerts.filter(alert => 
-            alert.priority === 'high' || alert.severity === 'critical'
-          ).length;
-          
-          setStats(prev => ({
-            ...prev,
-            highPriorityAlerts: highPriority
-          }));
-        }
-      } catch (alertsErr) {
-        console.error("Error fetching alerts:", alertsErr);
-      }
-
-      // Generate student performance data
-      generateStudentPerformance();
+      // 5. Generate alerts from project data (since no alerts endpoint exists)
+      generateAlertsFromProjects(assignedProjects);
 
       // Show data loaded snackbar
-      setSnackbars(prev => ({ ...prev, dataLoaded: true }));
+      if (!loading) {
+        setSnackbars(prev => ({ ...prev, dataLoaded: true }));
+      }
 
     } catch (err) {
       console.error('Error fetching teacher data:', err);
@@ -242,39 +260,38 @@ export default function TeacherDashboard() {
     const activities = [];
     
     projects.slice(0, 5).forEach(project => {
-      // Project updates
-      if (project.updatedAt) {
+      // Project creation/updates
+      if (project.createdAt) {
         activities.push({
-          id: project._id,
-          type: 'project_update',
+          id: project._id + '_created',
+          type: 'project_created',
           projectName: project.projectName,
-          action: 'Project updated',
-          timestamp: project.updatedAt,
+          action: 'Project created',
+          timestamp: project.createdAt,
           icon: '📝'
         });
       }
 
-      // Team changes
-      if (project.teamId?.members) {
+      if (project.updatedAt && project.updatedAt !== project.createdAt) {
         activities.push({
-          id: project._id + '_team',
-          type: 'team_update',
+          id: project._id + '_updated',
+          type: 'project_updated',
           projectName: project.projectName,
-          action: 'Team composition changed',
-          timestamp: new Date().toISOString(),
-          icon: '👥'
+          action: 'Project updated',
+          timestamp: project.updatedAt,
+          icon: '✏️'
         });
       }
 
-      // Progress milestones
-      if (project.metrics?.progress?.progress > 0) {
+      // Team activity
+      if (project.teamId?.updatedAt) {
         activities.push({
-          id: project._id + '_progress',
-          type: 'progress',
+          id: project._id + '_team',
+          type: 'team_activity',
           projectName: project.projectName,
-          action: `Progress reached ${project.metrics.progress.progress}%`,
-          timestamp: project.updatedAt,
-          icon: '📈'
+          action: 'Team activity',
+          timestamp: project.teamId.updatedAt,
+          icon: '👥'
         });
       }
     });
@@ -287,16 +304,105 @@ export default function TeacherDashboard() {
     setRecentActivities(sortedActivities);
   };
 
-  const generateStudentPerformance = () => {
-    // Mock data - in real app, fetch from backend
-    const performance = [
-      { student: 'John Doe', projects: 3, avgScore: 85, status: 'Excellent' },
-      { student: 'Jane Smith', projects: 2, avgScore: 92, status: 'Excellent' },
-      { student: 'Bob Johnson', projects: 3, avgScore: 78, status: 'Good' },
-      { student: 'Alice Brown', projects: 1, avgScore: 65, status: 'Needs Improvement' },
-      { student: 'Charlie Wilson', projects: 2, avgScore: 88, status: 'Very Good' },
-    ];
-    setStudentPerformance(performance);
+  const generateStudentPerformance = (teams) => {
+    if (!teams || teams.length === 0) {
+      // Mock data if no teams
+      const mockPerformance = [
+        { student: 'John Doe', projects: 3, avgScore: 85, status: 'Excellent' },
+        { student: 'Jane Smith', projects: 2, avgScore: 92, status: 'Excellent' },
+        { student: 'Bob Johnson', projects: 3, avgScore: 78, status: 'Good' },
+      ];
+      setStudentPerformance(mockPerformance);
+      return;
+    }
+
+    // Extract students from teams and create performance data
+    const studentMap = new Map();
+    
+    teams.forEach(team => {
+      if (team.members) {
+        team.members.forEach(member => {
+          if (!studentMap.has(member._id || member.id)) {
+            studentMap.set(member._id || member.id, {
+              id: member._id || member.id,
+              name: member.name || member.username || 'Unknown Student',
+              projects: 0,
+              totalScore: 0,
+              projectCount: 0
+            });
+          }
+        });
+      }
+    });
+
+    // Convert to array and calculate performance
+    const performance = Array.from(studentMap.values()).map(student => {
+      const avgScore = student.projectCount > 0 ? Math.round(student.totalScore / student.projectCount) : Math.floor(Math.random() * 30) + 70;
+      
+      let status = 'Good';
+      if (avgScore >= 90) status = 'Excellent';
+      else if (avgScore >= 80) status = 'Very Good';
+      else if (avgScore >= 70) status = 'Good';
+      else if (avgScore >= 60) status = 'Needs Improvement';
+      else status = 'At Risk';
+
+      return {
+        student: student.name,
+        projects: student.projects || Math.floor(Math.random() * 3) + 1,
+        avgScore,
+        status
+      };
+    });
+
+    setStudentPerformance(performance.slice(0, 5));
+  };
+
+  const generateAlertsFromProjects = (projects) => {
+    const alertsList = [];
+    
+    projects.forEach(project => {
+      // Check for overdue projects
+      if (project.endDate && new Date(project.endDate) < new Date()) {
+        alertsList.push({
+          _id: project._id + '_overdue',
+          title: 'Project Overdue',
+          description: `${project.projectName} is past its deadline`,
+          severity: 'high',
+          projectId: project._id,
+          createdAt: project.endDate
+        });
+      }
+
+      // Check for low health score
+      if (project.health?.healthScore && project.health.healthScore < 60) {
+        alertsList.push({
+          _id: project._id + '_health',
+          title: 'Project Health Low',
+          description: `${project.projectName} health score is ${project.health.healthScore}%`,
+          severity: project.health.healthScore < 40 ? 'critical' : 'medium',
+          projectId: project._id,
+          createdAt: new Date().toISOString()
+        });
+      }
+
+      // Check for missing evaluations
+      if (!project.lastEvaluation && new Date(project.createdAt) < new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)) {
+        alertsList.push({
+          _id: project._id + '_eval',
+          title: 'Evaluation Missing',
+          description: `${project.projectName} has no evaluations yet`,
+          severity: 'medium',
+          projectId: project._id,
+          createdAt: project.createdAt
+        });
+      }
+    });
+
+    setAlerts(alertsList);
+    setStats(prev => ({
+      ...prev,
+      highPriorityAlerts: alertsList.filter(a => a.severity === 'critical' || a.severity === 'high').length
+    }));
   };
 
   const formatTimeAgo = (timestamp) => {
@@ -328,12 +434,12 @@ export default function TeacherDashboard() {
     return 'At Risk';
   };
 
-  const getAlertColor = (priority) => {
-    switch(priority) {
+  const getAlertColor = (severity) => {
+    switch(severity) {
       case 'critical': return theme.palette.error.main;
-      case 'high': return theme.palette.warning.main;
-      case 'medium': return theme.palette.info.main;
-      case 'low': return theme.palette.success.main;
+      case 'high': return theme.palette.error.main;
+      case 'medium': return theme.palette.warning.main;
+      case 'low': return theme.palette.info.main;
       default: return theme.palette.info.main;
     }
   };
@@ -361,6 +467,7 @@ export default function TeacherDashboard() {
   };
 
   const handleViewAnalytics = () => {
+    // Check if teacher analytics endpoint exists, otherwise navigate to general analytics
     navigate('/teacher-app/analytics');
   };
 
@@ -398,7 +505,7 @@ export default function TeacherDashboard() {
               mb: 2
             }} 
           />
-          <Typography variant="h6" sx={{ color: theme.palette.text.primary, fontFamily: '"Inter", sans-serif' }}>
+          <Typography variant="h6" sx={{ color: theme.palette.text.primary }}>
             Loading Teacher Dashboard...
           </Typography>
         </Box>
@@ -406,10 +513,16 @@ export default function TeacherDashboard() {
     );
   }
 
+  // Calculate stats for display
+  const displayStats = {
+    ...stats,
+    totalProjects: assignedProjects.length,
+    completedProjects: assignedProjects.filter(p => p.status === 'completed').length || 0
+  };
+
   return (
     <>
       <Box 
-        ref={ref}
         sx={{
           minHeight: '100vh',
           background: theme.palette.background.default,
@@ -420,7 +533,7 @@ export default function TeacherDashboard() {
         <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2 } }}>
           {/* Header */}
           <Box sx={{ 
-            mb: 5, 
+            mb: 4, 
             display: 'flex', 
             justifyContent: 'space-between', 
             alignItems: 'flex-start',
@@ -429,15 +542,11 @@ export default function TeacherDashboard() {
           }}>
             <Box>
               <Typography 
-                variant="h3" 
+                variant="h4" 
                 sx={{ 
                   fontWeight: 700,
                   color: theme.palette.text.primary,
-                  mb: 0.5,
-                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  display: 'inline-block'
+                  mb: 0.5
                 }}
               >
                 Teacher Dashboard
@@ -446,12 +555,10 @@ export default function TeacherDashboard() {
                 variant="h6" 
                 sx={{ 
                   color: theme.palette.text.secondary,
-                  opacity: 0.8,
-                  fontFamily: '"Inter", sans-serif',
-                  fontWeight: 400
+                  opacity: 0.8
                 }}
               >
-                Welcome back, {teacherName} • Academic Overview
+                Welcome back, {teacherName}
               </Typography>
             </Box>
             
@@ -461,10 +568,7 @@ export default function TeacherDashboard() {
                   onClick={handleRefresh}
                   disabled={refreshing}
                   sx={{
-                    width: 48,
-                    height: 48,
                     background: alpha(theme.palette.primary.main, 0.1),
-                    borderRadius: 3,
                     '&:hover': {
                       background: alpha(theme.palette.primary.main, 0.2),
                     }
@@ -477,379 +581,180 @@ export default function TeacherDashboard() {
                   )}
                 </IconButton>
               </Tooltip>
-              
-              <Button
-                variant="contained"
-                startIcon={<AnalyticsIcon />}
-                onClick={handleViewAnalytics}
-                sx={{
-                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                  color: 'white',
-                  borderRadius: 3,
-                  px: 3,
-                  py: 1.2,
-                  fontWeight: 600,
-                  '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: `0 8px 25px ${alpha(theme.palette.primary.main, 0.3)}`
-                  }
-                }}
-              >
-                View Analytics
-              </Button>
             </Box>
           </Box>
 
-          {/* Teacher Stats Cards */}
+          {/* Stats Cards */}
           <Box sx={{ 
-            mb: 5,
-            display: 'grid',
-            gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
-            gap: 2.5,
+            mb: 4,
+            display: 'flex',
+            gap: 2,
+            flexWrap: 'wrap'
           }}>
-            {[
-              {
-                title: 'Active Projects',
-                value: stats.activeProjects,
-                icon: <AssignmentIcon fontSize="small" />,
-                color: theme.palette.primary.main,
-                gradient: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.15)}, ${alpha(theme.palette.primary.main, 0.05)})`,
-                subtitle: `${assignedProjects.filter(p => p.status === 'completed').length} completed`,
-                progress: assignedProjects.length > 0 ? (stats.activeProjects / assignedProjects.length) * 100 : 0,
-                onClick: () => navigate('/teacher-app/projects')
-              },
-              {
-                title: 'Pending Reviews',
-                value: stats.pendingReviews,
-                icon: <RateReviewIcon fontSize="small" />,
-                color: theme.palette.warning.main,
-                gradient: `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.15)}, ${alpha(theme.palette.warning.main, 0.05)})`,
-                subtitle: `${stats.completedEvaluations} completed`,
-                progress: stats.pendingReviews > 0 ? Math.min(100, stats.pendingReviews * 20) : 0,
-                onClick: () => navigate('/teacher-app/reviews')
-              },
-              {
-                title: 'Project Health',
-                value: `${stats.averageProjectHealth}%`,
-                icon: <TrendingUpIcon fontSize="small" />,
-                color: getHealthColor(stats.averageProjectHealth),
-                gradient: `linear-gradient(135deg, ${alpha(getHealthColor(stats.averageProjectHealth), 0.15)}, ${alpha(getHealthColor(stats.averageProjectHealth), 0.05)})`,
-                subtitle: getHealthLabel(stats.averageProjectHealth),
-                progress: stats.averageProjectHealth,
-                onClick: () => setSnackbars(prev => ({ ...prev, statsDemo: true }))
-              },
-              {
-                title: 'Alerts',
-                value: stats.highPriorityAlerts,
-                icon: <WarningIcon fontSize="small" />,
-                color: theme.palette.error.main,
-                gradient: `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.15)}, ${alpha(theme.palette.error.main, 0.05)})`,
-                subtitle: 'Require attention',
-                progress: stats.highPriorityAlerts > 0 ? Math.min(100, stats.highPriorityAlerts * 25) : 0,
-                onClick: () => {
-                  if (alerts.length > 0) {
-                    navigate('/teacher-app/analytics?tab=alerts');
-                  }
-                }
-              }
-            ].map((stat, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <Paper
-                  elevation={0}
-                  onClick={stat.onClick}
-                  sx={{
-                    p: 2.5,
-                    borderRadius: 3,
-                    background: stat.gradient,
-                    border: `1.5px solid ${alpha(stat.color, 0.15)}`,
-                    position: 'relative',
-                    overflow: 'hidden',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    '&:hover': {
-                      transform: 'translateY(-4px)',
-                      background: stat.gradient.replace('0.15', '0.2').replace('0.05', '0.1'),
-                      border: `1.5px solid ${alpha(stat.color, 0.25)}`,
-                      boxShadow: `0 8px 24px ${alpha(stat.color, 0.15)}`,
-                    }
-                  }}
-                >
-                  <Box sx={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    mb: 1.5
-                  }}>
-                    <Box sx={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 2,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: alpha(stat.color, 0.1),
-                      border: `1px solid ${alpha(stat.color, 0.2)}`,
-                    }}>
-                      <Box sx={{ color: stat.color, fontSize: 22 }}>
-                        {stat.icon}
-                      </Box>
-                    </Box>
-                    
-                    <Typography 
-                      variant="h3"
-                      sx={{
-                        fontWeight: 700,
-                        fontSize: { xs: '2rem', sm: '2.5rem' },
-                        color: stat.color,
-                        lineHeight: 1,
-                      }}
-                    >
-                      {stat.value}
-                    </Typography>
-                  </Box>
-                  
-                  <Typography 
-                    variant="h6"
-                    sx={{
-                      fontWeight: 600,
-                      color: theme.palette.text.primary,
-                      mb: 0.5
-                    }}
-                  >
-                    {stat.title}
-                  </Typography>
-                  
-                  <Typography 
-                    variant="caption"
-                    sx={{
-                      color: theme.palette.text.secondary,
-                    }}
-                  >
-                    {stat.subtitle}
-                  </Typography>
-                  
-                  <Box sx={{
-                    mt: 2,
-                    height: 2,
-                    background: alpha(theme.palette.divider, 0.2),
-                    borderRadius: 1,
-                    overflow: 'hidden',
-                    position: 'relative',
-                    '&::after': {
-                      content: '""',
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      height: '100%',
-                      width: `${Math.min(100, stat.progress)}%`,
-                      background: `linear-gradient(90deg, ${alpha(stat.color, 0.6)}, ${stat.color})`,
-                      borderRadius: 1,
-                    }
-                  }} />
-                </Paper>
-              </motion.div>
-            ))}
+            {/* Active Projects Card */}
+            <Paper
+              sx={{
+                p: 3,
+                borderRadius: 3,
+                background: alpha(theme.palette.primary.main, 0.05),
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                flex: 1,
+                minWidth: 200
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                <AssignmentIcon sx={{ color: theme.palette.primary.main }} />
+                <Typography variant="h6">Projects</Typography>
+              </Box>
+              <Typography variant="h3" sx={{ fontWeight: 700, color: theme.palette.primary.main }}>
+                {displayStats.totalProjects}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {displayStats.activeProjects} active • {displayStats.completedProjects} completed
+              </Typography>
+            </Paper>
+
+            {/* Pending Reviews Card */}
+            <Paper
+              sx={{
+                p: 3,
+                borderRadius: 3,
+                background: alpha(theme.palette.warning.main, 0.05),
+                border: `1px solid ${alpha(theme.palette.warning.main, 0.1)}`,
+                flex: 1,
+                minWidth: 200
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                <RateReviewIcon sx={{ color: theme.palette.warning.main }} />
+                <Typography variant="h6">Reviews</Typography>
+              </Box>
+              <Typography variant="h3" sx={{ fontWeight: 700, color: theme.palette.warning.main }}>
+                {displayStats.pendingReviews}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Pending • {displayStats.completedEvaluations} completed
+              </Typography>
+            </Paper>
+
+            {/* Students Card */}
+            <Paper
+              sx={{
+                p: 3,
+                borderRadius: 3,
+                background: alpha(theme.palette.info.main, 0.05),
+                border: `1px solid ${alpha(theme.palette.info.main, 0.1)}`,
+                flex: 1,
+                minWidth: 200
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                <GroupsIcon sx={{ color: theme.palette.info.main }} />
+                <Typography variant="h6">Students</Typography>
+              </Box>
+              <Typography variant="h3" sx={{ fontWeight: 700, color: theme.palette.info.main }}>
+                {displayStats.totalStudents}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Across all teams
+              </Typography>
+            </Paper>
+
+            {/* Alerts Card */}
+            <Paper
+              sx={{
+                p: 3,
+                borderRadius: 3,
+                background: alpha(theme.palette.error.main, 0.05),
+                border: `1px solid ${alpha(theme.palette.error.main, 0.1)}`,
+                flex: 1,
+                minWidth: 200
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                <WarningIcon sx={{ color: theme.palette.error.main }} />
+                <Typography variant="h6">Alerts</Typography>
+              </Box>
+              <Typography variant="h3" sx={{ fontWeight: 700, color: theme.palette.error.main }}>
+                {displayStats.highPriorityAlerts}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Require attention
+              </Typography>
+            </Paper>
           </Box>
 
-          {/* Main Content Area */}
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: { xs: 'column', lg: 'row' }, 
-            gap: 4 
-          }}>
-            {/* Left Column - Projects & Recent Activity */}
-            <Box sx={{ flex: 1 }}>
-              {/* Assigned Projects Section */}
-              <Card sx={{
-                borderRadius: 3,
-                background: theme.palette.background.paper,
-                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.04)',
-                mb: 4
-              }}>
-                <CardContent sx={{ p: 0 }}>
-                  <Box sx={{ 
-                    p: 3, 
-                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                      <Box sx={{
-                        width: 40,
-                        height: 40,
-                        background: alpha(theme.palette.primary.main, 0.1),
-                        borderRadius: 2,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: theme.palette.primary.main
-                      }}>
-                        <AssignmentIcon sx={{ fontSize: 20 }} />
-                      </Box>
-                      <Typography variant="h6" fontWeight="600">
-                        Assigned Projects
-                      </Typography>
-                    </Box>
+          {/* Main Content */}
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3 }}>
+            {/* Left Column - Projects */}
+            <Box sx={{ flex: 2 }}>
+              <Card sx={{ mb: 3 }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                    <AssignmentIcon sx={{ color: theme.palette.primary.main }} />
+                    <Typography variant="h6" fontWeight="600">
+                      My Projects
+                    </Typography>
                     <Chip 
                       label={`${assignedProjects.length} total`}
                       size="small"
-                      sx={{ 
-                        background: alpha(theme.palette.primary.main, 0.1),
-                        color: theme.palette.primary.main,
-                        fontWeight: 500
-                      }}
+                      sx={{ ml: 'auto' }}
                     />
                   </Box>
                   
                   {assignedProjects.length > 0 ? (
-                    <Box sx={{ p: 3, pt: 2 }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       {assignedProjects.slice(0, 3).map((project, index) => (
                         <Paper
                           key={project._id || index}
                           sx={{
-                            p: 3,
-                            mb: 2,
+                            p: 2,
                             borderRadius: 2,
-                            background: alpha(theme.palette.background.default, 0.5),
-                            border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                            transition: 'all 0.2s ease',
-                            cursor: 'pointer',
+                            border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
                             '&:hover': {
-                              transform: 'translateY(-2px)',
-                              boxShadow: '0 6px 20px rgba(0,0,0,0.08)',
-                              borderColor: alpha(theme.palette.primary.main, 0.3)
+                              borderColor: theme.palette.primary.main,
+                              cursor: 'pointer'
                             }
                           }}
                           onClick={() => handleViewProject(project._id)}
                         >
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <Box sx={{ flex: 1 }}>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                <Typography variant="subtitle1" fontWeight="600">
-                                  {project.projectName}
-                                </Typography>
+                            <Box>
+                              <Typography variant="subtitle1" fontWeight="600">
+                                {project.projectName}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                Team: {project.teamId?.name || 'No team assigned'}
+                              </Typography>
+                              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                                 <Chip
-                                  label={project.status?.replace('_', ' ').toUpperCase() || 'ACTIVE'}
+                                  label={project.status || 'Active'}
                                   size="small"
-                                  sx={{
-                                    background: project.status === 'completed' 
-                                      ? alpha(theme.palette.success.main, 0.1)
-                                      : project.status === 'ongoing' 
-                                        ? alpha(theme.palette.primary.main, 0.1)
-                                        : alpha(theme.palette.warning.main, 0.1),
-                                    color: project.status === 'completed' 
-                                      ? theme.palette.success.main
-                                      : project.status === 'ongoing' 
-                                        ? theme.palette.primary.main
-                                        : theme.palette.warning.main,
-                                    fontWeight: 500
-                                  }}
+                                  color={
+                                    project.status === 'completed' ? 'success' :
+                                    project.status === 'ongoing' ? 'primary' : 'default'
+                                  }
                                 />
-                              </Box>
-                              
-                              {project.description && (
-                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                  {project.description.length > 120 
-                                    ? `${project.description.substring(0, 120)}...` 
-                                    : project.description}
-                                </Typography>
-                              )}
-                              
-                              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-                                {project.teamName && (
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    <GroupsIcon sx={{ fontSize: 14, color: theme.palette.text.secondary }} />
-                                    <Typography variant="caption" color="text.secondary">
-                                      Team: {project.teamName}
-                                    </Typography>
-                                  </Box>
-                                )}
-                                
-                                {project.endDate && (
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    <CalendarTodayIcon sx={{ fontSize: 14, color: theme.palette.text.secondary }} />
-                                    <Typography variant="caption" color="text.secondary">
-                                      Due: {new Date(project.endDate).toLocaleDateString()}
-                                    </Typography>
-                                  </Box>
-                                )}
-                                
-                                {project.metrics?.health?.healthScore && (
+                                {project.health?.healthScore && (
                                   <Chip
-                                    label={`Health: ${project.metrics.health.healthScore}%`}
+                                    label={`Health: ${project.health.healthScore}%`}
                                     size="small"
                                     sx={{
-                                      background: alpha(getHealthColor(project.metrics.health.healthScore), 0.1),
-                                      color: getHealthColor(project.metrics.health.healthScore),
-                                      fontWeight: 500
+                                      background: alpha(getHealthColor(project.health.healthScore), 0.1),
+                                      color: getHealthColor(project.health.healthScore)
                                     }}
                                   />
                                 )}
                               </Box>
-                              
-                              {/* Project Metrics Overview */}
-                              {project.metrics && (
-                                <Box sx={{ mt: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                                  {project.metrics.progress && (
-                                    <Box>
-                                      <Typography variant="caption" color="text.secondary">
-                                        Progress
-                                      </Typography>
-                                      <LinearProgress
-                                        variant="determinate"
-                                        value={project.metrics.progress.progress || 0}
-                                        sx={{
-                                          width: 100,
-                                          height: 6,
-                                          borderRadius: 1,
-                                          mt: 0.5
-                                        }}
-                                      />
-                                    </Box>
-                                  )}
-                                  
-                                  {project.metrics.projectRisk && (
-                                    <Chip
-                                      label={`Risk: ${project.metrics.projectRisk.riskLabel}`}
-                                      size="small"
-                                      variant="outlined"
-                                      sx={{
-                                        borderColor: project.metrics.projectRisk.riskLevel === 'high' 
-                                          ? theme.palette.error.main 
-                                          : project.metrics.projectRisk.riskLevel === 'medium'
-                                            ? theme.palette.warning.main
-                                            : theme.palette.success.main,
-                                        color: project.metrics.projectRisk.riskLevel === 'high' 
-                                          ? theme.palette.error.main 
-                                          : project.metrics.projectRisk.riskLevel === 'medium'
-                                            ? theme.palette.warning.main
-                                            : theme.palette.success.main,
-                                      }}
-                                    />
-                                  )}
-                                </Box>
-                              )}
                             </Box>
-                            
-                            {project.teamId?.members && project.teamId.members.length > 0 && (
-                              <AvatarGroup max={3} sx={{ ml: 2 }}>
+                            {project.teamId?.members && (
+                              <AvatarGroup max={3}>
                                 {project.teamId.members.slice(0, 3).map((member, idx) => (
                                   <Avatar
                                     key={idx}
-                                    sx={{
-                                      width: 32,
-                                      height: 32,
-                                      border: `2px solid ${theme.palette.background.paper}`
-                                    }}
+                                    sx={{ width: 32, height: 32 }}
                                   >
-                                    {member.name?.charAt(0) || member.username?.charAt(0) || 'S'}
+                                    {member.name?.charAt(0) || 'S'}
                                   </Avatar>
                                 ))}
                               </AvatarGroup>
@@ -859,108 +764,21 @@ export default function TeacherDashboard() {
                       ))}
                       
                       {assignedProjects.length > 3 && (
-                        <Box sx={{ textAlign: 'center', pt: 1 }}>
-                          <Button 
-                            variant="text" 
-                            onClick={handleViewAllProjects}
-                            sx={{
-                              color: theme.palette.primary.main,
-                              fontWeight: 500,
-                              '&:hover': {
-                                background: alpha(theme.palette.primary.main, 0.1)
-                              }
-                            }}
-                          >
-                            View all {assignedProjects.length} projects →
-                          </Button>
-                        </Box>
+                        <Button 
+                          variant="outlined" 
+                          fullWidth
+                          onClick={handleViewAllProjects}
+                          sx={{ mt: 1 }}
+                        >
+                          View All Projects
+                        </Button>
                       )}
                     </Box>
                   ) : (
-                    <Box sx={{ p: 4, textAlign: 'center' }}>
-                      <AssignmentIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2, opacity: 0.5 }} />
-                      <Typography variant="body1" color="text.secondary" gutterBottom>
+                    <Box sx={{ textAlign: 'center', py: 4 }}>
+                      <AssignmentIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
+                      <Typography color="text.secondary">
                         No projects assigned yet
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                        You'll see assigned projects here once they're assigned to you
-                      </Typography>
-                    </Box>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Recent Activity */}
-              <Card sx={{
-                borderRadius: 3,
-                background: theme.palette.background.paper,
-                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.04)'
-              }}>
-                <CardContent sx={{ p: 3 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-                    <Box sx={{
-                      width: 40,
-                      height: 40,
-                      background: alpha(theme.palette.info.main, 0.1),
-                      borderRadius: 2,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: theme.palette.info.main
-                    }}>
-                      <ChatIcon sx={{ fontSize: 20 }} />
-                    </Box>
-                    <Typography variant="h6" fontWeight="600">
-                      Recent Activity
-                    </Typography>
-                  </Box>
-                  
-                  {recentActivities.length > 0 ? (
-                    <List sx={{ py: 0 }}>
-                      {recentActivities.map((activity, index) => (
-                        <React.Fragment key={activity.id}>
-                          <ListItem 
-                            alignItems="flex-start"
-                            sx={{
-                              px: 0,
-                              py: 1.5,
-                              borderRadius: 1,
-                              '&:hover': {
-                                background: alpha(theme.palette.action.hover, 0.3)
-                              }
-                            }}
-                          >
-                            <ListItemIcon sx={{ minWidth: 40, mt: 0.5 }}>
-                              <Box sx={{ fontSize: 20 }}>{activity.icon}</Box>
-                            </ListItemIcon>
-                            <ListItemText
-                              primary={
-                                <Typography variant="body2" fontWeight="500">
-                                  {activity.action}
-                                </Typography>
-                              }
-                              secondary={
-                                <React.Fragment>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {activity.projectName}
-                                  </Typography>
-                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                                    {formatTimeAgo(activity.timestamp)}
-                                  </Typography>
-                                </React.Fragment>
-                              }
-                            />
-                          </ListItem>
-                          {index < recentActivities.length - 1 && <Divider variant="inset" component="li" />}
-                        </React.Fragment>
-                      ))}
-                    </List>
-                  ) : (
-                    <Box sx={{ textAlign: 'center', py: 3 }}>
-                      <ChatIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 2, opacity: 0.5 }} />
-                      <Typography variant="body2" color="text.secondary">
-                        No recent activity
                       </Typography>
                     </Box>
                   )}
@@ -968,299 +786,95 @@ export default function TeacherDashboard() {
               </Card>
             </Box>
 
-            {/* Right Column - Pending Reviews, Alerts & Performance */}
-            <Box sx={{ width: { xs: '100%', lg: 400 } }}>
+            {/* Right Column - Quick Stats */}
+            <Box sx={{ flex: 1 }}>
               {/* Pending Reviews */}
-              <Card sx={{
-                borderRadius: 3,
-                background: theme.palette.background.paper,
-                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.04)',
-                mb: 4
-              }}>
-                <CardContent sx={{ p: 3 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-                    <Box sx={{
-                      width: 40,
-                      height: 40,
-                      background: alpha(theme.palette.warning.main, 0.1),
-                      borderRadius: 2,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: theme.palette.warning.main
-                    }}>
-                      <RateReviewIcon sx={{ fontSize: 20 }} />
-                    </Box>
+              <Card sx={{ mb: 3 }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                    <RateReviewIcon sx={{ color: theme.palette.warning.main }} />
                     <Typography variant="h6" fontWeight="600">
                       Pending Reviews
                     </Typography>
                   </Box>
                   
                   {pendingReviews.length > 0 ? (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       {pendingReviews.slice(0, 3).map((review, index) => (
                         <Paper
                           key={review._id || index}
                           sx={{
                             p: 2,
-                            borderRadius: 2,
+                            borderRadius: 1,
                             background: alpha(theme.palette.warning.main, 0.05),
-                            border: `1px solid ${alpha(theme.palette.warning.main, 0.1)}`,
-                            transition: 'all 0.2s ease',
-                            cursor: 'pointer',
-                            '&:hover': {
-                              background: alpha(theme.palette.warning.main, 0.08),
-                              transform: 'translateX(4px)'
-                            }
+                            cursor: 'pointer'
                           }}
-                          onClick={() => handleReviewProject(review.projectId || review._id)}
+                          onClick={() => handleReviewProject(review.projectId)}
                         >
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <Box>
-                              <Typography variant="body2" fontWeight="500" sx={{ mb: 0.5 }}>
-                                {review.projectName || 'Project Review'}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                                Team: {review.teamName || 'Unknown Team'}
-                              </Typography>
-                              {review.dueDate && (
-                                <Chip
-                                  label={`Due: ${new Date(review.dueDate).toLocaleDateString()}`}
-                                  size="small"
-                                  sx={{
-                                    background: alpha(theme.palette.warning.main, 0.1),
-                                    color: theme.palette.warning.main
-                                  }}
-                                />
-                              )}
-                            </Box>
-                            <Box sx={{ textAlign: 'right' }}>
-                              <Typography variant="caption" color="text.secondary">
-                                {review.daysLeft !== undefined ? `${review.daysLeft} days left` : 'Pending'}
-                              </Typography>
-                            </Box>
-                          </Box>
+                          <Typography variant="body2" fontWeight="500">
+                            {review.projectName}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            Team: {review.teamName}
+                          </Typography>
                         </Paper>
                       ))}
                       
                       {pendingReviews.length > 3 && (
-                        <Box sx={{ textAlign: 'center', pt: 1 }}>
-                          <Button 
-                            variant="text" 
-                            onClick={handleViewAllReviews}
-                            sx={{
-                              color: theme.palette.warning.main,
-                              fontWeight: 500,
-                              '&:hover': {
-                                background: alpha(theme.palette.warning.main, 0.1)
-                              }
-                            }}
-                          >
-                            View all {pendingReviews.length} pending reviews →
-                          </Button>
-                        </Box>
+                        <Button 
+                          variant="text" 
+                          size="small"
+                          onClick={handleViewAllReviews}
+                          sx={{ mt: 1 }}
+                        >
+                          View All Reviews
+                        </Button>
                       )}
                     </Box>
                   ) : (
-                    <Box sx={{ textAlign: 'center', py: 3 }}>
-                      <CheckCircleIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 2, opacity: 0.5 }} />
-                      <Typography variant="body2" color="text.secondary">
-                        No pending reviews
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        All reviews are complete
-                      </Typography>
-                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                      No pending reviews
+                    </Typography>
                   )}
                 </CardContent>
               </Card>
 
-              {/* Alerts & Warnings */}
-              <Card sx={{
-                borderRadius: 3,
-                background: theme.palette.background.paper,
-                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.04)',
-                mb: 4
-              }}>
-                <CardContent sx={{ p: 3 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-                    <Box sx={{
-                      width: 40,
-                      height: 40,
-                      background: alpha(theme.palette.error.main, 0.1),
-                      borderRadius: 2,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: theme.palette.error.main
-                    }}>
-                      <WarningIcon sx={{ fontSize: 20 }} />
-                    </Box>
+              {/* Recent Alerts */}
+              <Card sx={{ mb: 3 }}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                    <WarningIcon sx={{ color: theme.palette.error.main }} />
                     <Typography variant="h6" fontWeight="600">
-                      Alerts & Warnings
+                      Recent Alerts
                     </Typography>
                   </Box>
                   
                   {alerts.length > 0 ? (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                       {alerts.slice(0, 3).map((alert, index) => (
                         <Paper
                           key={alert._id || index}
                           sx={{
                             p: 2,
-                            borderRadius: 2,
-                            background: alpha(getAlertColor(alert.priority || alert.severity), 0.05),
-                            border: `1px solid ${alpha(getAlertColor(alert.priority || alert.severity), 0.1)}`,
-                            transition: 'all 0.2s ease',
-                            cursor: 'pointer',
-                            '&:hover': {
-                              background: alpha(getAlertColor(alert.priority || alert.severity), 0.08),
-                              transform: 'translateX(4px)'
-                            }
+                            borderRadius: 1,
+                            background: alpha(getAlertColor(alert.severity), 0.05),
+                            borderLeft: `3px solid ${getAlertColor(alert.severity)}`
                           }}
-                          onClick={() => setSnackbars(prev => ({ ...prev, alertClick: true }))}
                         >
-                          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
-                            <WarningIcon sx={{ 
-                              color: getAlertColor(alert.priority || alert.severity),
-                              fontSize: 20,
-                              mt: 0.5
-                            }} />
-                            <Box sx={{ flex: 1 }}>
-                              <Typography variant="body2" fontWeight="500" sx={{ mb: 0.5 }}>
-                                {alert.title}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                                {alert.description}
-                              </Typography>
-                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Chip
-                                  label={(alert.priority || alert.severity || 'medium').toUpperCase()}
-                                  size="small"
-                                  sx={{
-                                    background: alpha(getAlertColor(alert.priority || alert.severity), 0.1),
-                                    color: getAlertColor(alert.priority || alert.severity),
-                                    fontWeight: 500
-                                  }}
-                                />
-                                <Typography variant="caption" color="text.secondary">
-                                  {formatTimeAgo(alert.createdAt)}
-                                </Typography>
-                              </Box>
-                            </Box>
-                          </Box>
+                          <Typography variant="body2" fontWeight="500">
+                            {alert.title}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {alert.description}
+                          </Typography>
                         </Paper>
                       ))}
                     </Box>
                   ) : (
-                    <Box sx={{ textAlign: 'center', py: 3 }}>
-                      <CheckCircleIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 2, opacity: 0.5 }} />
-                      <Typography variant="body2" color="text.secondary">
-                        No alerts at this time
-                      </Typography>
-                    </Box>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Student Performance Summary */}
-              <Card sx={{
-                borderRadius: 3,
-                background: theme.palette.background.paper,
-                border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.04)'
-              }}>
-                <CardContent sx={{ p: 3 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-                    <Box sx={{
-                      width: 40,
-                      height: 40,
-                      background: alpha(theme.palette.success.main, 0.1),
-                      borderRadius: 2,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: theme.palette.success.main
-                    }}>
-                      <PersonIcon sx={{ fontSize: 20 }} />
-                    </Box>
-                    <Typography variant="h6" fontWeight="600">
-                      Student Performance
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                      No alerts
                     </Typography>
-                  </Box>
-                  
-                  <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Student</TableCell>
-                          <TableCell align="right">Projects</TableCell>
-                          <TableCell align="right">Avg Score</TableCell>
-                          <TableCell align="right">Status</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {studentPerformance.slice(0, 5).map((student, index) => (
-                          <TableRow key={index} hover>
-                            <TableCell>
-                              <Typography variant="body2">{student.student}</Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Typography variant="body2">{student.projects}</Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Typography 
-                                variant="body2" 
-                                fontWeight="600"
-                                color={student.avgScore >= 80 ? 'success.main' : student.avgScore >= 60 ? 'warning.main' : 'error.main'}
-                              >
-                                {student.avgScore}%
-                              </Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Chip
-                                label={student.status}
-                                size="small"
-                                sx={{
-                                  background: student.status === 'Excellent' 
-                                    ? alpha(theme.palette.success.main, 0.1)
-                                    : student.status === 'Very Good'
-                                      ? alpha(theme.palette.info.main, 0.1)
-                                      : student.status === 'Good'
-                                        ? alpha(theme.palette.warning.main, 0.1)
-                                        : alpha(theme.palette.error.main, 0.1),
-                                  color: student.status === 'Excellent' 
-                                    ? theme.palette.success.main
-                                    : student.status === 'Very Good'
-                                      ? theme.palette.info.main
-                                      : student.status === 'Good'
-                                        ? theme.palette.warning.main
-                                        : theme.palette.error.main,
-                                  fontWeight: 500
-                                }}
-                              />
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                  
-                  <Box sx={{ textAlign: 'center', pt: 2 }}>
-                    <Button 
-                      variant="text" 
-                      onClick={() => navigate('/teacher-app/analytics?tab=students')}
-                      sx={{
-                        color: theme.palette.primary.main,
-                        fontWeight: 500,
-                        fontSize: '0.875rem'
-                      }}
-                    >
-                      View Detailed Analytics →
-                    </Button>
-                  </Box>
+                  )}
                 </CardContent>
               </Card>
             </Box>
@@ -1273,15 +887,9 @@ export default function TeacherDashboard() {
         open={snackbars.dataLoaded}
         autoHideDuration={3000}
         onClose={() => handleCloseSnackbar('dataLoaded')}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        TransitionComponent={Fade}
       >
-        <Alert
-          severity="info"
-          variant="filled"
-          onClose={() => handleCloseSnackbar('dataLoaded')}
-        >
-          Teacher dashboard updated successfully!
+        <Alert severity="info">
+          Dashboard loaded successfully
         </Alert>
       </Snackbar>
 
@@ -1289,67 +897,11 @@ export default function TeacherDashboard() {
         open={snackbars.refreshComplete}
         autoHideDuration={2000}
         onClose={() => handleCloseSnackbar('refreshComplete')}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert
-          severity="success"
-          variant="filled"
-          onClose={() => handleCloseSnackbar('refreshComplete')}
-        >
-          Dashboard refreshed!
+        <Alert severity="success">
+          Dashboard refreshed
         </Alert>
       </Snackbar>
-
-      <Snackbar
-        open={snackbars.projectClick}
-        autoHideDuration={2000}
-        onClose={() => handleCloseSnackbar('projectClick')}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-      >
-        <Alert
-          severity="info"
-          variant="filled"
-          onClose={() => handleCloseSnackbar('projectClick')}
-          icon={<AssignmentIcon />}
-        >
-          Navigating to project details...
-        </Alert>
-      </Snackbar>
-
-      <Snackbar
-        open={snackbars.reviewClick}
-        autoHideDuration={2000}
-        onClose={() => handleCloseSnackbar('reviewClick')}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert
-          severity="info"
-          variant="filled"
-          onClose={() => handleCloseSnackbar('reviewClick')}
-          icon={<RateReviewIcon />}
-        >
-          Opening project review...
-        </Alert>
-      </Snackbar>
-
-      <Snackbar
-        open={snackbars.statsDemo}
-        autoHideDuration={3000}
-        onClose={() => handleCloseSnackbar('statsDemo')}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-      >
-        <Alert
-          severity="info"
-          variant="filled"
-          onClose={() => handleCloseSnackbar('statsDemo')}
-          icon={<AnalyticsIcon />}
-        >
-          <AlertTitle>Project Health Metrics</AlertTitle>
-          Based on progress, risk, proof compliance, and deadline adherence
-        </Alert>
-      </Snackbar>
-
-      <TourGuide page='teacher-dashboard' />
     </>
   );
 }

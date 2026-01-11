@@ -39,9 +39,7 @@ router.get("/get-mentor-for-project/:projectId", getMentorById);
 
 // 
 router.get("/me", userController.fetchUserDetails);
-router.post("/create-project", userController.createProject);
-router.delete("/del-project/:id", userController.deleteProject);
-router.put("/update-project/:id", userController.updateProject);
+
 
 
 // Get specific proof file with authentication and authorization
@@ -72,6 +70,7 @@ router.put("/task/:taskId/assign", taskController.assignTask); // assign task to
 //Inline editing
 router.patch('/:taskId/field', taskController.updateTaskField); // Update single field
 router.patch('/:taskId/fields', taskController.updateTaskMultipleFields); // Update multiple fields
+router.patch('/:taskId/reassign', taskController.reassignTask); // reassign
 
 // Recent activities route
 router.get("/task/activity/recent", userController.getRecentActivities); // route for recent activities

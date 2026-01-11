@@ -55,7 +55,7 @@ export default function TeacherApp() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [user, setUser] = useState();
-  const [selectedTab, setSelectedTab] = useState(0);
+  const [selectedTab, setSelectedTab] = useState(1);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [bottomNavValue, setBottomNavValue] = useState(0);
 
@@ -64,21 +64,15 @@ export default function TeacherApp() {
     '/teacher-app': 0,
     '/teacher-app/dashboard': 0,
     '/teacher-app/classes': 1,
-    '/teacher-app/projects': 2,
-    '/teacher-app/peer-teams': 3,
-    '/teacher-app/reviews': 4,
-    '/teacher-app/analytics': 5,
-    '/teacher-app/feedback': 6,
-    '/teacher-app/profile': 7,
+    '/teacher-app/analytics': 2,
+    '/teacher-app/feedback': 3,
+    '/teacher-app/profile': 4
   };
 
   // Teacher-specific navigation items
   const navItems = [
     { label: 'Dashboard', icon: <DashboardIcon />, path: '/teacher-app/dashboard' },
     { label: 'Classes', icon: <ClassesIcon />, path: '/teacher-app/classes' },
-    { label: 'Projects', icon: <ProjectsIcon />, path: '/teacher-app/projects' },
-    { label: 'Peer Teams', icon: <TeamsIcon />, path: '/teacher-app/peer-teams' },
-    { label: 'Reviews', icon: <ReviewsIcon />, path: '/teacher-app/reviews' },
     { label: 'Analytics', icon: <AnalyticsIcon />, path: '/teacher-app/analytics' },
     { label: 'Feedback', icon: <FeedbackIcon />, path: '/teacher-app/feedback' },
     { label: 'Profile', icon: <AccountCircle />, path: '/teacher-app/profile' },
@@ -256,7 +250,9 @@ export default function TeacherApp() {
       flexDirection: 'column',
       minHeight: '100vh',
       pb: isMobile ? 7 : 0,
-      bgcolor: 'grey.50'
+      bgcolor: theme.palette.mode === 'dark'
+      ? alpha(theme.palette.background.paper, 0.9)
+      : alpha(theme.palette.background.paper, 0.7),
     }}>
       {/* Desktop Navigation for Teacher */}
       {!isMobile ? (
@@ -512,7 +508,7 @@ export default function TeacherApp() {
         >
           <Container maxWidth="xl">
             <Typography variant="caption" color="text.secondary" align="center">
-              Teacher Portal • Academic Year {new Date().getFullYear()}-{new Date().getFullYear() + 1}
+              Teacher Portal • Academic Year • Times AUH {new Date().getFullYear()-3}-{new Date().getFullYear()}
             </Typography>
           </Container>
         </Box>

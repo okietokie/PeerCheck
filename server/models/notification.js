@@ -10,26 +10,6 @@ const notificationSchema = new mongoose.Schema({
   
   type: {
     type: String,
-    enum: [
-      'task_created',
-      'task_completed',
-      'task_overdue',
-      'task_comment',
-      'task_status_changed',
-      'proof_uploaded',
-      'proof_verified',
-      'peer_review_request',
-      'peer_review_submitted',
-      'project_created',
-      'project_deleted',
-      'project_deadline',
-      'connection_request',
-      'connection_accepted',
-      'deadline_reminder',
-      'deadline_updated',
-      'weekly_summary',
-      'system_alert'
-    ],
     required: true
   },
   

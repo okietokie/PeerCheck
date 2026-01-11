@@ -53,7 +53,6 @@ export default function UserApp() {
   const [selectedTab, setSelectedTab] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [bottomNavValue, setBottomNavValue] = useState(0);
-  const [guide, setGuide] = useState(null);
 
   // Map paths to tab values
   const pathToValue = {

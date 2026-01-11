@@ -104,6 +104,7 @@ import { getAuthToken } from '@/utils/auth.js';
 import CommentTab from '@/Components/user-dashboard/CommentsTab.jsx';
 import { getUserData } from '@/utils/user.js';
 import TourGuide from '@/Components/TourGuide.jsx';
+import useTasks from '@/hooks/useTasks';
 
 
 export const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate,  onUploadProof, onStatusChange }) => {
@@ -124,7 +125,10 @@ export const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskU
     message: '',
     severity: 'success'
   });
-  const isAssignedUser = task?.assignedTo?._id.toString() === userRole?.userId.toString();
+
+  const {formatTime} = useTasks();
+
+  const isAssignedUser = task?.assignedTo?._id.toString() === userRole?.userId?.toString();
   console.log("userrole: ", userRole);
   console.log("task.assignedTo?._id ", task?.assignedTo?._id);
 
@@ -293,17 +297,7 @@ const handleEditTask = async () => {
     setIsEditing(false);
   }
 };
-// Helper to format time
-const formatTime = (seconds) => {
-  if (!seconds) return '0m';
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-  return `${minutes}m`;
-};
+
 
 const viewProofFile = async (taskId, proofId) => {
   try {

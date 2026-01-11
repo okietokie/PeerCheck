@@ -1,83 +1,8 @@
 import React, { useState, useEffect, useCallback, use } from 'react';
-import {
-  Box,
-  Typography,
-  Grid,
-  Button,
-  TextField,
-  InputAdornment,
-  IconButton,
-  Tooltip,
-  Alert,
-  Skeleton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  MenuItem,
-  Select,
-  FormControl,
-  InputLabel,
-  Avatar,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Checkbox,
-  LinearProgress,
-  Chip,
-  alpha,
-  useTheme,
-  CircularProgress,
-  Popover,
-  Divider,
-  FormControlLabel,
-  Checkbox as MuiCheckbox,
-  Card,
-  Snackbar
-} from '@mui/material';
-import {
-  Search,
-  Add,
-  Group,
-  FilterList,
-  Close,
-  AddTask,
-  CalendarToday,
-  Grade,
-  Delete,
-  Tag,
-  People,
-  Assessment,
-  AccessTime,
-  CheckCircle,
-  PauseCircle,
-  PlayCircle,
-  FlagOutlined,
-  Flag,
-  ViewModule,
-  ArrowDropDown,
-  TrendingUp,
-  ViewList,
-  RocketLaunch,
-  Edit,
-  School,
-  Info,
-  Handshake,
-  Warning,
-  Description,
-  Person,
-  PersonOff,
-  WarningAmber,
-  Email,
-  Save,
-  PlayCircleOutline,
-  ArrowForward,
-  ErrorOutline
-} from '@mui/icons-material';
+import { Box, Typography, Button, TextField, InputAdornment, IconButton, Tooltip, Alert, Skeleton, Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, Select, FormControl, InputLabel, Avatar, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Checkbox, LinearProgress, Chip, alpha, useTheme, CircularProgress, Popover, Divider, FormControlLabel, Checkbox as MuiCheckbox, Card, Snackbar } from '@mui/material';
+
+import { Search, Add, Group, FilterList, Close, AddTask, CalendarToday, Grade, Delete, Tag, People, Assessment, AccessTime, CheckCircle, PauseCircle, PlayCircle, FlagOutlined, Flag, ViewModule, ArrowDropDown, TrendingUp, ViewList, RocketLaunch, Edit, School, Info, Handshake, Warning, Description, Person, PersonOff, WarningAmber, Email, Save, PlayCircleOutline, ArrowForward, ErrorOutline, ConfirmationNumber } from '@mui/icons-material';
+
 import { motion } from 'framer-motion';
 import axiosClient from '@/api/axiosClient';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -85,6 +10,9 @@ import { set } from 'date-fns';
 import { useInView } from 'react-intersection-observer';
 import { useNotifications } from '@/contexts/NotificationContext';
 import TourGuide from '../TourGuide';
+import { useEditor } from '@tiptap/react';
+import MemberEvaluationSummary from './ProjectComponents/MemberEvaluationSummary';
+import ReviewProjectModal from './ProjectComponents/ReviewProjectModel';
 
 // Helper to get auth token properly
 const getAuthToken = () => {
@@ -115,7 +43,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
     projectName: '',
     description: '',
     startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     tags: '',
     teamName: '',
     teamId: '',
@@ -251,13 +179,13 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
       return false;
     }
     
-    if (!formData.endDate) {
+    if (!formData.deadline) {
       setError('End date is required');
       return false;
     }
     
     const start = new Date(formData.startDate);
-    const end = new Date(formData.endDate);
+    const end = new Date(formData.deadline);
     
     if (end <= start) {
       setError('End date must be after start date');
@@ -306,7 +234,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
         projectName: formData.projectName.trim(),
         description: formData.description.trim(),
         startDate: formData.startDate,
-        endDate: formData.endDate,
+        deadline: formData.deadline,
         tags: tags,
         mentorId: formData.mentorId || formData.mentorId === '' || 'none' ,
         teamId: formData.teamId ? [formData.teamId] : [],
@@ -591,8 +519,8 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
                   </Typography>
                 }
                 type="date"
-                value={formData.endDate}
-                onChange={handleChange('endDate')}
+                value={formData.deadline}
+                onChange={handleChange('deadline')}
                 InputLabelProps={{ shrink: true }}
                 disabled={loading}
                 required
@@ -610,9 +538,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
                 top: '50%',
                 transform: 'translateY(-50%)',
                 color: theme.palette.secondary.main,
-              }}>
-                <Flag fontSize="small" />
-              </Box>
+              }}/>
             </Box>
           </Box>
           
@@ -2465,234 +2391,6 @@ return (
 );
 };
 
-// Review Project Modal
-const ReviewProjectModal = ({ open, onClose, project, theme }) => {
-  const [reviewData, setReviewData] = useState({
-    technicalExecution: { score: 0, comment: '' },
-    taskValidity: { score: 0, comment: '' },
-    timeAuthenticity: { score: 0, comment: '' },
-    teamwork: { score: 0, comment: '' },
-    documentationQuality: { score: 0, comment: '' },
-    memberEvaluations: []
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (open && project) {
-      const members = project.team || [];
-      const memberEvaluations = members.map(member => ({
-        member: member._id || member.id,
-        contributionScore: 0,
-        honestyFlag: false,
-        comment: ''
-      }));
-      
-      setReviewData(prev => ({
-        ...prev,
-        memberEvaluations
-      }));
-      setError('');
-    }
-  }, [open, project]);
-
-  const handleSubmit = async () => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const token = getAuthToken();
-      if (!token) {
-        setError('Authentication required');
-        setLoading(false);
-        return;
-      }
-
-      const reviewPayload = {
-        project: project._id,
-        evaluator: getUserData()?.id,
-        evaluatorRole: 'peer',
-        grading: reviewData,
-        memberEvaluations: reviewData.memberEvaluations
-      };
-
-      
-
-      // Simulate submission
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      onClose();
-
-    } catch (err) {
-      setError(err.message || 'Failed to submit review');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onClose={!loading ? onClose : undefined} maxWidth="md" fullWidth>
-      <DialogTitle>
-        <Box display="flex" justifyContent="space-between" alignItems="center" color={theme.palette.primary.main}>
-          <Typography variant="h6">Review Project</Typography>
-          <IconButton onClick={onClose} disabled={loading} size="small">
-            <Close />
-          </IconButton>
-        </Box>
-        <Typography variant="body2" color="text.secondary">
-          {project?.projectName}
-        </Typography>
-      </DialogTitle>
-      <DialogContent>
-        <Box sx={{ maxHeight: '70vh', overflow: 'auto' }}>
-          <Typography variant="h6" sx={{ mt: 2, mb: 2 }}>
-            Project Evaluation (0-10 each)
-          </Typography>
-          
-          {[
-            { key: 'technicalExecution', label: 'Technical Execution', desc: 'Measures how well the project was executed technically' },
-            { key: 'taskValidity', label: 'Task Validity', desc: 'Checks if tasks actually match the project objectives' },
-            { key: 'timeAuthenticity', label: 'Time Authenticity', desc: 'Measures whether the time spent on tasks is realistic' },
-            { key: 'teamwork', label: 'Teamwork', desc: 'Evaluates collaboration and contribution to the team' },
-            { key: 'documentationQuality', label: 'Documentation Quality', desc: 'Measures clarity and completeness of documentation' }
-          ].map((category) => (
-            <Box key={category.key} sx={{ mb: 3 }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                <Box>
-                  <Typography fontWeight="medium">{category.label}</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {category.desc}
-                  </Typography>
-                </Box>
-                <Select
-                  value={reviewData[category.key]?.score || 0}
-                  onChange={(e) => setReviewData(prev => ({
-                    ...prev,
-                    [category.key]: { ...prev[category.key], score: e.target.value }
-                  }))}
-                  size="small"
-                  sx={{ minWidth: 80 }}
-                >
-                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => (
-                    <MenuItem key={num} value={num}>{num}</MenuItem>
-                  ))}
-                </Select>
-              </Box>
-              <TextField
-                fullWidth
-                label="Comments"
-                multiline
-                rows={2}
-                value={reviewData[category.key]?.comment || ''}
-                onChange={(e) => setReviewData(prev => ({
-                  ...prev,
-                  [category.key]: { ...prev[category.key], comment: e.target.value }
-                }))}
-                size="small"
-              />
-            </Box>
-          ))}
-
-          <Divider sx={{ my: 3 }} />
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Team Member Evaluations
-          </Typography>
-          
-          {reviewData.memberEvaluations.map((evalItem, index) => {
-            const member = project.team?.find(m => (m._id || m.id) === evalItem.member);
-            return (
-              <Paper key={index} sx={{ p: 2, mb: 2 }}>
-                <Box display="flex" alignItems="center" gap={2} mb={2}>
-                  <Avatar>
-                    {(member?.name || 'U').charAt(0)}
-                  </Avatar>
-                  <Box>
-                    <Typography fontWeight="medium">{member?.name || 'Unknown Member'}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {member?.email || ''}
-                    </Typography>
-                  </Box>
-                </Box>
-                
-                <Grid container spacing={2}>
-                  <Grid item xs={6}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Contribution Score</InputLabel>
-                      <Select
-                        value={evalItem.contributionScore}
-                        onChange={(e) => {
-                          const newEvaluations = [...reviewData.memberEvaluations];
-                          newEvaluations[index] = { ...newEvaluations[index], contributionScore: e.target.value };
-                          setReviewData(prev => ({ ...prev, memberEvaluations: newEvaluations }));
-                        }}
-                        label="Contribution Score"
-                      >
-                        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => (
-                          <MenuItem key={num} value={num}>{num}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Box display="flex" alignItems="center" height="100%">
-                      <MuiCheckbox
-                        checked={evalItem.honestyFlag}
-                        onChange={(e) => {
-                          const newEvaluations = [...reviewData.memberEvaluations];
-                          newEvaluations[index] = { ...newEvaluations[index], honestyFlag: e.target.checked };
-                          setReviewData(prev => ({ ...prev, memberEvaluations: newEvaluations }));
-                        }}
-                        icon={<FlagOutlined />}
-                        checkedIcon={<Flag color="error" />}
-                      />
-                      <Typography variant="caption">
-                        Flag as exaggerated contribution
-                      </Typography>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Comments"
-                      multiline
-                      rows={2}
-                      value={evalItem.comment || ''}
-                      onChange={(e) => {
-                        const newEvaluations = [...reviewData.memberEvaluations];
-                        newEvaluations[index] = { ...newEvaluations[index], comment: e.target.value };
-                        setReviewData(prev => ({ ...prev, memberEvaluations: newEvaluations }));
-                      }}
-                      size="small"
-                    />
-                  </Grid>
-                </Grid>
-              </Paper>
-            );
-          })}
-        </Box>
-
-        {error && (
-          <Alert severity="error" sx={{ mt: 2 }}>
-            {error}
-          </Alert>
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={loading}>
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSubmit}
-          variant="contained"
-          disabled={loading}
-          startIcon={loading ? <CircularProgress size={20} /> : <Grade />}
-        >
-          {loading ? 'Submitting...' : 'Submit Review'}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
 
 // Team Members Popover
 const TeamMembersPopover = ({ anchorEl, open, onClose, teamMembers, theme, projectId }) => {
@@ -2975,10 +2673,10 @@ const ProjectTableRow = ({
   };
 
   const daysRemaining = () => {
-    if (!project.endDate) return 'No deadline';
+    if (!project.deadline) return 'No deadline';
     const today = new Date();
-    const endDate = new Date(project.endDate);
-    const diffTime = endDate - today;
+    const deadline = new Date(project.deadline);
+    const diffTime = deadline - today;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
     if (diffDays < 0) return `${Math.abs(diffDays)} days overdue`;
@@ -3042,6 +2740,7 @@ const ProjectTableRow = ({
       '&:hover': {
         backgroundColor: alpha(theme.palette.primary.main, 0.04),
         transform: 'translateX(4px)',
+        cursor: 'grabbing',
         '& .progress-bar': {
           transform: 'scaleX(1.05)',
         },
@@ -3049,6 +2748,9 @@ const ProjectTableRow = ({
           opacity: 1,
           transform: 'translateY(0)',
         }
+      },
+      '&:active' : {
+        cursor: 'grabbing'
       },
       '&.Mui-selected': {
         backgroundColor: alpha(theme.palette.primary.main, 0.12),
@@ -3613,7 +3315,7 @@ const ProjectTableRow = ({
             End Date
           </Typography>
           <Typography variant="body2" sx={{ color: theme.palette.text.secondary, ml: 'auto' }}>
-            {formatDate(project.endDate)}
+            {formatDate(project.deadline)}
           </Typography>
         </Box>
         

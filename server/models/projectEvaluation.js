@@ -2,13 +2,13 @@ import mongoose from "mongoose";
 
 const projectEvaluationSchema = new mongoose.Schema(
   {
-    project: { type: mongoose.Schema.Types.ObjectId, ref: "Project", required: true },
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project", required: true },
 
     evaluatedTeam: { type:String, required: true },
 
     evaluator: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true},
 
-    evaluatorRole: { type: String, enum: ["teacher", "peer"], required: true},
+    evaluatorRole: { type: String, enum: ["teacher", "student"], required: true},
 
     grading: { 
       technicalExecution: {  //Measures how well the project was executed technically
@@ -33,7 +33,7 @@ const projectEvaluationSchema = new mongoose.Schema(
       }
     },
 
-    memberEvaluations: [  //Peer evaluation for each member of the team
+    memberEvaluations: [  //Peer evaluated
       {
         member: {
           type: mongoose.Schema.Types.ObjectId,
@@ -44,11 +44,6 @@ const projectEvaluationSchema = new mongoose.Schema(
           min: 0,
           max: 10
         },
-        honestyFlag: {
-          type: Boolean,
-          default: false // peer thinks contribution is exaggerated
-        },
-        comment: String
       }
     ],
     allowPeerReview: { type: Boolean, default: true },

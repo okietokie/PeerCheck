@@ -10,8 +10,22 @@ const taskSchema = new mongoose.Schema(
 
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project", required: true },
     deadline: { type: Date, required: true },
+    endDate: {type: Date},
     estimatedTime: { type: Number, required: true }, // in seconds
     totalFocusTime: { type: Number, default: 0 },
+    assignmentHistory: [
+      {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+
+        from: { type: Date, required: true },
+        to: { type: Date },
+
+        focusTime: { type: Number, default: 0 }, // seconds
+
+        efficiency: { type: Number, default: 0 } // snapshot at handover/completion
+      }
+      ],
+
 
     status: {
       type: String,

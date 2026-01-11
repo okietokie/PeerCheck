@@ -56,5 +56,31 @@ export const authMiddleware = async (req, res, next) => {
   }
 };
 
+export const teacherOnlyMiddleware = (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        error: "Unauthorized"
+      });
+    }
+
+    if (req.user.role !== "teacher") {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied: Teachers only"
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error("Teacher middleware error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Authorization check failed"
+    });
+  }
+};
+
 
 

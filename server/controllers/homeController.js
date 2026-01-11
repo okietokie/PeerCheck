@@ -1,6 +1,7 @@
 import User from "../models/user.js";
 import Review from "../models/review.js";
 
+
 export const fetchBasicData = async (req, res) => {
   try {
     // Active users count
@@ -9,56 +10,63 @@ export const fetchBasicData = async (req, res) => {
 
     const allReviews = await Review.find();
 
+    // 6 most recent reviews
     const recentReviews = await Review.find()
       .sort({ createdAt: -1 })
-      .limit(3);
-    // Get review statistics
+      .limit(6);
+
+    // Fetch user info based on email
+    const reviewsWithUser = await Promise.all(
+      recentReviews.map(async (r) => {
+        const user = await User.findOne({ email: r.email }).select('name username avatar');
+        return { ...r.toObject(), user };
+      })
+    );
+
+    // Calculate review statistics
     const totalRating = allReviews.reduce((sum, review) => sum + review.rating, 0);
     const reviewStats = allReviews.length > 0 ? totalRating / allReviews.length : 0;
 
-
-
-const satisfactionStats = await Review.aggregate([
-  {
-    $group: {
-      _id: null,
-      totalReviews: { $sum: 1 },
-      satisfiedReviews: {
-        $sum: { $cond: [{ $gte: ['$rating', 4] }, 1, 0] }
+    // Satisfaction rate
+    const satisfactionStats = await Review.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalReviews: { $sum: 1 },
+          satisfiedReviews: {
+            $sum: { $cond: [{ $gte: ['$rating', 4] }, 1, 0] }
+          }
+        }
       }
-    }
-  }
-]);
-const stats = satisfactionStats[0] || { totalReviews: 0, satisfiedReviews: 0 };
-const satisfactionRate =
-  stats.totalReviews > 0
-    ? Math.round((stats.satisfiedReviews / stats.totalReviews) * 100)
-    : 0;
+    ]);
+    const stats = satisfactionStats[0] || { totalReviews: 0, satisfiedReviews: 0 };
+    const satisfactionRate =
+      stats.totalReviews > 0
+        ? Math.round((stats.satisfiedReviews / stats.totalReviews) * 100)
+        : 0;
 
-
-    // Get user growth in last 30 days
+    // New users in last 30 days
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const newUsers = await User.countDocuments({
-      createdAt: { $gte: thirtyDaysAgo }
-    });
+    const newUsers = await User.countDocuments({ createdAt: { $gte: thirtyDaysAgo } });
 
+    // Send response
     res.status(200).json({
       success: true,
       activeUsers,
       totalUsers,
       newUsersLast30Days: newUsers,
       reviewStats: {
-        averageRating: reviewStats.length > 0 ? parseFloat(reviewStats[0].averageRating.toFixed(1)) : 0,
-        totalReviews: reviewStats.length > 0 ? reviewStats[0].totalReviews : 0,
-        helpfulVotes: reviewStats.length > 0 ? reviewStats[0].helpfulVotes : 0,
+        averageRating: reviewStats,
+        totalReviews: allReviews.length,
+        helpfulVotes: 0,
         satisfactionRate
       },
-      recentReviews: recentReviews.map(review => ({
+      recentReviews: reviewsWithUser.map(review => ({
         _id: review._id,
         rating: review.rating,
         title: review.title,
         content: review.content,
-        user: review.user,
+        user: review.user || { name: 'Anonymous', avatar: null, username: '' },
         tags: review.tags,
         createdAt: review.createdAt,
         formattedDate: new Date(review.createdAt).toLocaleDateString('en-US', {
@@ -70,12 +78,10 @@ const satisfactionRate =
     });
   } catch (error) {
     console.error(`[homeController.js] Error: ${error}`);
-    return res.status(500).json({ 
-      success: false,
-      message: "Internal server error" 
-    });
+    return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
+
 
 // Additional endpoint for dashboard stats
 export const getDashboardStats = async (req, res) => {

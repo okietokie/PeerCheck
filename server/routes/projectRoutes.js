@@ -13,7 +13,7 @@ import {
   updateProject
 } from '../controllers/projectController.js';
 import { authMiddleware as protect } from '../middleware/authMiddleware.js';
-
+import * as projectEvaluation from "../controllers/projectEvaluationController.js";
 const router = express.Router();
 
 // All routes are protected
@@ -39,4 +39,11 @@ router.post('/:projectId/metrics/refresh', refreshProjectMetrics);
 
 // Task metrics route
 router.get('/tasks/:taskId/metrics', getTaskMetrics);
+
+// Project Evaluation Routes
+router.post('/:projectId/evaluations', projectEvaluation.submitProjectEvaluation); // Submit evaluation
+router.get('/:projectId/member-evaluation-summary', projectEvaluation.getMemberEvaluationSummary); // Get all evaluations for project
+router.delete('/:projectId/delete-evaluation', projectEvaluation.deleteEvaluation); // Get all evaluations for project
+
+
 export default router;

@@ -33,8 +33,6 @@ import { getThemeNames } from "./utils/themeUtils.js";
 import TeacherApp from "./Components/teacher-dashboard/teacher-dash-app.jsx";
 import TeacherDashboard from "./Components/teacher-dashboard/Dashboard.jsx";
 import TeacherClasses from "./Components/teacher-dashboard/TeacherClasses.jsx";
-import TeacherProjects from "./Components/teacher-dashboard/TeacherProjects.jsx";
-import Reviews from "./Components/teacher-dashboard/Reviews.jsx";
 import { Analytics } from "@mui/icons-material";
 import Feedback from "./Components/teacher-dashboard/Feedback.jsx";
 
@@ -105,9 +103,7 @@ export default function App() {
             <Route path="/teacher-app/*" element={<ProtectedRoute> <TeacherApp /> </ProtectedRoute>}>
               <Route path="dashboard" element={<TeacherDashboard />} />
               <Route path="classes" element={<TeacherClasses />} />
-              <Route path="projects" element={<TeacherProjects />} />
               <Route path="peer-teams" element={<PeerTeams />} />
-              <Route path="reviews" element={<Reviews />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="feedback" element={<Feedback />} />
               <Route path="profile" element={<Profile />} />

@@ -30,6 +30,7 @@ import reviewRoutes from "./routes/reviewRoutes.js";
 import peerReviewRoutes from "./routes/peerReviewRoutes.js";
 import stickyNoteRoutes from "./routes/stickyNoteRoutes.js";
 import { fileURLToPath } from "url";
+import teacherRoutes from "./routes/teacherRoutes.js";
 // import { setupDeadlineChecker } from './controllers/deadlineChecker.js';
 
 
@@ -44,6 +45,7 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/home", authRoutes );
 app.use("/api/peer-review", peerReviewRoutes);
 app.use("/api/sticky-note", stickyNoteRoutes);
+app.use("/api/teacher", teacherRoutes);
 
 
 

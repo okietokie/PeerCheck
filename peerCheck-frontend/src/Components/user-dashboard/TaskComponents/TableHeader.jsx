@@ -1,14 +1,12 @@
-//didnt use yet
+import { AccessAlarm, AttachFile, CalendarMonth, Circle, EditCalendarTwoTone, Error, ErrorOutline, Expand, Person, PlayArrow, Settings, SignalWifiStatusbar1BarTwoTone, Task, Title, TrendingUp, Warning } from '@mui/icons-material'
+import { alpha, Checkbox, TableCell, TableHead, TableRow, Typography } from '@mui/material'
+import React from 'react'
 
-import { CheckBox } from '@mui/icons-material'
-import { TableCell, TableHead, TableRow, Typography, alpha, useTheme } from '@mui/material'
-
-export default function TableHeader() {
-    const theme = useTheme();
-  return ( 
+export default function TaskTableHeader({allSelected,selectedTasks, handleSelectAll, theme}) {
+  return (
                 <TableHead>
                   <TableRow sx={{ backgroundColor: 'transparent' }}>
-                    <TableCell
+                    <TableCell 
                       padding="checkbox"
                       sx={{
                         borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
@@ -22,7 +20,7 @@ export default function TableHeader() {
                         borderRadius: '12px 0 0 0',
                       }}
                     >
-                      <CheckBox
+                      <Checkbox
                         checked={allSelected}
                         indeterminate={selectedTasks.size > 0 && !allSelected}
                         onChange={(e) => handleSelectAll(e.target.checked)}
@@ -37,19 +35,14 @@ export default function TableHeader() {
                         }}
                       />
                     </TableCell>
-                    {[
+                    {[ { label: '', width: '5%'},
                       { label: 'TASK TITLE', width: '25%' },
                       { label: 'STATUS', width: '12%' },
                       { label: 'ASSIGNEE', width: '15%' },
-                      { label: 'START DATE', width: '12%' },
-
-                      { label: 'DEADLINE', width: '12%' },
-                      { label: 'EFFICIENCY', width: '10%' },
                       { label: 'PRIORITY', width: '10%' },
-                      { label: 'COMMENTS', width: '10%' },
-                      { label: 'PROOF', width: '8%' },
-                      { label: 'RISK', width: '10%' },
-                      { label: 'ACTIONS', width: '8%' },
+                      { label: 'DUE', width: '10%'},
+                      { label: 'EFFICIENCY', width: '10%'},
+                      { label: 'ACTIONS', width: '10%' },
                     ].map((header, index) => (
                       <TableCell 
                         key={header.label}
@@ -80,21 +73,20 @@ export default function TableHeader() {
                             gap: 1,
                           }}
                         >
-                          {index === 0 && <Title fontSize="small" />}
-                          {index === 1 && <Person fontSize="small" />}
-                          {index === 2 && <Circle fontSize="small" />}
-                          {index === 3 && <CalendarMonth fontSize="small" />}
-                          {index === 4 && <TrendingUp fontSize="small" />}
-                          {index === 5 && <Warning fontSize="small" />}
-                          {index === 6 && <Task fontSize="small" />}
-                          {index === 7 && <Settings fontSize="small" />}
+                          {index === 0 && <Expand fontSize='small' /> }
+                          {index === 1 &&  <Title fontSize="small" />}
+                          {index === 2 && <SignalWifiStatusbar1BarTwoTone fontSize="small" />}
+                          {index === 3 && <Person  fontSize="small" />}
+                          {index === 4 && <Error fontSize="small" />}
+                          {index === 5 && <ErrorOutline fontSize='small' /> } 
+                          {index === 6 && <AccessAlarm fontSize='small'/>}
+                          {index === 7 && <PlayArrow fontSize="small" />}
+
                           {header.label}
                         </Typography>
                       </TableCell>
                     ))}
                   </TableRow>
-                </TableHead>
-                
-            
-    )
+                </TableHead>  
+  )
 }

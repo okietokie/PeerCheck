@@ -31,10 +31,11 @@ import {
   CheckCircle,
   Error,
   FileCopy,
-  Delete
+  Delete,
+  Info
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
-import axiosClient from '@api/axiosClient';
+import axiosClient from '@/api/axiosClient.js';
 import { getAuthToken } from '../../utils/auth.js';
 
 const UploadProofModal = ({ open, onClose, task, theme, onSuccess }) => {

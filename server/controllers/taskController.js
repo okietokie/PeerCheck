@@ -241,9 +241,11 @@ export const getTasks = async (req, res) => {
       });
     }
     const team = await Team.findById(project.teamId).select("members")
+    
+    const isTeacherOrAdmin = ['teacher', 'admin'].includes(req.user.role);
 
     if (project.createdBy.toString() !== userId && 
-        !team.members.some(member => member.toString() === userId)) {
+        !team.members.some(member => member.toString() === userId) && !isTeacherOrAdmin) {
       return res.status(403).json({
         success: false,
         message: "Access denied to project"
@@ -288,11 +290,12 @@ export const getTaskDetails = async (req, res) => {
     }
 
     // Check access
-    const project = await Project.findById(task.projectId);
+    const project = await Project.findById(task.projectId)
+    .populate("teamId", "teamName members")
     const hasAccess = 
-      project.createdBy.toString() === userId ||
+      project?.createdBy?.toString() === userId ||
       task.assignedTo._id.toString() === userId ||
-      project.team.some(member => member.toString() === userId);
+      project?.teamId?.members.some(member => member.toString() === userId);
 
     if (!hasAccess) {
       return res.status(403).json({
@@ -1372,8 +1375,9 @@ export const getTaskActivityLogs = async (req, res) => {
 
 
     // Check permissions
-    const project = task.projectId;
-    const team = await Team.findById(project.teamId).select("members");
+    const project = task?.projectId;
+    const team = await Team.findById(project?.teamId)
+        .select("members");
 
     const hasAccess = 
       task.assignedTo.toString() === userId ||
@@ -1882,6 +1886,9 @@ export const updateTaskStatus = async (req, res) => {
     
     const oldStatus = task.status;
     task.status = status;
+    if(status === 'completed'){
+      task.endDate = new Date();
+    }
 
     
 
@@ -2101,7 +2108,6 @@ export const scheduleTaskDeadlineReminders = () => {
         await notifyTaskDeadline(task._id);
       }
       
-      console.log(`Sent ${upcomingTasks.length} deadline reminders`);
     } catch (error) {
       console.error('Error sending deadline reminders:', error);
     }
@@ -2290,7 +2296,6 @@ export const updateTaskField = async (req, res) => {
     const { field, value } = req.body; // field can be: 'taskTitle', 'priority', 'startDate', 'deadline'
     const userId = req.user.id;
     const task = await Task.findById(taskId);
-    console.log("updating task!");
     if (!task) {
       return res.status(404).json({
         success: false,
@@ -2301,16 +2306,24 @@ export const updateTaskField = async (req, res) => {
     // Check permissions
     const project = await Project.findById(task.projectId);
     const isAssignee = task.assignedTo?.toString() === userId.toString();
+    const isProjectLead = task.assignedBy?.toString() === userId.toString();
+    const isTeacher = req.user.role === "teacher";
+   
+    const isAuthorized = isAssignee || isProjectLead || isTeacher;
 
-    
-    // Allow edit if: assignee, creator, teacher, or admin
-    console.log("isAssignee", isAssignee);
-
-    if (!isAssignee) {
+    if (!isAuthorized) {
       return res.status(403).json({
         success: false,
         error: "Not authorized to edit this task"
       });
+    }
+
+    const isComplete = task.status === 'completed';
+    if (isComplete) {
+      return res.status(400).jsxon({
+        success: false,
+        error: 'Cannot update task fields. Task is marked complete.'
+      })
     }
 
     const oldValue = task[field];
@@ -2352,9 +2365,7 @@ export const updateTaskField = async (req, res) => {
 
       case 'deadline':
         try {
-          console.log("updating deadline!");
           newValue = new Date(value);
-          console.log("newvalue: ", newValue);
           if (isNaN(newValue.getTime())) {
             return res.status(400).json({
               success: false,
@@ -2509,6 +2520,62 @@ export const updateTaskField = async (req, res) => {
   }
 };
 
+export const reassignTask = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { newAssigneeId } = req.body;
+    const userId = req.user.id;
+
+
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ error: "Task not found" });
+
+    const isAuthorized =
+      task.assignedBy.toString() === userId ||
+      req.user.role === "teacher";
+
+    if (!isAuthorized) {
+      return res.status(403).json({ error: "Not authorized to reassign task" });
+    }
+
+    if (task.lastEventTime) {
+      const focusTimeByPrevUser =
+        Math.floor((Date.now() - task.lastEventTime) / 1000);
+
+      task.totalFocusTime += Math.max(focusTimeByPrevUser, 0);
+    }
+
+      task.assignmentHistory.push({
+        userId: task.assignedTo,
+        from: task.lastAssignedAt,
+        to: new Date(),
+        focusTime: task.totalFocusTime,
+        efficiency: (task.totalFocusTime / task.estimatedTime) * 100
+      });
+    task.assignedTo = newAssigneeId;
+    task.lastAssignedAt = new Date();
+    task.lastEventTime = null;
+    task.status = "not_started";
+        
+    await task.save();
+
+    await logActivity({
+      taskId,
+      userId,
+      projectId: task.projectId,
+      eventType: "task_reassigned",
+      metadata: {
+        from: task.assignmentHistory.at(-1).userId,
+        to: newAssigneeId
+      }
+    });
+
+  res.json({ success: true, message: "Task reassigned successfully" });
+  } catch (error) {
+    console.error(error);
+  }
+}
+
 /**
  * Bulk update multiple task fields at once
  */
@@ -2551,9 +2618,7 @@ export const updateTaskMultipleFields = async (req, res) => {
 
       if (field === 'deadline') {
         try {
-          console.log("updating deadline!");
           newValue = new Date(value);
-          console.log("newvalue: ", newValue);
           if (isNaN(newValue.getTime())) {
             return res.status(400).json({
               success: false,

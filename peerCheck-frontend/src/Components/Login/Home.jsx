@@ -110,11 +110,11 @@ export default function Home() {
     return colors[type] || theme.palette.primary.main;
   };
 
-  // API Functions
   const fetchLiveData = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
+      
       
       const response = await axiosClient.get("/user/basic-data");
       
@@ -226,6 +226,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchLiveData();
+    
   }, [fetchLiveData]);
 
   useEffect(() => {
@@ -1058,7 +1059,7 @@ export default function Home() {
                   gridTemplateColumns: { xs: '1fr', md: '1fr 1fr', lg: '1fr 1fr 1fr' },
                   gap: 3,
                 }}>
-                  {stats.recentReviews.slice(0, 3).map((review, idx) => (
+                  {stats.recentReviews.slice(0,6).map((review, idx) => (
                     <Box key={review._id || idx}>
                       <motion.div
                         initial={{ opacity: 0, y: 20 }}
@@ -1082,7 +1083,9 @@ export default function Home() {
                           }}
                         >
                           <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                            <Avatar sx={{ 
+                            <Avatar 
+                            src={review.user?.avatar}
+                            sx={{ 
                               bgcolor: theme.palette.primary.main, 
                               mr: 2,
                               width: 40,
