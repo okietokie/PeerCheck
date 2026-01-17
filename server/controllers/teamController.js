@@ -1,4 +1,4 @@
-// teamController.js
+// server/controllers/teamController.js
 import mongoose from 'mongoose'; //since some functions need mongoose import
 import Group from "../models/peergroup_log.js";
 import User from "../models/user.js";
@@ -65,51 +65,24 @@ export const createTeam = async (req, res) => {
   try {
     const { name } = req.body;
     const currentUserId = req.userId;
-
-
     // Basic validation
     if (!name || !name.trim()) {
-      return res.status(400).json({ 
-        success: false,
-        message: "Team name is required" 
-      });
+      return res.status(400).json({ success: false, message: "Team name is required" });
     }
-
     if (name.trim().length < 2) {
-      return res.status(400).json({ 
-        success: false,
-        message: "Team name must be at least 2 characters long" 
-      });
+      return res.status(400).json({ success: false, message: "Team name must be at least 2 characters long" });
     }
-
     // Check if team with same name already exists for this user
-    const existingTeam = await Group.findOne({
-      name: name.trim(),
-      members: currentUserId,
-      deletedAt: { $exists: false }
-    });
-
+    const existingTeam = await Group.findOne({name: name.trim(), members: currentUserId, deletedAt: { $exists: false } });
     if (existingTeam) {
-      return res.status(400).json({ 
-        success: false,
-        message: "You already have a team with this name" 
-      });
+      return res.status(400).json({ success: false, message: "You already have a team with this name"  });
     }
-
     // Create the team
-    const team = new Group({
-      name: name.trim(),
-      members: [currentUserId],
-      projects: []
-    });
-
+    const team = new Group({ name: name.trim(), members: [currentUserId], projects: []});
     await team.save();
-
-    
     // Populate the created team to get user details
     const populatedTeam = await Group.findById(team._id)
       .populate('members', 'name username email course institution bio avatar skills year onlineStatus');
-
     // Format response
     const teamResponse = {
       _id: populatedTeam._id,
@@ -137,18 +110,11 @@ export const createTeam = async (req, res) => {
       updatedAt: populatedTeam.updatedAt
     };
 
-    res.status(201).json({ 
-      success: true,
-      message: "Team created successfully", 
-      team: teamResponse 
-    });
+    res.status(201).json({  success: true, message: "Team created successfully",  team: teamResponse });
 
   } catch (err) {
     console.error('Error creating team:', err);
-    res.status(500).json({ 
-      success: false,
-      message: `Error creating team: ${err.message}` 
-    });
+    res.status(500).json({  success: false, message: `Error creating team: ${err.message}` });
   }
 };
 

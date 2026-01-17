@@ -1,3 +1,4 @@
+// server/controllers/homeController.js
 import User from "../models/user.js";
 import Review from "../models/review.js";
 
@@ -95,7 +96,6 @@ export const getDashboardStats = async (req, res) => {
         }
       }
     ]);
-
     // Reviews by rating
     const reviewsByRating = await Review.aggregate([
       {
@@ -111,7 +111,6 @@ export const getDashboardStats = async (req, res) => {
         $sort: { _id: 1 }
       }
     ]);
-
     // Monthly user growth
     const monthlyGrowth = await User.aggregate([
       {

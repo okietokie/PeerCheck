@@ -66,7 +66,7 @@ export const sendConnectionRequest = async (req, res) => {
       .populate('fromUser', 'name username email bio course institution avatar')
       .populate('toUser', 'name username email bio course institution avatar');
 
-    // ✅ Create notification for target user
+    // Create notification for target user
     const fromUser = await User.findById(fromUserId).select('name username avatar');
     await createNotification({
       userId: targetUserId,
@@ -245,7 +245,7 @@ export const acceptRequest = async (req, res) => {
       .populate('fromUser', 'name username email bio course institution avatar')
       .populate('toUser', 'name username email bio course institution avatar');
 
-    // ✅ Create notification for request sender
+    // Create notification for request sender
     const acceptor = await User.findById(userId).select('name username avatar');
     await createNotification({
       userId: connection.fromUser,
@@ -262,7 +262,7 @@ export const acceptRequest = async (req, res) => {
       actionUrl: `/user-app/profile`
     });
 
-    // ✅ Create notification for acceptor
+    // Create notification for acceptor
     const requestor = await User.findById(connection.fromUser).select('name username avatar');
     await createNotification({
       userId: userId,
@@ -320,7 +320,7 @@ export const rejectRequest = async (req, res) => {
     connection.status = "rejected";
     await connection.save();
 
-    // ✅ Create notification for request sender
+    // Create notification for request sender
     const decliner = await User.findById(userId).select('name username');
     await createNotification({
       userId: connection.fromUser,
@@ -383,7 +383,7 @@ export const removeConnection = async (req, res) => {
 
     await Connection.findByIdAndDelete(connectionId);
 
-    // ✅ Create notification for the other user
+    // Create notification for the other user
     await createNotification({
       userId: otherUserId,
       type: 'connection_removed',

@@ -67,16 +67,6 @@ const useTasks = () => {
     return true;
   }, []);
 
-  // Helper functions for task metrics calculation
-  const calculateRiskScore = (task) => {
-    const flags = task.flags || {};
-    return (
-      (flags.paddedTime ? 2 : 0) +
-      (flags.rushedCompletion ? 2 : 0) +
-      (flags.noProof ? 1 : 0) +
-      (flags.manualReviewRequired ? 3 : 0)
-    );
-  };
   // Helper to format time
   const formatTime = (seconds) => {
     if (!seconds) return '0m';
@@ -89,48 +79,32 @@ const useTasks = () => {
     return `${minutes}m`;
   };
 
-  const calculateIsOverdue = (task) => {
-    if (!task.deadline) return false;
-    const deadline = new Date(task.deadline);
-    const now = new Date();
-    return deadline < now && task.status !== 'completed';
-  };
-
-  const calculateStatusWeight = (status) => {
-    const weights = {
-      'completed': 100,
-      'active': 50,
-      'paused': 30,
-      'not_started': 0
-    };
-    return weights[status] || 0;
-  };
-
-  const calculateDaysUntilDeadline = (deadline) => {
-    if (!deadline) return 0;
-    const deadlineDate = new Date(deadline);
-    const now = new Date();
-    const diffTime = deadlineDate - now;
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
-  const calculateTaskMetricsFromData = (task) => {
+  // SIMPLIFIED: Just use backend metrics directly
+  const useBackendMetrics = (task) => {
+    // If task already has metrics from backend, use them
+    if (task.metrics) {
+      return task.metrics;
+    }
+    
+    // Fallback for unsaved/new tasks (minimal calculation)
     return {
-      efficiency: {
-        percentage: task.estimatedTime 
-          ? Math.round((task.totalFocusTime / task.estimatedTime) * 100 * 100) / 100 
-          : 0
-      },
-      risk: {
-        riskScore: calculateRiskScore(task)
-      },
-      isOverdue: calculateIsOverdue(task),
+      efficiency: task.estimatedTime 
+        ? Math.round((task.totalFocusTime / task.estimatedTime) * 100 * 100) / 100 
+        : 0,
+      efficiencyStatus: 'unknown',
+      efficiencyLabel: 'Unknown',
+      riskScore: 0,
+      riskLevel: 'low',
+      isOverdue: task.deadline ? (new Date(task.deadline) < new Date() && task.status !== 'completed') : false,
       hasProof: task.proofUploads && task.proofUploads.length > 0,
-      daysUntilDeadline: calculateDaysUntilDeadline(task.deadline)
+      proofCount: task.proofUploads?.length || 0,
+      daysUntilDeadline: task.deadline ? 
+        Math.ceil((new Date(task.deadline) - new Date()) / (1000 * 60 * 60 * 24)) : 0,
+      statusWeightPercentage: 0
     };
   };
 
-  // Fetch tasks
+  // Fetch tasks - SIMPLIFIED VERSION
   const fetchTasks = useCallback(async () => {
     try {
       setLoading(true);
@@ -157,22 +131,13 @@ const useTasks = () => {
       const tasksData = response.data?.tasks || [];
       setUserId(response.data?.user?._id);
 
-      const enrichedTasks = tasksData.map(task => {
-        const taskMetrics = calculateTaskMetricsFromData(task);
-
-        return {
-          ...task,
-          metrics: {
-            efficiency: Number(taskMetrics.efficiency ?? 0),
-            riskScore: taskMetrics.risk.riskScore,
-            isOverdue: taskMetrics.isOverdue,
-            hasProof: taskMetrics.hasProof,
-            proofCount: task.proofUploads?.length || 0,
-            statusWeightPercentage: calculateStatusWeight(task.status),
-            daysUntilDeadline: taskMetrics.daysUntilDeadline
-          }
-        };
-      });
+      // Backend already calculates metrics - just use them directly!
+      // No need to recalculate in frontend
+      const enrichedTasks = tasksData.map(task => ({
+        ...task,
+        // Ensure metrics exist (they should from backend)
+        metrics: task.metrics || useBackendMetrics(task)
+      }));
       
       setTasks(enrichedTasks);
       setFilteredTasks(enrichedTasks);
@@ -239,7 +204,7 @@ const useTasks = () => {
     }
   };
 
-  // Status change handler
+  // Status change handler - UPDATED to handle backend metrics
   const handleStatusChange = async (taskId, newStatus) => {
     try {
       const token = getAuthToken();
@@ -260,8 +225,15 @@ const useTasks = () => {
 
       if (response.data?.success) {
         const updatedTask = response.data?.task;
+        
+        // Update tasks with backend-calculated metrics
         setTasks(prevTasks => prevTasks.map(t =>
-          t._id === taskId ? updatedTask : t
+          t._id === taskId 
+            ? { 
+                ...updatedTask,
+                metrics: updatedTask.metrics || useBackendMetrics(updatedTask)
+              } 
+            : t
         ));
         
         setError(null); // Clear error on success
@@ -270,7 +242,8 @@ const useTasks = () => {
           setSelectedTask(prev => ({
             ...prev,
             status: newStatus,
-            lastEventTime: updatedTask.lastEventTime
+            lastEventTime: updatedTask.lastEventTime,
+            metrics: updatedTask.metrics
           }));
         }
       } else {
@@ -294,16 +267,15 @@ const useTasks = () => {
       message: "Proof uploaded successfully!",
       severity: "success"
     });
-    fetchTasks();
+    fetchTasks(); // Refetch to get updated metrics from backend
   };
 
-  // Task field update
+  // Task field update - UPDATED to handle backend response
   const handleTaskFieldUpdate = async (taskId, updates) => {
     try {
       const token = getAuthToken();
       
-      console.log("updating field: ", updates);
-      const response = await axiosClient.patch(`/user/${taskId}/field`, 
+      const response = await axiosClient.patch(`/user/task/${taskId}/field`, 
         {
           field: updates.field,  
           value: updates.value  
@@ -317,14 +289,15 @@ const useTasks = () => {
       );
       
       if (response.data?.success) {
-        // Update local state
+        const updatedTask = response.data.task;
+        
+        // Update local state with backend-calculated metrics
         setTasks(prevTasks => 
           prevTasks.map(task => 
             task._id === taskId 
               ? { 
-                  ...task, 
-                  [updates.field]: updates.value,
-                  ...response.data.task // Merge any additional data from backend
+                  ...updatedTask,
+                  metrics: updatedTask.metrics || useBackendMetrics(updatedTask)
                 }
               : task
           )
@@ -332,7 +305,6 @@ const useTasks = () => {
         
         return response.data;
       } else {
-        console.error("Error finding link ig");
         throw new Error(response.data?.error || 'Failed to update task');
       }
     } catch (error) {
@@ -389,7 +361,7 @@ const useTasks = () => {
     return () => clearInterval(interval);
   }, [tasks]);
 
-  // Filter and sort tasks
+  // Filter and sort tasks - UPDATED to use backend metrics
   useEffect(() => {
     let result = [...tasks];
     
@@ -438,7 +410,7 @@ const useTasks = () => {
         case 'risk':
           return (b.metrics?.riskScore || 0) - (a.metrics?.riskScore || 0);
         case 'efficiency':
-          return (a.metrics?.efficiency || 0) - (b.metrics?.efficiency || 0);
+          return (b.metrics?.efficiency || 0) - (a.metrics?.efficiency || 0); // Higher efficiency first
         case 'status':
           const statusOrder = { completed: 4, active: 3, paused: 2, not_started: 1 };
           return statusOrder[b.status] - statusOrder[a.status];

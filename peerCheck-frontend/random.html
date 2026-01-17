@@ -1,0 +1,1903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Full-Page Tabular Gantt Chart</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: #f0f2f5;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            margin: 0;
+            border-radius: 0;
+            box-shadow: none;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            flex-shrink: 0;
+        }
+        
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+        
+        .controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        button.primary {
+            background: #00c9ff;
+            border-color: #00c9ff;
+        }
+        
+        .timeline-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: auto;
+        }
+        
+        .timeline-controls select {
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        .main-content {
+            flex: 1;
+            overflow: auto;
+            padding: 0;
+        }
+        
+        /* Table-based Gantt Chart */
+        .gantt-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: auto;
+            height: calc(100vh - 180px);
+            min-height: 500px;
+        }
+        
+        .gantt-table thead {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: white;
+        }
+        
+        .gantt-table th {
+            border-bottom: 2px solid #e1e5e9;
+            border-right: 1px solid #e1e5e9;
+            padding: 15px 5px;
+            text-align: center;
+            font-weight: 600;
+            color: #333;
+            background: #f8f9fa;
+            position: relative;
+            min-width: 80px;
+            max-width: 200px;
+            overflow: hidden;
+        }
+        
+        .gantt-table th.task-column {
+            width: 350px;
+            min-width: 350px;
+            max-width: 350px;
+            text-align: left;
+            background: #f1f3f5;
+            position: sticky;
+            left: 0;
+            z-index: 110;
+        }
+        
+        .gantt-table th.date-header {
+            cursor: pointer;
+            transition: background 0.2s;
+            position: relative;
+            user-select: none;
+        }
+        
+        .gantt-table th.date-header:hover {
+            background: #e9ecef;
+        }
+        
+        .date-header-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            pointer-events: none;
+        }
+        
+        .date-header-main {
+            font-weight: 600;
+            color: #333;
+            font-size: 0.85rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 100%;
+        }
+        
+        .date-header-day {
+            font-size: 0.7rem;
+            color: #666;
+            font-weight: normal;
+        }
+        
+        .gantt-table tbody tr {
+            border-bottom: 1px solid #e1e5e9;
+            transition: background 0.2s;
+        }
+        
+        .gantt-table tbody tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .gantt-table td {
+            padding: 12px 10px;
+            border-right: 1px solid #e1e5e9;
+            vertical-align: middle;
+            position: relative;
+            height: 50px;
+            min-width: 80px;
+            max-width: 200px;
+        }
+        
+        .gantt-table td.task-cell {
+            font-weight: 500;
+            color: #333;
+            background: #f8f9fa;
+            position: sticky;
+            left: 0;
+            z-index: 10;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 350px;
+            max-width: 350px;
+            width: 350px;
+        }
+        
+        .gantt-table td.date-cell {
+            padding: 0;
+            position: relative;
+            background: repeating-linear-gradient(
+                90deg,
+                transparent,
+                transparent 49%,
+                #f0f0f0 49%,
+                #f0f0f0 51%,
+                transparent 51%,
+                transparent 100%
+            );
+            background-size: 100% 100%;
+        }
+        
+        .task-bar {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 30px;
+            border-radius: 6px;
+            cursor: move;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 500;
+            font-size: 0.85rem;
+            user-select: none;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            min-width: 20px;
+            z-index: 5;
+            overflow: hidden;
+        }
+        
+        .task-bar:hover {
+            transform: translateY(-50%) scale(1.02);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .task-bar.dragging {
+            opacity: 0.9;
+            z-index: 1000;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
+        }
+        
+        .phase-bar {
+            position: absolute;
+            top: 10px;
+            height: 15px;
+            border-radius: 4px;
+            opacity: 0.7;
+            z-index: 2;
+            pointer-events: none;
+        }
+        
+        .resize-handle {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 8px;
+            background: rgba(255, 255, 255, 0.5);
+            cursor: ew-resize;
+            transition: background 0.2s;
+        }
+        
+        .resize-handle:hover, .resize-handle.active {
+            background: rgba(255, 255, 255, 0.9);
+        }
+        
+        .resize-left {
+            left: 0;
+        }
+        
+        .resize-right {
+            right: 0;
+        }
+        
+        /* Column resize handle */
+        .col-resize-handle {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 10px;
+            height: 100%;
+            cursor: col-resize;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.2s;
+            background: transparent;
+        }
+        
+        .col-resize-handle:hover, .col-resize-handle.resizing {
+            opacity: 1;
+            background: #667eea;
+        }
+        
+        .date-header:hover .col-resize-handle {
+            opacity: 0.3;
+        }
+        
+        /* Phase grouping */
+        .phase-row {
+            background: #e9ecef !important;
+            font-weight: 600;
+            color: #495057;
+            font-size: 1rem;
+        }
+        
+        .phase-row td {
+            padding: 18px 10px;
+            border-bottom: 2px solid #dee2e6;
+        }
+        
+        /* Phase colors */
+        .phase-1 { background: linear-gradient(135deg, #ff7e5f, #feb47b); }
+        .phase-2 { background: linear-gradient(135deg, #4ecdc4, #44a08d); }
+        .phase-3 { background: linear-gradient(135deg, #4776e6, #8e54e9); }
+        .phase-4 { background: linear-gradient(135deg, #da22ff, #9733ee); }
+        .phase-5 { background: linear-gradient(135deg, #ff8008, #ffc837); }
+        
+        /* Phase bar colors */
+        .phase-bar-1 { background: linear-gradient(135deg, #ff7e5f, #feb47b); }
+        .phase-bar-2 { background: linear-gradient(135deg, #4ecdc4, #44a08d); }
+        .phase-bar-3 { background: linear-gradient(135deg, #4776e6, #8e54e9); }
+        .phase-bar-4 { background: linear-gradient(135deg, #da22ff, #9733ee); }
+        .phase-bar-5 { background: linear-gradient(135deg, #ff8008, #ffc837); }
+        
+        /* Task bar colors use same as phases */
+        .phase-1 .task-bar { background: linear-gradient(135deg, #ff7e5f, #feb47b); }
+        .phase-2 .task-bar { background: linear-gradient(135deg, #4ecdc4, #44a08d); }
+        .phase-3 .task-bar { background: linear-gradient(135deg, #4776e6, #8e54e9); }
+        .phase-4 .task-bar { background: linear-gradient(135deg, #da22ff, #9733ee); }
+        .phase-5 .task-bar { background: linear-gradient(135deg, #ff8008, #ffc837); }
+        
+        /* Editing interface */
+        .editing-panel {
+            position: fixed;
+            right: 20px;
+            top: 100px;
+            width: 300px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+            padding: 20px;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .editing-panel.show {
+            display: block;
+        }
+        
+        .editing-panel h3 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 0.9rem;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+        
+        .duration-input {
+            display: flex;
+            align-items: center;
+        }
+        
+        .duration-input input {
+            flex: 1;
+            margin-right: 10px;
+        }
+        
+        .duration-unit {
+            white-space: nowrap;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .color-options {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .color-option {
+            width: 25px;
+            height: 25px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        
+        .color-option.selected {
+            border-color: #333;
+        }
+        
+        .font-size-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 8px;
+        }
+        
+        .font-size-controls button {
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            background: #f0f2f5;
+            color: #333;
+            border: 1px solid #ddd;
+            font-size: 1rem;
+            font-weight: bold;
+        }
+        
+        .font-size-controls button:hover {
+            background: #e0e2e5;
+        }
+        
+        .date-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            pointer-events: none;
+        }
+        
+        .date-cell {
+            flex: 1;
+            border-right: 1px solid #e1e5e9;
+            position: relative;
+        }
+        
+        .date-label {
+            position: absolute;
+            top: -35px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #666;
+            font-weight: 500;
+            pointer-events: all;
+            cursor: pointer;
+            padding: 5px;
+            background: white;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        
+        .date-label:hover {
+            background: #f0f0f0;
+        }
+        
+        /* Status bar */
+        .status-bar {
+            background: #f8f9fa;
+            padding: 12px 20px;
+            font-size: 0.85rem;
+            color: #666;
+            border-top: 1px solid #e1e5e9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        
+        #statusInfo {
+            font-weight: 500;
+        }
+        
+        #positionInfo {
+            color: #667eea;
+            font-weight: 500;
+        }
+        
+        /* Help overlay */
+        .help-overlay {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 3px 15px rgba(0, 0, 0, 0.1);
+            font-size: 0.85rem;
+            color: #666;
+            z-index: 100;
+            max-width: 300px;
+        }
+        
+        .help-overlay h4 {
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+        
+        .help-overlay ul {
+            padding-left: 20px;
+        }
+        
+        .help-overlay li {
+            margin-bottom: 5px;
+        }
+        
+        /* Date manipulation controls */
+        .date-manipulation {
+            position: absolute;
+            top: -25px;
+            right: 5px;
+            display: flex;
+            gap: 4px;
+        }
+        
+        .date-btn {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            border: none;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .date-btn:hover {
+            background: #764ba2;
+            transform: scale(1.1);
+        }
+        
+        /* Timeline settings panel */
+        .timeline-settings {
+            position: fixed;
+            left: 20px;
+            top: 100px;
+            width: 300px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+            padding: 20px;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .timeline-settings.show {
+            display: block;
+        }
+        
+        .date-range-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .date-range-controls input {
+            flex: 1;
+        }
+        
+        .interval-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .interval-controls button {
+            flex: 1;
+            background: #f0f2f5;
+            color: #333;
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        
+        .interval-controls button.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        /* Action buttons */
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .action-buttons button {
+            flex: 1;
+            padding: 10px;
+            font-weight: 500;
+        }
+        
+        .btn-ok {
+            background: #4CAF50 !important;
+            border-color: #4CAF50 !important;
+            color: white !important;
+        }
+        
+        .btn-cancel {
+            background: #f44336 !important;
+            border-color: #f44336 !important;
+            color: white !important;
+        }
+        
+        .btn-delete {
+            background: #ff416c !important;
+            border-color: #ff416c !important;
+            color: white !important;
+        }
+        
+        /* View mode indicators */
+        .view-mode-indicator {
+            display: inline-block;
+            padding: 4px 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin-left: 10px;
+        }
+        
+        /* Task name font size */
+        .task-name-size {
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📅 Full-Page Tabular Gantt Chart</h1>
+            <div class="controls">
+                <button onclick="autoArrange()">Auto Arrange</button>
+                <button onclick="exportData()">Export</button>
+                <button onclick="importData()">Import</button>
+                <button class="primary" onclick="addNewTask()">Add Task</button>
+                <button onclick="fitToDates()">Fit to Dates</button>
+                <button onclick="showTimelineSettings()">Timeline Settings</button>
+                <div class="timeline-controls">
+                    <select id="intervalSelect" onchange="changeTimelineInterval(this.value)">
+                        <option value="daily">Daily View</option>
+                        <option value="weekly">Weekly View</option>
+                        <option value="biweekly">Bi-weekly View</option>
+                        <option value="monthly">Monthly View</option>
+                    </select>
+                    <button onclick="addMultipleDays()">Add 7 Days</button>
+                </div>
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <table class="gantt-table" id="ganttTable">
+                <thead>
+                    <tr>
+                        <th class="task-column">Tasks / Phases</th>
+                        <!-- Dates will be inserted here dynamically -->
+                    </tr>
+                </thead>
+                <tbody id="ganttBody">
+                    <!-- Tasks will be inserted here dynamically -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="status-bar">
+            <div id="statusInfo">Click a task to edit | Drag to move | Resize handles to adjust duration</div>
+            <div id="positionInfo">Position: -- | Duration: --</div>
+        </div>
+    </div>
+    
+    <!-- Editing Panel -->
+    <div class="editing-panel" id="editPanel">
+        <h3>Edit Task</h3>
+        <div class="form-group">
+            <label>Task Name</label>
+            <input type="text" id="editTaskName">
+            <div class="font-size-controls">
+                <label style="margin-bottom: 0;">Font Size:</label>
+                <button onclick="adjustTaskFontSize(-1)">A-</button>
+                <button onclick="adjustTaskFontSize(1)">A+</button>
+                <span id="fontSizeDisplay" style="font-size: 0.9rem; color: #666;">0.85rem</span>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Start Date</label>
+            <select id="editStartDate">
+                <!-- Options will be populated -->
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Duration</label>
+            <div class="duration-input">
+                <input type="number" id="editDuration" min="1" value="1">
+                <div class="duration-unit">days</div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>End Date</label>
+            <div class="duration-input">
+                <select id="editEndDate">
+                    <!-- Options will be populated -->
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Phase</label>
+            <select id="editPhase">
+                <option value="1">Phase 1: Project Initiation & Planning</option>
+                <option value="2">Phase 2: Frontend Design & Structuring</option>
+                <option value="3">Phase 3: Core Implementation</option>
+                <option value="4">Phase 4: Feature Enhancement & Refinement</option>
+                <option value="5">Phase 5: Quality Assurance</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Color</label>
+            <div class="color-options">
+                <div class="color-option selected" style="background: linear-gradient(135deg, #ff7e5f, #feb47b);" onclick="setTaskColor(1)"></div>
+                <div class="color-option" style="background: linear-gradient(135deg, #4ecdc4, #44a08d);" onclick="setTaskColor(2)"></div>
+                <div class="color-option" style="background: linear-gradient(135deg, #4776e6, #8e54e9);" onclick="setTaskColor(3)"></div>
+                <div class="color-option" style="background: linear-gradient(135deg, #da22ff, #9733ee);" onclick="setTaskColor(4)"></div>
+                <div class="color-option" style="background: linear-gradient(135deg, #ff8008, #ffc837);" onclick="setTaskColor(5)"></div>
+            </div>
+        </div>
+        <div class="action-buttons">
+            <button class="btn-ok" onclick="saveTaskChanges()">OK</button>
+            <button class="btn-cancel" onclick="cancelEdit()">Cancel</button>
+            <button class="btn-delete" onclick="deleteTask()">Delete</button>
+        </div>
+    </div>
+    
+    <!-- Timeline Settings Panel -->
+    <div class="timeline-settings" id="timelineSettings">
+        <h3>Timeline Settings</h3>
+        <div class="form-group">
+            <label>Start Date</label>
+            <input type="date" id="timelineStartDate" value="2025-09-21">
+        </div>
+        <div class="form-group">
+            <label>Number of Days</label>
+            <input type="number" id="timelineDays" min="1" max="365" value="30">
+        </div>
+        <div class="form-group">
+            <label>View Mode</label>
+            <div class="interval-controls">
+                <button onclick="setViewMode('daily')" class="active">Daily</button>
+                <button onclick="setViewMode('weekly')">Weekly</button>
+                <button onclick="setViewMode('biweekly')">Bi-weekly</button>
+                <button onclick="setViewMode('monthly')">Monthly</button>
+            </div>
+        </div>
+        <div class="form-group">
+            <button onclick="generateTimeline()" style="background: #667eea; color: white; width: 100%; padding: 10px; margin-top: 10px;">
+                Generate Timeline
+            </button>
+        </div>
+        <div class="form-group">
+            <button onclick="addMultipleDays()" style="background: #00c9ff; color: white; width: 100%; padding: 10px;">
+                Add 7 Days to End
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Data structure
+        const ganttData = {
+            dates: [
+                "21/09/2025", "22/09/2025", "23/09/2025", "24/09/2025", 
+                "25/09/2025", "26/09/2025", "27/09/2025", "28/09/2025",
+                "29/09/2025", "30/09/2025", "01/10/2025", "02/10/2025",
+                "03/10/2025", "04/10/2025", "05/10/2025", "06/10/2025"
+            ],
+            viewMode: "daily", // daily, weekly, biweekly, monthly
+            columnWidths: {}, // Store custom column widths
+            taskFontSize: 0.85, // Default font size in rem
+            phases: [
+                {
+                    id: 1,
+                    name: "Phase 1: Project Initiation & Planning",
+                    color: 1,
+                    tasks: [
+                        { id: 1, name: "Project Ideation & Scope Definition", startDate: 0, endDate: 2, phase: 1, fontSize: 0.85 },
+                        { id: 2, name: "Repository Setup & Initial Configuration", startDate: 1, endDate: 3, phase: 1, fontSize: 0.85 },
+                        { id: 3, name: "Requirement Documentation & Planning", startDate: 2, endDate: 4, phase: 1, fontSize: 0.85 }
+                    ]
+                },
+                {
+                    id: 2,
+                    name: "Phase 2: Frontend Design & Structuring",
+                    color: 2,
+                    tasks: [
+                        { id: 4, name: "Landing Page & Core Navigation Design", startDate: 5, endDate: 7, phase: 2, fontSize: 0.85 },
+                        { id: 5, name: "Authentication & Security UI Design", startDate: 6, endDate: 8, phase: 2, fontSize: 0.85 }
+                    ]
+                },
+                {
+                    id: 3,
+                    name: "Phase 3: Core Implementation",
+                    color: 3,
+                    tasks: [
+                        { id: 6, name: "User Profile System (v1 to v3)", startDate: 7, endDate: 10, phase: 3, fontSize: 0.85 },
+                        { id: 7, name: "Peer Teams Module", startDate: 8, endDate: 11, phase: 3, fontSize: 0.85 },
+                        { id: 8, name: "Project & Task Management Module Development", startDate: 9, endDate: 12, phase: 3, fontSize: 0.85 }
+                    ]
+                },
+                {
+                    id: 4,
+                    name: "Phase 4: Feature Enhancement & Refinement",
+                    color: 4,
+                    tasks: [
+                        { id: 9, name: "Task Interaction & Edit Functionality Enhancement", startDate: 11, endDate: 13, phase: 4, fontSize: 0.85 },
+                        { id: 10, name: "Sticky Note Editor Integration & Proofing Tools", startDate: 12, endDate: 14, phase: 4, fontSize: 0.85 }
+                    ]
+                },
+                {
+                    id: 5,
+                    name: "Phase 5: Quality Assurance",
+                    color: 5,
+                    tasks: [
+                        { id: 11, name: "Theme & Layout Files", startDate: 13, endDate: 14, phase: 5, fontSize: 0.85 },
+                        { id: 12, name: "User Guide Tour & Final Polish", startDate: 14, endDate: 15, phase: 5, fontSize: 0.85 }
+                    ]
+                }
+            ],
+            selectedTask: null
+        };
+
+        // Drag state
+        let dragState = {
+            active: null,
+            isDragging: false,
+            isResizing: false,
+            isColumnResizing: false,
+            resizeSide: null,
+            startX: 0,
+            startLeft: 0,
+            startWidth: 0,
+            resizingColumn: null,
+            startColumnWidth: 0,
+            startColumnX: 0
+        };
+
+        // Initialize
+        function init() {
+            renderGantt();
+            setupEventListeners();
+            loadFromStorage();
+            updateFontSizeDisplay();
+            
+            // Auto-fit on load
+            setTimeout(fitToDates, 100);
+        }
+
+        function renderGantt() {
+            const table = document.getElementById('ganttTable');
+            const tbody = document.getElementById('ganttBody');
+            
+            // Clear existing content
+            table.querySelector('thead tr').innerHTML = '<th class="task-column">Tasks / Phases</th>';
+            tbody.innerHTML = '';
+            
+            // Add date headers with manipulation controls
+            ganttData.dates.forEach((date, index) => {
+                const th = document.createElement('th');
+                th.className = 'date-header';
+                th.setAttribute('data-date-index', index);
+                
+                // Parse date for display based on view mode
+                const dateObj = parseDate(date);
+                let displayText = '';
+                let dayName = '';
+                
+                if (dateObj) {
+                    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    
+                    if (ganttData.viewMode === 'daily') {
+                        displayText = dateObj.getDate();
+                        dayName = dayNames[dateObj.getDay()];
+                    } else if (ganttData.viewMode === 'weekly') {
+                        // For weekly view, show the date (since each column still represents a day)
+                        displayText = dateObj.getDate();
+                        dayName = dayNames[dateObj.getDay()];
+                    } else if (ganttData.viewMode === 'biweekly') {
+                        displayText = dateObj.getDate();
+                        dayName = dayNames[dateObj.getDay()];
+                    } else { // monthly
+                        // For monthly view, group by month
+                        const monthStartIndex = Math.floor(index / 30) * 30;
+                        if (index === monthStartIndex) {
+                            displayText = monthNames[dateObj.getMonth()];
+                            dayName = dateObj.getFullYear();
+                        } else {
+                            displayText = '';
+                            dayName = '';
+                        }
+                    }
+                }
+                
+                th.innerHTML = `
+                    <div class="date-header-content">
+                        <div class="date-header-main">${displayText}</div>
+                        <div class="date-header-day">${dayName}</div>
+                    </div>
+                    <div class="date-manipulation">
+                        <button class="date-btn" onclick="removeDate(${index})" title="Remove period">−</button>
+                        <button class="date-btn" onclick="insertDateBefore(${index})" title="Insert period before">+</button>
+                    </div>
+                    <div class="col-resize-handle" onmousedown="startColumnResize(event, ${index})"></div>
+                `;
+                
+                // Apply custom width if exists
+                if (ganttData.columnWidths[index]) {
+                    th.style.width = `${ganttData.columnWidths[index]}px`;
+                    th.style.minWidth = `${ganttData.columnWidths[index]}px`;
+                } else {
+                    // Set default width based on view mode
+                    const defaultWidth = ganttData.viewMode === 'daily' ? 80 : 
+                                       ganttData.viewMode === 'weekly' ? 60 : 
+                                       ganttData.viewMode === 'biweekly' ? 50 : 40;
+                    th.style.width = `${defaultWidth}px`;
+                    th.style.minWidth = `${defaultWidth}px`;
+                }
+                
+                // Make date clickable for editing
+                th.onclick = (e) => {
+                    if (!e.target.classList.contains('date-btn') && 
+                        !e.target.classList.contains('col-resize-handle')) {
+                        editDate(index);
+                    }
+                };
+                
+                // Add date as title for hover
+                th.title = date;
+                
+                table.querySelector('thead tr').appendChild(th);
+            });
+            
+            // Add insert button at the end
+            const endTh = document.createElement('th');
+            endTh.className = 'date-header';
+            endTh.style.minWidth = '50px';
+            endTh.style.background = '#e9ecef';
+            endTh.innerHTML = `
+                <button class="date-btn" onclick="addDateAtEnd()" style="margin: 0 auto;" title="Add period at end">+</button>
+            `;
+            table.querySelector('thead tr').appendChild(endTh);
+            
+            // Add phases and tasks
+            ganttData.phases.forEach(phase => {
+                // Calculate phase start and end dates
+                const phaseStartDate = Math.min(...phase.tasks.map(t => t.startDate));
+                const phaseEndDate = Math.max(...phase.tasks.map(t => t.endDate));
+                
+                // Add phase row
+                const phaseRow = document.createElement('tr');
+                phaseRow.className = 'phase-row';
+                phaseRow.innerHTML = `
+                    <td class="task-cell">${phase.name}</td>
+                    <td colspan="${ganttData.dates.length + 1}" style="position: relative;">
+                        <div class="date-grid"></div>
+                    </td>
+                `;
+                tbody.appendChild(phaseRow);
+                
+                // Add phase bar to the phase row
+                const phaseBar = document.createElement('div');
+                phaseBar.className = `phase-bar phase-bar-${phase.color}`;
+                
+                const startPercent = (phaseStartDate / ganttData.dates.length) * 100;
+                const phaseDuration = phaseEndDate - phaseStartDate + 1;
+                const widthPercent = (phaseDuration / ganttData.dates.length) * 100;
+                
+                phaseBar.style.left = `${startPercent}%`;
+                phaseBar.style.width = `${widthPercent}%`;
+                
+                phaseRow.querySelector('td:last-child').appendChild(phaseBar);
+                
+                // Add tasks for this phase
+                phase.tasks.forEach(task => {
+                    const taskRow = document.createElement('tr');
+                    taskRow.className = `task-row phase-${task.phase}`;
+                    taskRow.setAttribute('data-task-id', task.id);
+                    
+                    // Task name cell
+                    const taskCell = document.createElement('td');
+                    taskCell.className = 'task-cell';
+                    taskCell.textContent = task.name;
+                    taskCell.style.fontSize = `${task.fontSize}rem`;
+                    taskCell.onclick = () => selectTask(task.id);
+                    
+                    // Timeline cell
+                    const timelineCell = document.createElement('td');
+                    timelineCell.className = 'date-cell';
+                    timelineCell.colSpan = ganttData.dates.length + 1;
+                    
+                    // Create date grid
+                    const dateGrid = document.createElement('div');
+                    dateGrid.className = 'date-grid';
+                    for (let i = 0; i <= ganttData.dates.length; i++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'date-cell';
+                        // Apply width to grid cells
+                        if (ganttData.columnWidths[i]) {
+                            cell.style.flex = `0 0 ${ganttData.columnWidths[i]}px`;
+                        }
+                        dateGrid.appendChild(cell);
+                    }
+                    
+                    // Create task bar - ALWAYS BASED ON DAYS
+                    const startPercent = (task.startDate / ganttData.dates.length) * 100;
+                    const duration = task.endDate - task.startDate + 1;
+                    const widthPercent = (duration / ganttData.dates.length) * 100;
+                    
+                    const taskBar = document.createElement('div');
+                    taskBar.className = 'task-bar';
+                    taskBar.setAttribute('data-task-id', task.id);
+                    taskBar.style.left = `${startPercent}%`;
+                    taskBar.style.width = `${widthPercent}%`;
+                    taskBar.style.background = getColorGradient(task.phase);
+                    taskBar.style.fontSize = `${task.fontSize}rem`;
+                    
+                    taskBar.innerHTML = `
+                        <div class="resize-handle resize-left"></div>
+                        <div style="padding: 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            ${task.name}
+                        </div>
+                        <div class="resize-handle resize-right"></div>
+                    `;
+                    
+                    // Add drag events
+                    taskBar.onmousedown = (e) => startDrag(e, task, taskBar);
+                    taskBar.querySelector('.resize-left').onmousedown = (e) => startResize(e, task, taskBar, 'left');
+                    taskBar.querySelector('.resize-right').onmousedown = (e) => startResize(e, task, taskBar, 'right');
+                    
+                    timelineCell.appendChild(dateGrid);
+                    timelineCell.appendChild(taskBar);
+                    
+                    taskRow.appendChild(taskCell);
+                    taskRow.appendChild(timelineCell);
+                    tbody.appendChild(taskRow);
+                });
+            });
+            
+            updateDateOptions();
+            updateViewModeIndicator();
+        }
+
+        function setupEventListeners() {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            
+            // Close panels when clicking outside
+            document.addEventListener('click', (e) => {
+                const editPanel = document.getElementById('editPanel');
+                const timelineSettings = document.getElementById('timelineSettings');
+                
+                if (editPanel.classList.contains('show') && 
+                    !editPanel.contains(e.target) && 
+                    !e.target.closest('.task-bar') && 
+                    !e.target.closest('.task-cell')) {
+                    cancelEdit();
+                }
+                
+                if (timelineSettings.classList.contains('show') && 
+                    !timelineSettings.contains(e.target) && 
+                    !e.target.closest('[onclick="showTimelineSettings()"]')) {
+                    timelineSettings.classList.remove('show');
+                }
+            });
+        }
+
+        function startColumnResize(e, columnIndex) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            dragState.isColumnResizing = true;
+            dragState.resizingColumn = columnIndex;
+            dragState.startX = e.clientX;
+            
+            const th = document.querySelector(`th[data-date-index="${columnIndex}"]`);
+            dragState.startColumnWidth = th.offsetWidth;
+            
+            // Add resizing class
+            th.querySelector('.col-resize-handle').classList.add('resizing');
+        }
+
+        function startDrag(e, task, taskBar) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            dragState.active = task;
+            dragState.isDragging = true;
+            dragState.startX = e.clientX;
+            dragState.startLeft = parseFloat(taskBar.style.left);
+            
+            taskBar.classList.add('dragging');
+            selectTask(task.id);
+        }
+
+        function startResize(e, task, taskBar, side) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            dragState.active = task;
+            dragState.isResizing = true;
+            dragState.resizeSide = side;
+            dragState.startX = e.clientX;
+            dragState.startLeft = parseFloat(taskBar.style.left);
+            dragState.startWidth = parseFloat(taskBar.style.width);
+            
+            taskBar.classList.add('dragging');
+            selectTask(task.id);
+        }
+
+        function handleMouseMove(e) {
+            if (dragState.isColumnResizing && dragState.resizingColumn !== null) {
+                const deltaX = e.clientX - dragState.startX;
+                const newWidth = Math.max(30, Math.min(300, dragState.startColumnWidth + deltaX));
+                
+                const th = document.querySelector(`th[data-date-index="${dragState.resizingColumn}"]`);
+                th.style.width = `${newWidth}px`;
+                th.style.minWidth = `${newWidth}px`;
+                
+                // Update all corresponding cells
+                const cells = document.querySelectorAll(`td.date-cell`);
+                cells.forEach(cell => {
+                    const gridCell = cell.querySelector(`.date-grid > .date-cell:nth-child(${dragState.resizingColumn + 1})`);
+                    if (gridCell) {
+                        gridCell.style.flex = `0 0 ${newWidth}px`;
+                    }
+                });
+                
+                // Store the custom width
+                ganttData.columnWidths[dragState.resizingColumn] = newWidth;
+                
+            } else if (dragState.active) {
+                const timelineCell = document.querySelector(`.task-bar[data-task-id="${dragState.active.id}"]`).parentElement;
+                const timelineWidth = timelineCell.offsetWidth;
+                const deltaX = e.clientX - dragState.startX;
+                const deltaPercent = (deltaX / timelineWidth) * 100;
+                
+                const taskBar = document.querySelector(`.task-bar[data-task-id="${dragState.active.id}"]`);
+                const dateCount = ganttData.dates.length;
+                const dateWidth = 100 / dateCount;
+                
+                if (dragState.isDragging) {
+                    let newLeft = dragState.startLeft + deltaPercent;
+                    newLeft = Math.max(0, Math.min(newLeft, 100 - parseFloat(taskBar.style.width)));
+                    
+                    // Snap to grid based on view mode
+                    let snapUnit = dateWidth;
+                    if (ganttData.viewMode === 'weekly') {
+                        snapUnit = dateWidth * 7; // Snap to weeks
+                    } else if (ganttData.viewMode === 'biweekly') {
+                        snapUnit = dateWidth * 14; // Snap to bi-weeks
+                    } else if (ganttData.viewMode === 'monthly') {
+                        snapUnit = dateWidth * 30; // Snap to months (approx)
+                    }
+                    
+                    const dateIndex = Math.round(newLeft / snapUnit);
+                    newLeft = dateIndex * snapUnit;
+                    
+                    taskBar.style.left = `${newLeft}%`;
+                    
+                    // Update task dates (in DAYS regardless of view mode)
+                    dragState.active.startDate = Math.floor(newLeft / dateWidth);
+                    const duration = Math.round(parseFloat(taskBar.style.width) / dateWidth);
+                    dragState.active.endDate = dragState.active.startDate + duration - 1;
+                    
+                    // Constrain to timeline bounds
+                    if (dragState.active.endDate >= dateCount) {
+                        dragState.active.endDate = dateCount - 1;
+                        const newDuration = dragState.active.endDate - dragState.active.startDate + 1;
+                        taskBar.style.width = `${newDuration * dateWidth}%`;
+                    }
+                    
+                    updatePositionInfo();
+                } else if (dragState.isResizing) {
+                    if (dragState.resizeSide === 'left') {
+                        let newLeft = dragState.startLeft + deltaPercent;
+                        
+                        // Snap to grid based on view mode
+                        let snapUnit = dateWidth;
+                        if (ganttData.viewMode === 'weekly') {
+                            snapUnit = dateWidth * 7;
+                        } else if (ganttData.viewMode === 'biweekly') {
+                            snapUnit = dateWidth * 14;
+                        } else if (ganttData.viewMode === 'monthly') {
+                            snapUnit = dateWidth * 30;
+                        }
+                        
+                        const dateIndex = Math.round(newLeft / snapUnit);
+                        newLeft = Math.max(0, dateIndex * snapUnit);
+                        
+                        // Calculate new duration
+                        const newWidth = dragState.startWidth + (dragState.startLeft - newLeft);
+                        const minWidth = dateWidth; // Minimum 1 day
+                        
+                        if (newWidth >= minWidth && newLeft >= 0) {
+                            taskBar.style.left = `${newLeft}%`;
+                            taskBar.style.width = `${newWidth}%`;
+                            
+                            // Update task dates (in DAYS)
+                            dragState.active.startDate = Math.floor(newLeft / dateWidth);
+                            const duration = Math.round(newWidth / dateWidth);
+                            dragState.active.endDate = dragState.active.startDate + duration - 1;
+                        }
+                    } else {
+                        let newWidth = dragState.startWidth + deltaPercent;
+                        
+                        // Snap to grid based on view mode
+                        let snapUnit = dateWidth;
+                        if (ganttData.viewMode === 'weekly') {
+                            snapUnit = dateWidth * 7;
+                        } else if (ganttData.viewMode === 'biweekly') {
+                            snapUnit = dateWidth * 14;
+                        } else if (ganttData.viewMode === 'monthly') {
+                            snapUnit = dateWidth * 30;
+                        }
+                        
+                        const dateIndex = Math.round((dragState.startLeft + newWidth) / snapUnit);
+                        const maxWidth = 100 - dragState.startLeft;
+                        newWidth = Math.min(maxWidth, Math.max(dateWidth, (dateIndex * snapUnit) - dragState.startLeft));
+                        
+                        taskBar.style.width = `${newWidth}%`;
+                        
+                        // Update task dates (in DAYS)
+                        const duration = Math.round(newWidth / dateWidth);
+                        dragState.active.endDate = dragState.active.startDate + duration - 1;
+                    }
+                    updatePositionInfo();
+                }
+            }
+        }
+
+        function handleMouseUp() {
+            if (dragState.isColumnResizing) {
+                const th = document.querySelector(`th[data-date-index="${dragState.resizingColumn}"]`);
+                if (th) {
+                    th.querySelector('.col-resize-handle').classList.remove('resizing');
+                }
+                saveToStorage();
+            } else if (dragState.active) {
+                const taskBar = document.querySelector(`.task-bar[data-task-id="${dragState.active.id}"]`);
+                if (taskBar) taskBar.classList.remove('dragging');
+                
+                // Ensure end date is not before start date
+                if (dragState.active.endDate < dragState.active.startDate) {
+                    dragState.active.endDate = dragState.active.startDate;
+                }
+                
+                // Ensure dates are within bounds
+                const dateCount = ganttData.dates.length;
+                dragState.active.startDate = Math.max(0, Math.min(dragState.active.startDate, dateCount - 1));
+                dragState.active.endDate = Math.max(0, Math.min(dragState.active.endDate, dateCount - 1));
+                
+                updateTaskBar(dragState.active);
+                saveToStorage();
+                updatePositionInfo();
+                updateEditForm();
+            }
+            
+            dragState.active = null;
+            dragState.isDragging = false;
+            dragState.isResizing = false;
+            dragState.isColumnResizing = false;
+            dragState.resizeSide = null;
+            dragState.resizingColumn = null;
+        }
+
+        function selectTask(taskId) {
+            ganttData.selectedTask = taskId;
+            const task = getTaskById(taskId);
+            
+            if (task) {
+                // Show edit panel
+                document.getElementById('editPanel').classList.add('show');
+                
+                // Populate edit form
+                updateEditForm();
+                
+                // Update color options
+                document.querySelectorAll('.color-option').forEach((opt, index) => {
+                    opt.classList.toggle('selected', index === task.phase - 1);
+                });
+                
+                // Update font size display
+                document.getElementById('fontSizeDisplay').textContent = `${task.fontSize}rem`;
+                
+                // Update status
+                document.getElementById('statusInfo').textContent = `Editing: ${task.name}`;
+                updatePositionInfo();
+                
+                // Highlight task row
+                document.querySelectorAll('.task-row').forEach(row => {
+                    row.style.background = '';
+                });
+                const taskRow = document.querySelector(`tr[data-task-id="${taskId}"]`);
+                if (taskRow) {
+                    taskRow.style.background = '#f0f7ff';
+                }
+            }
+        }
+
+        function updateEditForm() {
+            const task = getTaskById(ganttData.selectedTask);
+            if (!task) return;
+            
+            document.getElementById('editTaskName').value = task.name;
+            document.getElementById('editStartDate').value = task.startDate;
+            document.getElementById('editEndDate').value = task.endDate;
+            document.getElementById('editPhase').value = task.phase;
+            
+            // Calculate and update duration (ALWAYS in days)
+            const duration = task.endDate - task.startDate + 1;
+            document.getElementById('editDuration').value = duration;
+            
+            // Update font size display
+            document.getElementById('fontSizeDisplay').textContent = `${task.fontSize}rem`;
+        }
+
+        function saveTaskChanges() {
+            const task = getTaskById(ganttData.selectedTask);
+            if (!task) return;
+            
+            // Get values from form
+            const name = document.getElementById('editTaskName').value;
+            const startDate = parseInt(document.getElementById('editStartDate').value);
+            const duration = parseInt(document.getElementById('editDuration').value);
+            const phase = parseInt(document.getElementById('editPhase').value);
+            
+            // Validate
+            if (!name.trim()) {
+                alert("Task name cannot be empty!");
+                return;
+            }
+            
+            if (duration < 1) {
+                alert("Duration must be at least 1 day!");
+                return;
+            }
+            
+            // Calculate end date based on duration (in DAYS)
+            const endDate = startDate + duration - 1;
+            
+            // Ensure dates are within bounds
+            const maxDate = ganttData.dates.length - 1;
+            if (startDate < 0 || startDate > maxDate) {
+                alert("Start date is out of range!");
+                return;
+            }
+            
+            if (endDate > maxDate) {
+                alert("End date exceeds timeline! Adjusting duration.");
+                const adjustedDuration = maxDate - startDate + 1;
+                document.getElementById('editDuration').value = adjustedDuration;
+                task.endDate = maxDate;
+            } else {
+                task.endDate = endDate;
+            }
+            
+            // Update task
+            task.name = name;
+            task.startDate = startDate;
+            task.phase = phase;
+            // Keep existing fontSize
+            
+            // Update UI and save
+            updateTaskBar(task);
+            saveToStorage();
+            renderGantt();
+            selectTask(task.id); // Re-select to update UI
+            
+            document.getElementById('statusInfo').textContent = "Task saved successfully!";
+        }
+
+        function adjustTaskFontSize(change) {
+            const task = getTaskById(ganttData.selectedTask);
+            if (!task) return;
+            
+            // Update font size (limit between 0.6rem and 1.5rem)
+            task.fontSize = Math.max(0.6, Math.min(1.5, task.fontSize + (change * 0.05)));
+            
+            // Update display
+            document.getElementById('fontSizeDisplay').textContent = `${task.fontSize.toFixed(2)}rem`;
+            
+            // Update task bar immediately for preview
+            const taskBar = document.querySelector(`.task-bar[data-task-id="${task.id}"]`);
+            if (taskBar) {
+                taskBar.style.fontSize = `${task.fontSize}rem`;
+            }
+            
+            // Update task cell
+            const taskCell = document.querySelector(`tr[data-task-id="${task.id}"] .task-cell`);
+            if (taskCell) {
+                taskCell.style.fontSize = `${task.fontSize}rem`;
+            }
+        }
+
+        function updateFontSizeDisplay() {
+            const task = getTaskById(ganttData.selectedTask);
+            if (task) {
+                document.getElementById('fontSizeDisplay').textContent = `${task.fontSize.toFixed(2)}rem`;
+            }
+        }
+
+        function cancelEdit() {
+            document.getElementById('editPanel').classList.remove('show');
+            ganttData.selectedTask = null;
+            
+            // Remove highlight from task row
+            document.querySelectorAll('.task-row').forEach(row => {
+                row.style.background = '';
+            });
+            
+            document.getElementById('statusInfo').textContent = "Click a task to edit | Drag to move | Resize handles to adjust duration";
+        }
+
+        function deleteTask() {
+            if (ganttData.selectedTask && confirm('Are you sure you want to delete this task?')) {
+                for (const phase of ganttData.phases) {
+                    const index = phase.tasks.findIndex(t => t.id === ganttData.selectedTask);
+                    if (index !== -1) {
+                        phase.tasks.splice(index, 1);
+                        break;
+                    }
+                }
+                
+                cancelEdit();
+                renderGantt();
+                saveToStorage();
+            }
+        }
+
+        function setTaskColor(colorIndex) {
+            const task = getTaskById(ganttData.selectedTask);
+            if (task) {
+                document.getElementById('editPhase').value = colorIndex;
+                
+                // Update color options UI
+                document.querySelectorAll('.color-option').forEach((opt, index) => {
+                    opt.classList.toggle('selected', index === colorIndex - 1);
+                });
+            }
+        }
+
+        function updateTaskBar(task) {
+            const taskBar = document.querySelector(`.task-bar[data-task-id="${task.id}"]`);
+            if (taskBar) {
+                const dateCount = ganttData.dates.length;
+                const startPercent = (task.startDate / dateCount) * 100;
+                const duration = task.endDate - task.startDate + 1;
+                const widthPercent = (duration / dateCount) * 100;
+                
+                taskBar.style.left = `${startPercent}%`;
+                taskBar.style.width = `${widthPercent}%`;
+                taskBar.style.background = getColorGradient(task.phase);
+                taskBar.style.fontSize = `${task.fontSize}rem`;
+                
+                // Update task name in bar
+                const nameDiv = taskBar.querySelector('div:not(.resize-handle)');
+                if (nameDiv) {
+                    nameDiv.textContent = task.name;
+                }
+            }
+        }
+
+        function updatePositionInfo() {
+            const task = getTaskById(ganttData.selectedTask);
+            if (task) {
+                const startDate = ganttData.dates[task.startDate] || 'N/A';
+                const endDate = ganttData.dates[task.endDate] || 'N/A';
+                const duration = task.endDate - task.startDate + 1;
+                
+                // Always show duration in days, but also show weeks if applicable
+                let durationText = `${duration} day${duration !== 1 ? 's' : ''}`;
+                if (duration >= 7) {
+                    const weeks = Math.floor(duration / 7);
+                    const days = duration % 7;
+                    if (weeks > 0) {
+                        durationText = `${weeks} week${weeks !== 1 ? 's' : ''}`;
+                        if (days > 0) {
+                            durationText += ` ${days} day${days !== 1 ? 's' : ''}`;
+                        }
+                    }
+                }
+                
+                document.getElementById('positionInfo').textContent = 
+                    `Start: ${startDate} | End: ${endDate} | Duration: ${durationText}`;
+            }
+        }
+
+        function getTaskById(id) {
+            for (const phase of ganttData.phases) {
+                const task = phase.tasks.find(t => t.id === id);
+                if (task) return task;
+            }
+            return null;
+        }
+
+        function getColorGradient(phase) {
+            const colors = {
+                1: 'linear-gradient(135deg, #ff7e5f, #feb47b)',
+                2: 'linear-gradient(135deg, #4ecdc4, #44a08d)',
+                3: 'linear-gradient(135deg, #4776e6, #8e54e9)',
+                4: 'linear-gradient(135deg, #da22ff, #9733ee)',
+                5: 'linear-gradient(135deg, #ff8008, #ffc837)'
+            };
+            return colors[phase] || colors[1];
+        }
+
+        function parseDate(dateStr) {
+            const parts = dateStr.split('/');
+            if (parts.length === 3) {
+                return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+            }
+            return null;
+        }
+
+        function formatDate(date) {
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
+        function editDate(index) {
+            const currentDate = ganttData.dates[index];
+            const newDate = prompt('Edit date (DD/MM/YYYY):', currentDate);
+            if (newDate && newDate !== currentDate) {
+                ganttData.dates[index] = newDate;
+                renderGantt();
+                saveToStorage();
+            }
+        }
+
+        function removeDate(index) {
+            if (ganttData.dates.length <= 1) {
+                alert("Cannot remove the last period.");
+                return;
+            }
+            
+            if (confirm(`Remove period ${ganttData.dates[index]}? Tasks on this period will be adjusted.`)) {
+                // Adjust tasks
+                ganttData.phases.forEach(phase => {
+                    phase.tasks.forEach(task => {
+                        if (task.startDate > index) {
+                            task.startDate--;
+                        }
+                        if (task.endDate > index) {
+                            task.endDate--;
+                        }
+                        if (task.startDate > ganttData.dates.length - 2) {
+                            task.startDate = ganttData.dates.length - 2;
+                        }
+                        if (task.endDate > ganttData.dates.length - 2) {
+                            task.endDate = ganttData.dates.length - 2;
+                        }
+                        if (task.endDate < task.startDate) {
+                            task.endDate = task.startDate;
+                        }
+                    });
+                });
+                
+                // Remove date
+                ganttData.dates.splice(index, 1);
+                
+                // Remove column width entry if exists
+                if (ganttData.columnWidths[index]) {
+                    delete ganttData.columnWidths[index];
+                    // Shift all subsequent column widths
+                    const newColumnWidths = {};
+                    Object.keys(ganttData.columnWidths).forEach(key => {
+                        const numKey = parseInt(key);
+                        if (numKey > index) {
+                            newColumnWidths[numKey - 1] = ganttData.columnWidths[key];
+                        } else {
+                            newColumnWidths[numKey] = ganttData.columnWidths[key];
+                        }
+                    });
+                    ganttData.columnWidths = newColumnWidths;
+                }
+                
+                renderGantt();
+                saveToStorage();
+            }
+        }
+
+        function insertDateBefore(index) {
+            const prevDate = index > 0 ? parseDate(ganttData.dates[index - 1]) : parseDate(ganttData.dates[0]);
+            let newDate;
+            
+            if (prevDate) {
+                newDate = new Date(prevDate);
+                newDate.setDate(prevDate.getDate() + 1); // Always add 1 day
+            } else {
+                newDate = new Date();
+            }
+            
+            const newDateStr = formatDate(newDate);
+            ganttData.dates.splice(index, 0, newDateStr);
+            
+            // Adjust tasks
+            ganttData.phases.forEach(phase => {
+                phase.tasks.forEach(task => {
+                    if (task.startDate >= index) {
+                        task.startDate++;
+                    }
+                    if (task.endDate >= index) {
+                        task.endDate++;
+                    }
+                });
+            });
+            
+            // Shift column widths
+            const newColumnWidths = {};
+            Object.keys(ganttData.columnWidths).forEach(key => {
+                const numKey = parseInt(key);
+                if (numKey >= index) {
+                    newColumnWidths[numKey + 1] = ganttData.columnWidths[key];
+                } else {
+                    newColumnWidths[numKey] = ganttData.columnWidths[key];
+                }
+            });
+            ganttData.columnWidths = newColumnWidths;
+            
+            renderGantt();
+            saveToStorage();
+        }
+
+        function addDateAtEnd() {
+            const lastDate = ganttData.dates.length > 0 ? parseDate(ganttData.dates[ganttData.dates.length - 1]) : new Date();
+            let newDate;
+            
+            if (lastDate) {
+                newDate = new Date(lastDate);
+                newDate.setDate(lastDate.getDate() + 1); // Always add 1 day
+            } else {
+                newDate = new Date();
+            }
+            
+            const newDateStr = formatDate(newDate);
+            ganttData.dates.push(newDateStr);
+            renderGantt();
+            saveToStorage();
+            fitToDates();
+        }
+
+        function addMultipleDays() {
+            const count = 7; // Add 7 days
+            let lastDate = ganttData.dates.length > 0 ? parseDate(ganttData.dates[ganttData.dates.length - 1]) : new Date();
+            
+            for (let i = 0; i < count; i++) {
+                if (lastDate) {
+                    const newDate = new Date(lastDate);
+                    newDate.setDate(lastDate.getDate() + 1);
+                    const newDateStr = formatDate(newDate);
+                    ganttData.dates.push(newDateStr);
+                    lastDate = newDate;
+                }
+            }
+            
+            renderGantt();
+            saveToStorage();
+            fitToDates();
+        }
+
+        function addNewTask() {
+            const newId = Math.max(0, ...ganttData.phases.flatMap(p => p.tasks.map(t => t.id))) + 1;
+            const defaultPhase = ganttData.phases[0];
+            const defaultStart = Math.max(0, Math.floor(ganttData.dates.length / 2) - 1);
+            
+            defaultPhase.tasks.push({
+                id: newId,
+                name: `New Task ${newId}`,
+                startDate: defaultStart,
+                endDate: defaultStart + 2, // 3 days duration
+                phase: defaultPhase.id,
+                fontSize: 0.85
+            });
+            
+            renderGantt();
+            selectTask(newId);
+            saveToStorage();
+        }
+
+        function autoArrange() {
+            let currentDate = 0;
+            ganttData.phases.forEach(phase => {
+                phase.tasks.forEach(task => {
+                    task.startDate = currentDate;
+                    const duration = Math.min(3, ganttData.dates.length - currentDate - 1);
+                    task.endDate = currentDate + duration - 1;
+                    currentDate = Math.min(currentDate + duration + 1, ganttData.dates.length - 1);
+                });
+                currentDate += 1; // Gap between phases
+            });
+            
+            renderGantt();
+            saveToStorage();
+        }
+
+        function fitToDates() {
+            const container = document.querySelector('.main-content');
+            container.scrollLeft = 0;
+        }
+
+        function updateDateOptions() {
+            const startSelect = document.getElementById('editStartDate');
+            const endSelect = document.getElementById('editEndDate');
+            
+            startSelect.innerHTML = '';
+            endSelect.innerHTML = '';
+            
+            ganttData.dates.forEach((date, index) => {
+                const option1 = document.createElement('option');
+                option1.value = index;
+                option1.textContent = `${date} (Day ${index + 1})`;
+                startSelect.appendChild(option1);
+                
+                const option2 = document.createElement('option');
+                option2.value = index;
+                option2.textContent = `${date} (Day ${index + 1})`;
+                endSelect.appendChild(option2);
+            });
+        }
+
+        function updateViewModeIndicator() {
+            const header = document.querySelector('h1');
+            // Remove existing indicator if any
+            const existingIndicator = header.querySelector('.view-mode-indicator');
+            if (existingIndicator) {
+                existingIndicator.remove();
+            }
+            
+            // Add new indicator
+            const indicator = document.createElement('span');
+            indicator.className = 'view-mode-indicator';
+            indicator.textContent = ganttData.viewMode.charAt(0).toUpperCase() + ganttData.viewMode.slice(1) + ' View';
+            header.appendChild(indicator);
+            
+            // Update dropdown
+            document.getElementById('intervalSelect').value = ganttData.viewMode;
+        }
+
+        function showTimelineSettings() {
+            document.getElementById('timelineSettings').classList.toggle('show');
+        }
+
+        function setViewMode(mode) {
+            ganttData.viewMode = mode;
+            document.querySelectorAll('.interval-controls button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            updateViewModeIndicator();
+            renderGantt();
+            saveToStorage();
+        }
+
+        function changeTimelineInterval(mode) {
+            ganttData.viewMode = mode;
+            updateViewModeIndicator();
+            renderGantt();
+            saveToStorage();
+        }
+
+        function generateTimeline() {
+            const startDateStr = document.getElementById('timelineStartDate').value;
+            const days = parseInt(document.getElementById('timelineDays').value);
+            
+            if (!startDateStr || days < 1 || days > 365) {
+                alert('Please enter valid values (1-365 days).');
+                return;
+            }
+            
+            const startDateParts = startDateStr.split('-');
+            const startDate = new Date(
+                parseInt(startDateParts[0]),
+                parseInt(startDateParts[1]) - 1,
+                parseInt(startDateParts[2])
+            );
+            
+            ganttData.dates = [];
+            ganttData.columnWidths = {}; // Reset column widths
+            
+            for (let i = 0; i < days; i++) {
+                const currentDate = new Date(startDate);
+                currentDate.setDate(startDate.getDate() + i);
+                ganttData.dates.push(formatDate(currentDate));
+            }
+            
+            // Adjust tasks to fit new timeline
+            ganttData.phases.forEach(phase => {
+                phase.tasks.forEach(task => {
+                    if (task.startDate >= days) {
+                        task.startDate = days - 1;
+                    }
+                    if (task.endDate >= days) {
+                        task.endDate = days - 1;
+                    }
+                    if (task.endDate < task.startDate) {
+                        task.endDate = task.startDate;
+                    }
+                });
+            });
+            
+            renderGantt();
+            saveToStorage();
+            fitToDates();
+            document.getElementById('timelineSettings').classList.remove('show');
+        }
+
+        function exportData() {
+            const dataStr = JSON.stringify(ganttData, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const exportFileDefaultName = 'gantt-chart.json';
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+        }
+
+        function importData() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            
+            input.onchange = e => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = event => {
+                    try {
+                        const importedData = JSON.parse(event.target.result);
+                        Object.assign(ganttData, importedData);
+                        renderGantt();
+                        saveToStorage();
+                        updateViewModeIndicator();
+                        alert('Data imported successfully!');
+                    } catch (error) {
+                        alert('Error importing data: Invalid format');
+                    }
+                };
+                
+                reader.readAsText(file);
+            };
+            
+            input.click();
+        }
+
+        function saveToStorage() {
+            localStorage.setItem('ganttData', JSON.stringify(ganttData));
+        }
+
+        function loadFromStorage() {
+            const saved = localStorage.getItem('ganttData');
+            if (saved) {
+                try {
+                    const loadedData = JSON.parse(saved);
+                    Object.assign(ganttData, loadedData);
+                } catch (e) {
+                    console.log('No saved data found');
+                }
+            }
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

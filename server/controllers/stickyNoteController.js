@@ -1,3 +1,4 @@
+//server/controllers/stickyNoteController.js
 import  StickyNote from '../models/stickyNote.js';
 import Project from '../models/projects.js';
 import MentorProjectAssignment from '../models/mentorProjectAssignment.js';

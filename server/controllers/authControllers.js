@@ -1,3 +1,4 @@
+// server/controllers/authControllers.js
 import User from "../models/user.js";
 import userData from "../models/login_logs.js";
 import PasswordReset from "../models/passwordReset.js";
@@ -15,22 +16,17 @@ dotenv.config({ path: path.resolve('./server/.env') });
 export const registerUser = async (req, res) => {
   try {
     const { name, username, email, dob, password, role } = req.body;  //contains info sent from the user 
-
     // Check if user exists
     const existingUser = await User.findOne({ email });
     if (existingUser) return res.status(400).json({ message: "Email already exists! Try logging in!" });
-
     //Check if username already exists
     const existingUsername = await User.findOne({ username });
     if (existingUsername) return res.status(400).json({ message: "Username already exists! Please try a different one!" })
-
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-
     //saving the user
     const user = new User({ name, username, email, dob, password: hashedPassword, role });
     await user.save();
-
     const tourInfo = new TourGuideInfo({user: user._id})
     await tourInfo.save();
 
@@ -43,8 +39,6 @@ export const registerUser = async (req, res) => {
 export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
-
-
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: "User not found" });
@@ -53,41 +47,24 @@ export const loginUser = async (req, res) => {
       await userData.create({email, status: "Failed", reason: "User not found"})
       return res.status(400).json({ message: "User is BANNED! We are so sorry! Do YOU think we made a mistake? Contact us via email!" });
     }
-
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       await userData.create({email, status: "Failed", reason: "Invalid credentials" });
       return res.status(400).json({ message: "Invalid credentials" });
-    }
-
-    
+    }  
     const token = jwt.sign({ id: user._id, username: user.username, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1d" });
-
-
     //save into peerCheck_logins
-
     await User.findByIdAndUpdate(
       user._id,
       { $set: {onlineStatus: "active"}}
     )
-
-
     await userData.create({email})
-
     //save into login_logs
-    
     const loginLog = new userData({email, status: "Success"});
-  
     await loginLog.save();
-    
-
     const loggedInUser = await User.findById(user._id).select('-password')
 
-
-
     res.json({ message: "Login successful", token, role: user.role, user: loggedInUser });
-
-
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }

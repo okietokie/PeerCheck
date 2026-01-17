@@ -1,4 +1,4 @@
-// Upload Proof Modal - Beautiful & Functional
+//src/Components/user-dashboard/UploadProofModal.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,

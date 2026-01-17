@@ -15,6 +15,7 @@ import PriorityHighIcon from '@mui/icons-material/PriorityHigh';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
 import CloseIcon from '@mui/icons-material/Close';
+import PlaylistAddCircleIcon from '@mui/icons-material/PlaylistAddCircle';
 import { 
   Box, 
   Button, 
@@ -37,13 +38,14 @@ import {
   Alert,
   AlertTitle,
   Slide,
-  Fade
+  Fade,
 } from '@mui/material';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import  useInView  from '../../hooks/useInView';
 import TourGuide from '../TourGuide';
+import TodoList from './HelperComp/ToDoList';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -1074,6 +1076,7 @@ const calculateProductivity = (userTasks) => {
                   )}
                 </CardContent>
               </Card>
+
             </Box>
 
             {/* Right Column - Quick Actions & Insights */}

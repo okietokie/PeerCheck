@@ -1,3 +1,4 @@
+// src/Components/Login/Home.jsx
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "./Helper Components/Navbar";
 import image1 from "@/assets/collaboration.jpg";

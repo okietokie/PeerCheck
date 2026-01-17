@@ -53,8 +53,6 @@ export default function ResetPassword() {
   useEffect(() => {
     const verifyToken = async () => {
       try {
-        // You might want to add a token verification endpoint
-        // For now, we'll just check if token exists
         if (!token) {
           setTokenError("No reset token found in URL");
           setTokenValid(false);

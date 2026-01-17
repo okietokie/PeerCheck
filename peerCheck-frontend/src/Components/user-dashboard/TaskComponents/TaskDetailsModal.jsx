@@ -48,7 +48,8 @@ import {
   FormControlLabel,
   Tab,
   Tabs,
-  Snackbar
+  Snackbar,
+  Collapse
 } from '@mui/material';
 import {
   Search,
@@ -97,7 +98,6 @@ import {
   Task,
   Settings,
   DeleteForeverSharp,
-  
 } from '@mui/icons-material';
 import axiosClient from '@/api/axiosClient.js';
 import { getAuthToken } from '@/utils/auth.js';
@@ -106,8 +106,30 @@ import { getUserData } from '@/utils/user.js';
 import TourGuide from '@/Components/TourGuide.jsx';
 import useTasks from '@/hooks/useTasks';
 
+// Helper function to safely get nested values
+const safeGet = (obj, path, defaultValue = '') => {
+  if (!obj) return defaultValue;
+  
+  const keys = path.split('.');
+  let result = obj;
+  
+  for (const key of keys) {
+    if (result === null || result === undefined) return defaultValue;
+    result = result[key];
+  }
+  
+  return result !== undefined && result !== null ? result : defaultValue;
+};
 
-export const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskUpdate,  onUploadProof, onStatusChange }) => {
+// Helper to get display name for assigned user
+const getAssignedUserName = (task, user, userRole) => {
+  if (safeGet(task, 'assignedTo._id') === safeGet(userRole, 'userId')) {
+    return safeGet(user, 'name', 'You');
+  }
+  return safeGet(task, 'assignedTo.name', 'Unassigned');
+};
+
+export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, userRole, onTaskUpdate, onUploadProof, onStatusChange }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -116,296 +138,357 @@ export const TaskDetailsModal = ({ open, onClose, task, theme, userRole, onTaskU
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [projectTeam, setProjectTeam] = useState([]);
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
-  const [updatedTask, setUpdatedTask] = useState(task);
-  const [user, setUser] = useState();
+  const [updatedTask, setUpdatedTask] = useState(null);
+  const [user, setUser] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [updateTaskMessage, setUpdateTaskMessage] = useState(null);
+  const [showEfficiencyBreakdown, setShowEfficiencyBreakdown] = useState(false);
+  const [efficiencyMetrics, setEfficiencyMetrics] = useState(null);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
     severity: 'success'
   });
 
-  const {formatTime} = useTasks();
+  const { formatTime } = useTasks();
 
-  const isAssignedUser = task?.assignedTo?._id.toString() === userRole?.userId?.toString();
-  console.log("userrole: ", userRole);
-  console.log("task.assignedTo?._id ", task?.assignedTo?._id);
-
-
-
-  useEffect(() => {
-    if (task) {
-      setUpdatedTask(task);
+  // Initialize task with safe defaults
+  const initializeTask = (taskData) => {
+    if (!taskData) {
+      return {
+        _id: '',
+        taskTitle: 'No Task Title',
+        description: 'No description provided.',
+        status: 'not_started',
+        assignedTo: {
+          _id: '',
+          name: 'Unassigned',
+          email: '',
+          avatar: ''
+        },
+        deadline: new Date().toISOString(),
+        estimatedTime: 0,
+        totalFocusTime: 0,
+        projectId: { _id: '', name: 'No Project' },
+        metrics: {
+          efficiency: 0,
+          riskScore: 0,
+          isOverdue: false,
+          hasProof: false,
+          proofCount: 0,
+          daysUntilDeadline: 0,
+          statusWeightPercentage: 0,
+          componentScores: {
+            timeEfficiency: 0,
+            completionQuality: 0,
+            timeliness: 0,
+            proofQuality: 0,
+            riskFactor: 0
+          }
+        },
+        flags: {
+          paddedTime: false,
+          rushedCompletion: false,
+          noProof: true,
+          manualReviewRequired: false
+        },
+        proofUploads: [],
+        comments: []
+      };
     }
-  }, [task]);
+
+    return {
+      _id: safeGet(taskData, '_id', ''),
+      taskTitle: safeGet(taskData, 'taskTitle', 'No Task Title'),
+      description: safeGet(taskData, 'description', 'No description provided.'),
+      status: safeGet(taskData, 'status', 'not_started'),
+      assignedTo: {
+        _id: safeGet(taskData, 'assignedTo._id', ''),
+        name: safeGet(taskData, 'assignedTo.name', 'Unassigned'),
+        email: safeGet(taskData, 'assignedTo.email', ''),
+        avatar: safeGet(taskData, 'assignedTo.avatar', '')
+      },
+      deadline: safeGet(taskData, 'deadline', new Date().toISOString()),
+      estimatedTime: safeGet(taskData, 'estimatedTime', 0),
+      totalFocusTime: safeGet(taskData, 'totalFocusTime', 0),
+      projectId: {
+        _id: safeGet(taskData, 'projectId._id', ''),
+        name: safeGet(taskData, 'projectId.name', 'No Project')
+      },
+      metrics: {
+        efficiency: safeGet(taskData, 'metrics.efficiency', 0),
+        riskScore: safeGet(taskData, 'metrics.riskScore', 0),
+        isOverdue: safeGet(taskData, 'metrics.isOverdue', false),
+        hasProof: safeGet(taskData, 'metrics.hasProof', false),
+        proofCount: safeGet(taskData, 'metrics.proofCount', 0),
+        daysUntilDeadline: safeGet(taskData, 'metrics.daysUntilDeadline', 0),
+        statusWeightPercentage: safeGet(taskData, 'metrics.statusWeightPercentage', 0),
+        componentScores: {
+          timeEfficiency: safeGet(taskData, 'metrics.componentScores.timeEfficiency', 0),
+          completionQuality: safeGet(taskData, 'metrics.componentScores.completionQuality', 0),
+          timeliness: safeGet(taskData, 'metrics.componentScores.timeliness', 0),
+          proofQuality: safeGet(taskData, 'metrics.componentScores.proofQuality', 0),
+          riskFactor: safeGet(taskData, 'metrics.componentScores.riskFactor', 0)
+        }
+      },
+      flags: {
+        paddedTime: safeGet(taskData, 'flags.paddedTime', false),
+        rushedCompletion: safeGet(taskData, 'flags.rushedCompletion', false),
+        noProof: safeGet(taskData, 'flags.noProof', true),
+        manualReviewRequired: safeGet(taskData, 'flags.manualReviewRequired', false)
+      },
+      proofUploads: safeGet(taskData, 'proofUploads', []),
+      comments: safeGet(taskData, 'comments', [])
+    };
+  };
 
   useEffect(() => {
-    if(!task) return;
+    console.log("Initial Task:", initialTask);
+    if (initialTask) {
+      setUpdatedTask(initializeTask(initialTask));
+    }
+    if(updatedTask){
+      console.log("Updated Task:", updatedTask)
+    }
+  }, [initialTask]);
 
+  useEffect(() => {
+    if (!open || !updatedTask?._id) return;
     
-
     const fetchTaskData = async () => {
       try {
+        setLoading(true);
         const token = localStorage.getItem("token");
-        const response = await axiosClient.get(`/user/task/${task._id}`, {
+        if (!token) {
+          throw new Error('No authentication token found');
+        }
+        console.log("Fetching details for task ID:", updatedTask?._id);
+
+        const response = await axiosClient.get(`/user/task/${updatedTask?._id}`, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
         
-        if(response?.data?.success && response.data.task) {
-          const cleanedTask = response.data.task;
-          
-          // Safely handle assignedTo
-          if (!cleanedTask.assignedTo) {
-            cleanedTask.assignedTo = { 
-              _id: '', 
-              name: 'Unassigned', 
-              email: '', 
-              avatar: '' 
-            };
-          }
-          
-          // Clean other fields
-          Object.keys(cleanedTask).forEach(key => {
-            if (cleanedTask[key] === null || cleanedTask[key] === undefined) {
-              if (key === 'description') {
-                cleanedTask[key] = '';
-              } else if (key === 'deadline') {
-                cleanedTask[key] = new Date().toISOString();
-              } else if (key === 'estimatedTime') {
-                cleanedTask[key] = 0;
-              } else if (key === 'totalFocusTime') {
-                cleanedTask[key] = 0;
-              }
-            }
-          });
-          
+        if (response?.data?.success) {
+          console.log("Raw Task Data:", response);
+          const cleanedTask = initializeTask(response?.data?.task);
           setUpdatedTask(cleanedTask);
-          const getUser = await getUserData();
-          console.log("getuser: ", getUser);
-          setUser(getUser);
+          console.log("Fetched Task Details:", cleanedTask);
+          
+          const userData = await getUserData();
+          if (userData) {
+            setUser(userData);
+          }
+        } else {
+          throw new Error(response?.data?.error || 'Failed to fetch task details');
         }
-
       } catch(err) {
-        console.error("Error fetching tasks[TaskDetailsModal]:", err);
+        console.error("Error fetching task details:", err);
         setSnackbar({
           open: true,
-          message: 'Failed to load task details',
+          message: err.message || 'Failed to load task details',
           severity: 'error'
         });
+      } finally {
+        setLoading(false);
       }
     };
-    
+   
     fetchTaskData();
-  }, [isEditing, activeTab, loading]);
+  }, [open, updatedTask?._id, isEditing, activeTab]);
 
-const handleEditTask = async () => {
-  try {
-    if (isEditing) {
-      setIsEditing(false);
+  const handleEditTask = async () => {
+    try {
+      if (isEditing) {
+        if (!updatedTask?.taskTitle?.trim()) {
+          setError('Task title is required');
+          return;
+        }
+
+        const token = localStorage.getItem("token");
+        if (!token) {
+          throw new Error('No authentication token');
+        }
+
+        const taskData = {
+          taskTitle: updatedTask?.taskTitle.trim(),
+          description: updatedTask?.description?.trim() || '',
+          deadline: updatedTask?.deadline,
+          estimatedTime: Number(updatedTask?.estimatedTime) || 0,
+        };
+
+        if (updatedTask?.assignedTo?._id) {
+          taskData.assignedTo = updatedTask?.assignedTo._id;
+        }
+
+        if (updatedTask?.projectId?._id) {
+          taskData.projectId = updatedTask?.projectId._id;
+        }
+
+        const response = await axiosClient.patch(
+          `/user/task/${updatedTask?._id}`,
+          taskData,
+          {
+            headers: {  
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (response?.data?.success) {
+          const cleanedTask = initializeTask(response?.data?.task);
+          setUpdatedTask(cleanedTask);
+          setUpdateTaskMessage({
+            open: true,
+            message: "Task updated successfully!",
+            severity: "success"
+          });
+          onTaskUpdate?.();
+        } else {
+          throw new Error(response?.data?.error || 'Failed to update task');
+        }
+      }
+    } catch (error) {
+      console.error("Error updating task details: ", error);
+      let errorMessage = 'Failed to update task';
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
+      setUpdateTaskMessage({
+        open: true,
+        message: errorMessage,
+        severity: "error"
+      });
+    } finally {
+      setIsEditing(!isEditing);
+    }
+  };
+
+  const viewProofFile = async (taskId, proofId) => {
+    try {
       const token = localStorage.getItem("token");
-
-      if (!updatedTask.taskTitle?.trim()) {
-        setError('Task title is required');
-        return;
+      if (!token) {
+        throw new Error('No authentication token');
       }
 
-      // Prepare the data to send - ensure proper data types
-      const taskData = {
-        taskTitle: updatedTask.taskTitle.trim(),
-        description: updatedTask.description?.trim() || '',
-        deadline: updatedTask.deadline,
-        estimatedTime: Number(updatedTask.estimatedTime) || 0,
-      };
-
-      // Debug: log the data being sent
-
-      // Handle assignedTo - extract just the ID if it's an object
-      if (updatedTask.assignedTo) {
-        if (typeof updatedTask.assignedTo === 'object' && updatedTask.assignedTo._id) {
-          taskData.assignedTo = updatedTask.assignedTo._id;
-        } else if (typeof updatedTask.assignedTo === 'string') {
-          taskData.assignedTo = updatedTask.assignedTo;
-        }
-      }
-
-      // Include projectId if it exists
-      if (updatedTask.projectId) {
-        if (typeof updatedTask.projectId === 'object' && updatedTask.projectId._id) {
-          taskData.projectId = updatedTask.projectId._id;
-        } else if (typeof updatedTask.projectId === 'string') {
-          taskData.projectId = updatedTask.projectId;
-        }
-      }
-
-
-      const response = await axiosClient.patch(
-        `/user/task/${task._id}`,
-        taskData,
+      const response = await axiosClient.get(
+        `/user/task/${taskId}/proof/${proofId}?download=false`,
         {
-          headers: {  
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
+          responseType: "blob",
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
         }
       );
 
-
-      if (response?.data?.success) {
-        setUpdatedTask(response.data.task);
-        setUpdateTaskMessage({
-          open: true,
-          message: "Task updated successfully!",
-          severity: "success"
-        });
-        // Refresh the task list
-        onTaskUpdate?.();
-      } else {
-        setError(response?.data?.error || 'Failed to update task');
-        setUpdateTaskMessage({
-          open: true,
-          message: response?.data?.error || 'Failed to update task',
-          severity: "error"
-        });
-      }
-    } else {
-      // Enter edit mode
-      setIsEditing(true);
-    }
-  } catch (error) {
-    console.error("Error updating task details: ", error);
-    console.error("Error response:", error.response?.data);
-    
-    let errorMessage = 'Failed to update task';
-    if (error.response?.data?.error) {
-      errorMessage = error.response.data.error;
-    } else if (error.response?.data?.message) {
-      errorMessage = error.response.data.message;
-    }
-    
-    setError(errorMessage);
-    setUpdateTaskMessage({
-      open: true,
-      message: errorMessage,
-      severity: "error"
-    });
-    
-    // Exit edit mode on error
-    setIsEditing(false);
-  }
-};
-
-
-const viewProofFile = async (taskId, proofId) => {
-  try {
-    const token = localStorage.getItem("token");
-
-    const response = await axiosClient.get(
-      `/user/task/${taskId}/proof/${proofId}?download=false`, // send query to indicate inline
-      {
-        responseType: "blob",
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    );
-
-    const fileURL = URL.createObjectURL(response.data);
-    window.open(fileURL, "_blank"); // open in new tab for viewing
-  } catch (err) {
-    console.error("Error viewing file", err);
-    setSnackbar({
-      open: true,
-      message: 'Failed to view proof file',
-      severity: 'error'
-    });
-  }
-};
-
-const downloadProofFile = async (taskId, proofId, filename) => {
-  try {
-    const token = localStorage.getItem("token");
-
-    const response = await axiosClient.get(
-      `/user/task/${taskId}/proof/${proofId}?download=true`, // force download
-      {
-        responseType: "blob",
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    );
-
-    const url = window.URL.createObjectURL(new Blob([response.data]));
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", filename); // filename for download
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  } catch (err) {
-    console.error("Download failed:", err);
-    setSnackbar({
-      open: true,
-      message: 'Failed to download proof file',
-      severity: 'error'
-    });
-  }
-};
-const deleteProofFile = async (taskId, proofId) => {
-  try {
-    const token = localStorage.getItem("token");
-
-    const response = await axiosClient.delete(
-      `/user/task/${taskId}/proof/${proofId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    );
-
-    if (response.data.success) {
+      const fileURL = URL.createObjectURL(response.data);
+      window.open(fileURL, "_blank");
+    } catch (err) {
+      console.error("Error viewing file", err);
       setSnackbar({
         open: true,
-        message: 'Proof file deleted successfully',
-        severity: 'success'
-      });
-
-      // Optionally, refresh the list of proofs or update state
-      // fetchTaskProofs(); // your function to refresh UI
-    } else {
-      setSnackbar({
-        open: true,
-        message: response.data.error || 'Failed to delete proof',
+        message: 'Failed to view proof file',
         severity: 'error'
       });
     }
-  } catch (err) {
-    console.error("Delete failed:", err);
-    setSnackbar({
-      open: true,
-      message: 'Failed to delete proof file',
-      severity: 'error'
-    });
-  }
-};
+  };
 
+  const downloadProofFile = async (taskId, proofId, filename) => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        throw new Error('No authentication token');
+      }
 
+      const response = await axiosClient.get(
+        `/user/task/${taskId}/proof/${proofId}?download=true`,
+        {
+          responseType: "blob",
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", filename || 'proof_file');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error("Download failed:", err);
+      setSnackbar({
+        open: true,
+        message: 'Failed to download proof file',
+        severity: 'error'
+      });
+    }
+  };
+
+  const deleteProofFile = async (taskId, proofId) => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        throw new Error('No authentication token');
+      }
+
+      const response = await axiosClient.delete(
+        `/user/task/${taskId}/proof/${proofId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      if (response.data.success) {
+        setSnackbar({
+          open: true,
+          message: 'Proof file deleted successfully',
+          severity: 'success'
+        });
+        // Refresh task data
+        if (updatedTask?._id === taskId) {
+          const updatedProofs = updatedTask?.proofUploads.filter(p => p._id !== proofId);
+          setUpdatedTask(prev => ({
+            ...prev,
+            proofUploads: updatedProofs
+          }));
+        }
+      } else {
+        throw new Error(response.data.error || 'Failed to delete proof');
+      }
+    } catch (err) {
+      console.error("Delete failed:", err);
+      setSnackbar({
+        open: true,
+        message: 'Failed to delete proof file',
+        severity: 'error'
+      });
+    }
+  };
 
   // Fetch activity logs
   const fetchActivityLogs = async () => {
-    if (!task?._id) return;
+    if (!updatedTask?._id) return;
     
     try {
       setLoadingActivity(true);
       const token = getAuthToken();
       if (!token) return;
 
-      const response = await axiosClient.get(`/user/task/${task._id}/activity`, {
+      const response = await axiosClient.get(`/user/task/${updatedTask?._id}/activity`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -422,18 +505,77 @@ const deleteProofFile = async (taskId, proofId) => {
     }
   };
 
+  const calculateEfficiencyBreakdown = (task) => {
+    const baseMetrics = {
+      overall: safeGet(task, 'metrics.efficiency', 0),
+      components: safeGet(task, 'metrics.componentScores', {
+        timeEfficiency: 0,
+        completionQuality: 0,
+        timeliness: 0,
+        proofQuality: 0,
+        riskFactor: 0
+      })
+    };
+
+    // If component scores are missing, calculate fallback values
+    if (!task?.metrics?.componentScores) {
+      const estimatedTime = safeGet(task, 'estimatedTime', 1);
+      const focusTime = safeGet(task, 'totalFocusTime', 0);
+      const efficiency = (focusTime / estimatedTime) * 100;
+      
+      return {
+        overall: Math.min(Math.max(efficiency, 0), 100),
+        components: {
+          timeEfficiency: Math.max(0, Math.min(100, efficiency)),
+          completionQuality: task?.status === 'completed' ? 100 : 
+                           task?.status === 'active' ? 70 : 
+                           task?.status === 'paused' ? 40 : 0,
+          timeliness: calculateTimeliness(task),
+          proofQuality: task?.proofUploads?.length > 0 ? 80 : 20,
+          riskFactor: 100 - ((safeGet(task, 'metrics.riskScore', 0) * 12.5))
+        }
+      };
+    }
+    
+    return baseMetrics;
+  };
+
+  const calculateTimeliness = (task) => {
+    if (!task?.deadline) return 80;
+    
+    const now = new Date();
+    const deadline = new Date(task.deadline);
+    
+    if (task.status === 'completed' && task.endDate) {
+      const completionDate = new Date(task.endDate);
+      const daysLate = Math.max(0, (completionDate - deadline) / (1000 * 60 * 60 * 24));
+      
+      if (completionDate <= deadline) return 100;
+      else if (daysLate <= 1) return 90;
+      else if (daysLate <= 3) return 70;
+      else if (daysLate <= 7) return 50;
+      else return 30;
+    } else {
+      const daysRemaining = Math.max(0, (deadline - now) / (1000 * 60 * 60 * 24));
+      if (daysRemaining > 7) return 90;
+      else if (daysRemaining > 3) return 70;
+      else if (daysRemaining > 0) return 50;
+      else return 30;
+    }
+  };
+  
   // Fetch project team when modal opens
   useEffect(() => {
-    if (open && task?.projectId?._id) {
+    if (open && updatedTask?.projectId?._id) {
       fetchProjectTeam();
     }
-  }, [open, task?.projectId?._id]);
+  }, [open, updatedTask?.projectId?._id]);
 
   const fetchProjectTeam = async () => {
     try {
       const token = getAuthToken();
       if (!token) return;
-      const projectId = task?.projectId._id;
+      const projectId = updatedTask?.projectId._id;
       const response = await axiosClient.get(`/projects/${projectId}`, {
         headers: { 
           Authorization: `Bearer ${token}`,
@@ -449,12 +591,19 @@ const deleteProofFile = async (taskId, proofId) => {
     }
   };
 
+  useEffect(() => {
+    if (updatedTask) {
+      const breakdown = calculateEfficiencyBreakdown(updatedTask);
+      setEfficiencyMetrics(breakdown);
+    }
+  }, [updatedTask]);
+
   // Load activity when tab is selected
   useEffect(() => {
-    if (open && activeTab === 'activity' && task?._id) {
+    if (open && activeTab === 'activity' && updatedTask?._id) {
       fetchActivityLogs();
     }
-  }, [open, activeTab, task?._id]);
+  }, [open, activeTab, updatedTask?._id]);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -466,22 +615,36 @@ const deleteProofFile = async (taskId, proofId) => {
   };
 
   const getRiskColor = (riskScore) => {
-    if (riskScore >= 4) return 'error';
-    if (riskScore >= 2) return 'warning';
+    const score = Number(riskScore) || 0;
+    if (score >= 4) return 'error';
+    if (score >= 2) return 'warning';
     return 'success';
   };
 
   const getEfficiencyColor = (efficiency) => {
-    if (efficiency < 50) return 'error';
-    if (efficiency < 80) return 'warning';
-    if (efficiency > 120) return 'warning';
-    return 'success';
+    const eff = Number(efficiency) || 0;
+    if (eff === undefined || eff === null) return theme.palette.grey[500];
+    if (eff >= 85) return theme.palette.success.main;
+    if (eff >= 70) return theme.palette.info.main;
+    if (eff >= 50) return theme.palette.warning.main;
+    return theme.palette.error.main;
+  };
+
+  const getEfficiencyLabel = (score) => {
+    const s = Number(score) || 0;
+    if (s >= 85) return 'Excellent';
+    if (s >= 70) return 'Good';
+    if (s >= 50) return 'Satisfactory';
+    if (s >= 30) return 'Needs Improvement';
+    return 'Unsatisfactory';
   };
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     try {
       const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Invalid date';
+      
       return date.toLocaleDateString('en-US', {
         weekday: 'short',
         year: 'numeric',
@@ -495,7 +658,7 @@ const deleteProofFile = async (taskId, proofId) => {
     }
   };
 
-  const handleReassignTask = async () => {
+  const handleReassignTask = () => {
     setAssignDialogOpen(true);
   };
 
@@ -511,7 +674,10 @@ const deleteProofFile = async (taskId, proofId) => {
     alert('Grade override functionality to be implemented');
   };
 
-  if (!task) return null;
+  if (!updatedTask || !open) return null;
+
+  const assignedUserName = getAssignedUserName(updatedTask, user, userRole);
+  const isAssignedUser = safeGet(updatedTask, 'assignedTo._id') === safeGet(userRole, 'userId');
 
   return (
     <Dialog 
@@ -551,11 +717,8 @@ const deleteProofFile = async (taskId, proofId) => {
           pt: 3.5,
           px: 4,
         }}>
-          
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            
             <Box sx={{ maxWidth: 'calc(100% - 48px)' }}>
-              
               <Typography variant="h4" fontWeight="800" gutterBottom sx={{ 
                 fontFamily: '"Alkatra", cursive',
                 color: theme.palette.text.primary,
@@ -563,23 +726,20 @@ const deleteProofFile = async (taskId, proofId) => {
                 wordBreak: 'break-word',
               }}>
                 <TourGuide page='taskModal' showAppBarButton={true} />
-
-                {updatedTask?.taskTitle || 'Task'}
+                {updatedTask?.taskTitle}
               </Typography>
-              <Typography >
+              <Typography>
                 Assigned To: <Chip 
-                label={isAssignedUser ?  user?.name : updatedTask?.assignedTo?.name } 
-                color={theme.palette.secondary.main}
-                sx={{
-                  fontWeight: 700,
-                  borderRadius:2 ,
-                  height: 28,
-                  fontSize: '0.75rem',
-                  boxShadow: `0 3px 8px ${alpha(getStatusColor(updatedTask?.status) === 'primary' ? theme.palette.primary.main : 
-                                          getStatusColor(updatedTask?.status) === 'success' ? theme.palette.success.main : 
-                                          getStatusColor(updatedTask?.status) === 'warning' ? theme.palette.warning.main : 
-                                          theme.palette.error.main, 0.2)}`,
-                }}/>
+                  label={assignedUserName} 
+                  color={theme.palette.secondary.main}
+                  sx={{
+                    fontWeight: 700,
+                    borderRadius: 2,
+                    height: 28,
+                    fontSize: '0.75rem',
+                    boxShadow: `0 3px 8px ${alpha(theme.palette.secondary.main, 0.2)}`,
+                  }}
+                />
               </Typography>
               
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mt: 1 }}>
@@ -592,10 +752,6 @@ const deleteProofFile = async (taskId, proofId) => {
                     borderRadius: 1.5,
                     height: 28,
                     fontSize: '0.75rem',
-                    boxShadow: `0 2px 8px ${alpha(getStatusColor(updatedTask?.status) === 'primary' ? theme.palette.primary.main : 
-                                            getStatusColor(updatedTask?.status) === 'success' ? theme.palette.success.main : 
-                                            getStatusColor(updatedTask?.status) === 'warning' ? theme.palette.warning.main : 
-                                            theme.palette.error.main, 0.2)}`,
                   }}
                 />
                 
@@ -630,8 +786,6 @@ const deleteProofFile = async (taskId, proofId) => {
                 )}
               </Box>
             </Box>
-
-            
 
             <IconButton 
               onClick={onClose} 
@@ -716,14 +870,32 @@ const deleteProofFile = async (taskId, proofId) => {
           border: 'none',
         }
       }}>
+        {/* Loading State */}
+        {loading && (
+          <Box sx={{ p: 4, display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
+            <CircularProgress />
+          </Box>
+        )}
+
+        {/* Error State */}
+        {error && !loading && (
+          <Box sx={{ p: 4 }}>
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+            <Button onClick={() => window.location.reload()}>
+              Reload Page
+            </Button>
+          </Box>
+        )}
+
         {/* Overview Tab */}
-        {activeTab === 'overview' && (
-          <Box sx={{ p: 4 }} >
+        {!loading && !error && activeTab === 'overview' && (
+          <Box sx={{ p: 4 }}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              
               {/* Task Description Card */}
               <Paper 
-               className='task-description'
+                className='task-description'
                 elevation={0}
                 sx={{ 
                   p: 3.5, 
@@ -765,7 +937,7 @@ const deleteProofFile = async (taskId, proofId) => {
                         multiline
                         fullWidth
                         minRows={3}
-                        value={updatedTask?.description || ''}
+                        value={updatedTask?.description}
                         onChange={(e) => 
                           setUpdatedTask(prev => ({ ...prev, description: e.target.value }))
                         }
@@ -777,7 +949,7 @@ const deleteProofFile = async (taskId, proofId) => {
                         lineHeight: 1.6,
                         whiteSpace: 'pre-wrap',
                       }}>
-                        {updatedTask?.description || 'No description provided.'}
+                        {updatedTask?.description}
                       </Typography>
                     )}
                   </Box>
@@ -792,7 +964,6 @@ const deleteProofFile = async (taskId, proofId) => {
               }}>
                 {/* Assignee */}
                 <Paper 
-                
                   elevation={0}
                   sx={{ 
                     flex: 1,
@@ -844,7 +1015,7 @@ const deleteProofFile = async (taskId, proofId) => {
                         fontFamily: '"Inter", sans-serif',
                         mb: 0.5,
                       }}>
-                        {updatedTask?.assignedTo?.name || 'Unassigned'}
+                        {assignedUserName}
                       </Typography>
                       {updatedTask?.assignedTo?.email && (
                         <Typography variant="caption" sx={{ 
@@ -854,7 +1025,7 @@ const deleteProofFile = async (taskId, proofId) => {
                           alignItems: 'center',
                           gap: 0.5,
                         }}>
-                          <Email fontSize="inherit" /> {updatedTask.assignedTo.email}
+                          <Email fontSize="inherit" /> {updatedTask?.assignedTo.email}
                         </Typography>
                       )}
                     </Box>
@@ -935,7 +1106,7 @@ const deleteProofFile = async (taskId, proofId) => {
                         fontFamily: '"Inter", sans-serif',
                       }}>
                         {updatedTask?.metrics?.daysUntilDeadline > 0 
-                          ? `${updatedTask.metrics.daysUntilDeadline} days remaining`
+                          ? `${updatedTask?.metrics.daysUntilDeadline} days remaining`
                           : updatedTask?.metrics?.isOverdue 
                             ? 'Past deadline' 
                             : 'Due soon'}
@@ -992,13 +1163,13 @@ const deleteProofFile = async (taskId, proofId) => {
                         color: theme.palette.info.main,
                         lineHeight: 1,
                       }}>
-                        {formatTime(updatedTask?.totalFocusTime || 0)}
+                        {formatTime(updatedTask?.totalFocusTime)}
                       </Typography>
                       <Typography variant="body2" sx={{ 
                         color: theme.palette.text.secondary,
                         fontFamily: '"Inter", sans-serif',
                       }}>
-                        of {formatTime(updatedTask?.estimatedTime || 0)} estimated
+                        of {formatTime(updatedTask?.estimatedTime)} estimated
                       </Typography>
                     </Box>
                     
@@ -1079,16 +1250,16 @@ const deleteProofFile = async (taskId, proofId) => {
                     <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 2, mb: 2 }}>
                       <Typography variant="h3" fontWeight="800" sx={{ 
                         fontFamily: '"Alkatra", cursive',
-                        color: getEfficiencyColor(updatedTask?.taskMetrics?.efficiency),
+                        color: getEfficiencyColor(updatedTask?.metrics?.efficiency),
                         lineHeight: 1,
                       }}>
-                        {(updatedTask?.taskMetrics?.efficiency?.toFixed(1) || '0.0')}%
+                        {(updatedTask?.metrics?.efficiency?.toFixed(1) || '0.0')}%
                       </Typography>
                       <Chip
-                        label={updatedTask?.taskMetrics?.efficiency > 120 ? 'High' : 
-                              updatedTask?.taskMetrics?.efficiency < 50 ? 'Low' : 
+                        label={updatedTask?.metrics?.efficiency > 120 ? 'High' : 
+                              updatedTask?.metrics?.efficiency < 50 ? 'Low' : 
                               'Optimal'}
-                        color={getEfficiencyColor(updatedTask?.taskMetrics?.efficiency)}
+                        color={getEfficiencyColor(updatedTask?.metrics?.efficiency)}
                         size="small"
                         sx={{ fontWeight: 600 }}
                       />
@@ -1096,17 +1267,15 @@ const deleteProofFile = async (taskId, proofId) => {
                     
                     <LinearProgress 
                       variant="determinate" 
-                      value={Math.min(updatedTask?.taskMetrics?.efficiency || 0, 100)}
-                      color={getEfficiencyColor(updatedTask?.taskMetrics?.efficiency)}
+                      value={Math.min(updatedTask?.metrics?.efficiency || 0, 100)}
                       sx={{ 
                         height: 8, 
                         borderRadius: 4, 
-                        mb: 1.5,
-                        backgroundColor: alpha(getEfficiencyColor(updatedTask?.taskMetrics?.efficiency) === 'success' 
-                          ? theme.palette.success.main 
-                          : getEfficiencyColor(updatedTask?.taskMetrics?.efficiency) === 'warning'
-                            ? theme.palette.warning.main
-                            : theme.palette.error.main, 0.1),
+                        mt: 2,
+                        backgroundColor: alpha(getEfficiencyColor(updatedTask?.metrics?.efficiency), 0.1),
+                        '& .MuiLinearProgress-bar': {
+                          backgroundColor: getEfficiencyColor(updatedTask?.metrics?.efficiency),
+                        }
                       }}
                     />
                     
@@ -1115,9 +1284,9 @@ const deleteProofFile = async (taskId, proofId) => {
                       fontFamily: '"Inter", sans-serif',
                       fontStyle: 'italic',
                     }}>
-                      {updatedTask?.taskMetrics?.efficiency > 120 
+                      {updatedTask?.metrics?.efficiency > 120 
                         ? 'Above expected efficiency' 
-                        : updatedTask?.taskMetrics?.efficiency < 50 
+                        : updatedTask?.metrics?.efficiency < 50 
                           ? 'Below expected efficiency'
                           : 'Within optimal range'}
                     </Typography>
@@ -1126,7 +1295,7 @@ const deleteProofFile = async (taskId, proofId) => {
               </Box>
 
               {/* Quick Actions - Minimalist Bar */}
-              {(userRole?.role === 'teacher' || userRole?.role === 'admin' || updatedTask?.assignedTo?._id === userRole?.userId) && (
+              {(userRole?.role === 'teacher' || userRole?.role === 'admin' || isAssignedUser) && (
                 <Paper 
                   elevation={0}
                   sx={{ 
@@ -1202,7 +1371,7 @@ const deleteProofFile = async (taskId, proofId) => {
         )}
 
         {/* Metrics Tab - Minimalist */}
-        {activeTab === 'metrics' && (
+        {!loading && !error && activeTab === 'metrics' && (
           <Box sx={{ p: 4 }}>
             <Typography variant="h5" fontWeight="700" gutterBottom sx={{ 
               fontFamily: '"Adlam Display", serif',
@@ -1343,164 +1512,334 @@ const deleteProofFile = async (taskId, proofId) => {
               <Paper 
                 elevation={0}
                 sx={{ 
-                  flex: 1,
+                  mt: 3,
                   p: 3.5,
                   borderRadius: 3,
                   backgroundColor: theme.palette.background.paper,
-                  border: `1px solid ${alpha(getEfficiencyColor(updatedTask?.taskMetrics?.efficiency) === 'success' 
-                    ? theme.palette.success.main 
-                    : getEfficiencyColor(updatedTask?.taskMetrics?.efficiency) === 'warning'
-                      ? theme.palette.warning.main
-                      : theme.palette.error.main, 0.2)}`,
-                  minWidth: 280,
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
                 }}
               >
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'space-between',
-                  mb: 3,
-                  pb: 2,
-                  borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
-                }}>
-                  <Typography variant="body1" fontWeight="600" sx={{ 
-                    fontFamily: '"Adlam Display", serif',
-                    color: theme.palette.text.primary,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1.5,
-                  }}>
-                    <TrendingUp sx={{ color: getEfficiencyColor(updatedTask?.taskMetrics?.efficiency) }} />
-                    Efficiency Analysis
-                  </Typography>
-                </Box>
-                
-                {/* Efficiency Score */}
-                <Box sx={{ textAlign: 'center', mb: 4 }}>
-                  <Typography variant="h1" fontWeight="800" sx={{ 
-                    fontFamily: '"Alkatra", cursive',
-                    color: getEfficiencyColor(updatedTask?.taskMetrics?.efficiency),
-                    lineHeight: 1,
-                    mb: 1,
-                  }}>
-                    {(updatedTask?.taskMetrics?.efficiency?.toFixed(1) || '0.0')}%
-                  </Typography>
-                  <Typography variant="body2" sx={{ 
-                    color: theme.palette.text.secondary,
-                    fontFamily: '"Inter", sans-serif',
-                  }}>
-                    {updatedTask?.taskMetrics?.efficiency > 120 
-                      ? 'Above expected range' 
-                      : updatedTask?.taskMetrics?.efficiency < 50 
-                        ? 'Below expected range'
-                        : 'Within optimal range'}
-                  </Typography>
-                </Box>
-                
-                {/* Time Breakdown */}
-                <Box sx={{ 
-                  p: 2.5,
-                  borderRadius: 2,
-                  backgroundColor: alpha(theme.palette.divider, 0.05),
-                  border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                }}>
-                  <Typography variant="body2" fontWeight="600" sx={{ 
-                    mb: 2.5,
-                    color: theme.palette.text.secondary,
-                    fontFamily: '"Inter", sans-serif',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                  }}>
-                    <AccessTime fontSize="small" />
-                    Time Breakdown
-                  </Typography>
-                  
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                        <Typography variant="caption" sx={{ 
-                          color: theme.palette.text.secondary,
-                          fontFamily: '"Inter", sans-serif',
-                        }}>
-                          Time Spent
-                        </Typography>
-                        <Typography variant="caption" sx={{ 
-                          color: theme.palette.text.primary,
-                          fontFamily: '"Inter", sans-serif',
-                          fontWeight: 600,
-                        }}>
-                          {formatTime(updatedTask?.totalFocusTime || 0)}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ 
-                        height: 4, 
-                        borderRadius: 2, 
-                        backgroundColor: alpha(theme.palette.info.main, 0.1),
-                        overflow: 'hidden',
-                      }}>
-                        <Box sx={{ 
-                          height: '100%',
-                          borderRadius: 2,
-                          backgroundColor: theme.palette.info.main,
-                          width: `${Math.min(((updatedTask?.totalFocusTime || 0) / ((updatedTask?.estimatedTime || 0) || 1)) * 100, 100)}%`,
-                        }} />
-                      </Box>
-                    </Box>
-                    
-                    <Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                        <Typography variant="caption" sx={{ 
-                          color: theme.palette.text.secondary,
-                          fontFamily: '"Inter", sans-serif',
-                        }}>
-                          Estimated Time
-                        </Typography>
-                        <Typography variant="caption" sx={{ 
-                          color: theme.palette.text.primary,
-                          fontFamily: '"Inter", sans-serif',
-                          fontWeight: 600,
-                        }}>
-                          {formatTime(updatedTask?.estimatedTime || 0)}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ 
-                        height: 4, 
-                        borderRadius: 2, 
-                        backgroundColor: alpha(theme.palette.success.main, 0.1),
-                      }} />
-                    </Box>
-                  </Box>
-                  
-                  <Box sx={{ 
-                    mt: 2.5,
-                    pt: 2,
-                    borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-                    display: 'flex',
+                <Box 
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
                     justifyContent: 'space-between',
-                  }}>
-                    <Typography variant="caption" sx={{ 
-                      color: theme.palette.text.secondary,
-                      fontFamily: '"Inter", sans-serif',
-                    }}>
-                      Efficiency Ratio
-                    </Typography>
-                    <Typography variant="caption" sx={{ 
-                      color: getEfficiencyColor(updatedTask?.taskMetrics?.efficiency),
-                      fontFamily: '"Inter", sans-serif',
-                      fontWeight: 600,
-                    }}>
-                      {(((updatedTask?.totalFocusTime || 0) / ((updatedTask?.estimatedTime || 0) || 1)) * 100).toFixed(1)}%
-                    </Typography>
+                    mb: 3,
+                    pb: 2,
+                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setShowEfficiencyBreakdown(!showEfficiencyBreakdown)}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <TrendingUp sx={{ color: theme.palette.primary.main }} />
+                    <Box>
+                      <Typography variant="h6" fontWeight="700" sx={{ 
+                        fontFamily: '"Adlam Display", serif',
+                        color: theme.palette.text.primary,
+                      }}>
+                        Efficiency Breakdown
+                      </Typography>
+                      <Typography variant="body2" sx={{ 
+                        color: theme.palette.text.secondary,
+                        fontFamily: '"Inter", sans-serif',
+                      }}>
+                        Click to see detailed scoring breakdown
+                      </Typography>
+                    </Box>
                   </Box>
+                  
+                  <IconButton size="small">
+                    {showEfficiencyBreakdown ? <KeyboardArrowUp /> : <KeyboardArrowDown />}
+                  </IconButton>
                 </Box>
+                
+                {/* Efficiency Breakdown Content */}
+                <Collapse in={showEfficiencyBreakdown}>
+                  {efficiencyMetrics ? (
+                    <Box>
+                      {/* Overall Score Summary */}
+                      <Box sx={{ 
+                        p: 3, 
+                        mb: 3,
+                        borderRadius: 2,
+                        backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                        border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                      }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Typography variant="body1" fontWeight="600" sx={{ 
+                            fontFamily: '"Inter", sans-serif',
+                            color: theme.palette.text.primary,
+                          }}>
+                            Overall Efficiency Score
+                          </Typography>
+                          <Typography variant="h4" fontWeight="800" sx={{ 
+                            fontFamily: '"Alkatra", cursive',
+                            color: getEfficiencyColor(efficiencyMetrics?.overall),
+                          }}>
+                            {efficiencyMetrics?.overall.toFixed(1)}%
+                          </Typography>
+                        </Box>
+                        
+                        <LinearProgress 
+                          variant="determinate" 
+                          value={Math.min(efficiencyMetrics?.overall, 100)}
+                          color={getEfficiencyColor(efficiencyMetrics?.overall)}
+                          sx={{ 
+                            height: 8, 
+                            borderRadius: 4, 
+                            mt: 2,
+                            backgroundColor: alpha(getEfficiencyColor(efficiencyMetrics?.overall), 0.1),
+                          }}
+                        />
+                        
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                          <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                            Weighted average of 5 factors
+                          </Typography>
+                          <Typography variant="caption" fontWeight="600" sx={{ 
+                            color: getEfficiencyColor(efficiencyMetrics?.overall),
+                          }}>
+                            {getEfficiencyLabel(efficiencyMetrics?.overall)}
+                          </Typography>
+                        </Box>
+                      </Box>
+                      
+                      {/* Component Breakdown */}
+                      <Typography variant="body1" fontWeight="600" sx={{ 
+                        mb: 3,
+                        fontFamily: '"Adlam Display", serif',
+                        color: theme.palette.text.primary,
+                      }}>
+                        Component Scores
+                      </Typography>
+                      
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {[
+                          { 
+                            key: 'timeEfficiency', 
+                            label: 'Time Efficiency', 
+                            description: 'Focus time vs estimated time',
+                            icon: <Timer />,
+                            weight: '30%'
+                          },
+                          { 
+                            key: 'completionQuality', 
+                            label: 'Completion Quality', 
+                            description: 'Task status & grading quality',
+                            icon: <CheckCircle />,
+                            weight: '25%'
+                          },
+                          { 
+                            key: 'timeliness', 
+                            label: 'Timeliness', 
+                            description: 'Deadline adherence',
+                            icon: <CalendarToday />,
+                            weight: '20%'
+                          },
+                          { 
+                            key: 'proofQuality', 
+                            label: 'Proof Quality', 
+                            description: 'Proof submissions & quality',
+                            icon: <Upload />,
+                            weight: '15%'
+                          },
+                          { 
+                            key: 'riskFactor', 
+                            label: 'Risk Factor', 
+                            description: 'Inverse of task risk score',
+                            icon: <Security />,
+                            weight: '10%'
+                          }
+                        ].map((component) => {
+                          const score = efficiencyMetrics?.components[component.key] || 0;
+                          const weightedContribution = (score * parseInt(component.weight)) / 100;
+                          
+                          return (
+                            <Paper
+                              key={component.key}
+                              elevation={0}
+                              sx={{
+                                p: 2.5,
+                                borderRadius: 2,
+                                backgroundColor: alpha(theme.palette.background.default, 0.5),
+                                border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                                transition: 'all 0.3s ease',
+                                '&:hover': {
+                                  backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                                  borderColor: alpha(theme.palette.primary.main, 0.2),
+                                }
+                              }}
+                            >
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
+                                  <Box sx={{ 
+                                    p: 1.5,
+                                    borderRadius: 2,
+                                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}>
+                                    {component.icon}
+                                  </Box>
+                                  
+                                  <Box sx={{ flex: 1 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                      <Typography variant="body2" fontWeight="600" sx={{ 
+                                        fontFamily: '"Inter", sans-serif',
+                                      }}>
+                                        {component.label}
+                                      </Typography>
+                                      <Chip
+                                        label={component.weight}
+                                        size="small"
+                                        variant="outlined"
+                                        sx={{ 
+                                          height: 20, 
+                                          fontSize: '0.675rem',
+                                          fontWeight: 500,
+                                        }}
+                                      />
+                                    </Box>
+                                    <Typography variant="caption" sx={{ 
+                                      color: theme.palette.text.secondary,
+                                      fontFamily: '"Inter", sans-serif',
+                                    }}>
+                                      {component.description}
+                                    </Typography>
+                                  </Box>
+                                </Box>
+                                
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 2 }}>
+                                  <Box sx={{ textAlign: 'center', minWidth: 60 }}>
+                                    <Typography variant="h6" fontWeight="700" sx={{ 
+                                      fontFamily: '"Alkatra", cursive',
+                                      color: getEfficiencyColor(score),
+                                    }}>
+                                      {score.toFixed(1)}%
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ 
+                                      color: theme.palette.text.secondary,
+                                      display: 'block',
+                                    }}>
+                                      Score
+                                    </Typography>
+                                  </Box>
+                                  
+                                  <Box sx={{ textAlign: 'center', minWidth: 60 }}>
+                                    <Typography variant="body1" fontWeight="600" sx={{ 
+                                      fontFamily: '"Inter", sans-serif',
+                                      color: theme.palette.primary.main,
+                                    }}>
+                                      {weightedContribution.toFixed(1)}%
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ 
+                                      color: theme.palette.text.secondary,
+                                      display: 'block',
+                                    }}>
+                                      Contribution
+                                    </Typography>
+                                  </Box>
+                                </Box>
+                              </Box>
+                              
+                              {/* Score Bar */}
+                              <Box sx={{ mt: 2 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                                    Performance
+                                  </Typography>
+                                  <Typography variant="caption" fontWeight="600" sx={{ 
+                                    color: getEfficiencyColor(score),
+                                  }}>
+                                    {getEfficiencyLabel(score)}
+                                  </Typography>
+                                </Box>
+                                <LinearProgress 
+                                  variant="determinate" 
+                                  value={Math.min(score, 100)}
+                                  color={getEfficiencyColor(score)}
+                                  sx={{ 
+                                    height: 6, 
+                                    borderRadius: 3,
+                                    backgroundColor: alpha(getEfficiencyColor(score), 0.1),
+                                  }}
+                                />
+                              </Box>
+                            </Paper>
+                          );
+                        })}
+                      </Box>
+                      
+                      {/* Legend */}
+                      <Paper
+                        elevation={0}
+                        sx={{
+                          mt: 3,
+                          p: 2,
+                          borderRadius: 2,
+                          backgroundColor: alpha(theme.palette.background.default, 0.3),
+                          border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                        }}
+                      >
+                        <Typography variant="caption" fontWeight="600" sx={{ 
+                          mb: 1.5,
+                          display: 'block',
+                          color: theme.palette.text.secondary,
+                        }}>
+                          Scoring Legend
+                        </Typography>
+                        
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                          {[
+                            { range: '85-100%', label: 'Excellent', color: 'success' },
+                            { range: '70-84%', label: 'Good', color: 'info' },
+                            { range: '50-69%', label: 'Satisfactory', color: 'warning' },
+                            { range: '30-49%', label: 'Needs Improvement', color: 'error' },
+                            { range: '0-29%', label: 'Unsatisfactory', color: 'error' }
+                          ].map((item) => (
+                            <Box key={item.label} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Box sx={{ 
+                                width: 12, 
+                                height: 12, 
+                                borderRadius: '50%',
+                                backgroundColor: theme.palette[item.color].main,
+                              }} />
+                              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                                {item.range}: {item.label}
+                              </Typography>
+                            </Box>
+                          ))}
+                        </Box>
+                      </Paper>
+                    </Box>
+                  ) : (
+                    <Box sx={{ 
+                      p: 4, 
+                      textAlign: 'center',
+                      borderRadius: 2,
+                      backgroundColor: alpha(theme.palette.background.default, 0.3),
+                      border: `1px dashed ${alpha(theme.palette.divider, 0.3)}`,
+                    }}>
+                      <TrendingUp sx={{ 
+                        fontSize: 48, 
+                        color: alpha(theme.palette.text.secondary, 0.3),
+                        mb: 2,
+                      }} />
+                      <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                        Efficiency breakdown not available
+                      </Typography>
+                    </Box>
+                  )}
+                </Collapse>
               </Paper>
             </Box>
-          </Box>
+          </Box> 
         )}
 
         {/* Proof Tab */}
-        {activeTab === 'proof' && (
+        {!loading && !error && activeTab === 'proof' && (
           <Box sx={{ p: 4 }}>
             <Box sx={{ 
               display: 'flex', 
@@ -1527,12 +1866,12 @@ const deleteProofFile = async (taskId, proofId) => {
                   {updatedTask?.proofUploads?.length || 0} file(s) uploaded
                 </Typography>
               </Box>
-              {updatedTask?.assignedTo?._id === userRole?.userId && (
+              {isAssignedUser && (
                 <Button
                   variant="contained"
                   startIcon={<Upload />}
                   size="medium"
-                  onClick={() => onUploadProof(updatedTask)}
+                  onClick={() => onUploadProof?.(updatedTask)}
                   sx={{ 
                     borderRadius: 2,
                     px: 3,
@@ -1555,9 +1894,9 @@ const deleteProofFile = async (taskId, proofId) => {
                 flexDirection: 'column', 
                 gap: 2.5 
               }}>
-                {updatedTask.proofUploads.map((proof, index) => (
+                {updatedTask?.proofUploads.map((proof, index) => (
                   <Paper 
-                    key={index}
+                    key={proof._id || index}
                     elevation={0}
                     sx={{ 
                       p: 3, 
@@ -1594,7 +1933,7 @@ const deleteProofFile = async (taskId, proofId) => {
                             <Typography variant="body1" fontWeight="600" sx={{ 
                               fontFamily: '"Inter", sans-serif',
                             }}>
-                              {proof.filename}
+                              {proof.filename || `Proof ${index + 1}`}
                             </Typography>
                             <Typography variant="caption" sx={{ 
                               color: theme.palette.text.secondary,
@@ -1613,7 +1952,7 @@ const deleteProofFile = async (taskId, proofId) => {
                       <Box sx={{ display: 'flex', gap: 1 }}>
                         <IconButton
                           size="small"
-                          onClick={() => viewProofFile(updatedTask._id, proof._id)}
+                          onClick={() => viewProofFile(updatedTask?._id, proof._id)}
                           sx={{ 
                             color: theme.palette.primary.main,
                             backgroundColor: alpha(theme.palette.primary.main, 0.1),
@@ -1626,7 +1965,7 @@ const deleteProofFile = async (taskId, proofId) => {
                         </IconButton>
                         <IconButton
                           size="small"
-                          onClick={() => downloadProofFile(updatedTask._id, proof._id, proof.filename)}
+                          onClick={() => downloadProofFile(updatedTask?._id, proof._id, proof.filename)}
                           sx={{ 
                             color: theme.palette.info.main,
                             backgroundColor: alpha(theme.palette.info.main, 0.1),
@@ -1639,12 +1978,12 @@ const deleteProofFile = async (taskId, proofId) => {
                         </IconButton>
                         <IconButton
                           size='small'
-                          onClick={() => deleteProofFile(updatedTask._id, proof._id)}
+                          onClick={() => deleteProofFile(updatedTask?._id, proof._id)}
                           sx={{ 
-                            color: theme.palette.info.main,
-                            backgroundColor: alpha(theme.palette.info.main, 0.1),
+                            color: theme.palette.error.main,
+                            backgroundColor: alpha(theme.palette.error.main, 0.1),
                             '&:hover': {
-                              backgroundColor: alpha(theme.palette.info.main, 0.2),
+                              backgroundColor: alpha(theme.palette.error.main, 0.2),
                             }
                           }}
                         >
@@ -1693,7 +2032,7 @@ const deleteProofFile = async (taskId, proofId) => {
         )}
         
         {/* Activity Tab */}
-        {activeTab === 'activity' && (
+        {!loading && !error && activeTab === 'activity' && (
           <Box sx={{ p: 4 }}>
             <Box sx={{ 
               display: 'flex', 
@@ -1835,7 +2174,7 @@ const deleteProofFile = async (taskId, proofId) => {
                           fontWeight: 600,
                           mb: 1,
                         }}>
-                          {log.action}
+                          {log.action || 'Activity'}
                         </Typography>
                         
                         <Box sx={{ 
@@ -1870,7 +2209,7 @@ const deleteProofFile = async (taskId, proofId) => {
                             }}
                           >
                             <AccessTime fontSize="inherit" />
-                            {log.time}
+                            {log.time || 'Recently'}
                           </Typography>
                           
                           {log.metadata?.duration && (
@@ -1955,11 +2294,11 @@ const deleteProofFile = async (taskId, proofId) => {
           </Box>
         )}
         {/*Comments tab */}
-        {activeTab === 'comments' && (
+        {!loading && !error && activeTab === 'comments' && (
           <Box sx={{ p: 4, height: '100%' }}>
             <CommentTab
-              taskId={task._id}
-              projectId={task.projectId}
+              taskId={updatedTask?._id}
+              projectId={updatedTask?.projectId}
               currentUser={user}
             />
           </Box>
@@ -2024,7 +2363,7 @@ const deleteProofFile = async (taskId, proofId) => {
               >
                 Edit Task
               </Button>
-              {updatedTask?.assignedTo && (
+              {updatedTask?.assignedTo?._id && (
                 <Button
                   startIcon={<Person />}
                   color="secondary"
@@ -2043,14 +2382,14 @@ const deleteProofFile = async (taskId, proofId) => {
                 </Button>
               )}
             </>
-          ) : updatedTask?.assignedTo?._id === userRole?.userId && (
+          ) : isAssignedUser && (
             <>
               {updatedTask?.status !== 'completed' && (
                 <Button
                   type="button"
                   variant="contained"
                   startIcon={<CheckCircle />}
-                  onClick={() => onStatusChange(updatedTask._id, "completed")}
+                  onClick={() => onStatusChange?.(updatedTask?._id, "completed")}
                   disabled={loading}
                   size="small"
                   sx={{ 
@@ -2068,7 +2407,7 @@ const deleteProofFile = async (taskId, proofId) => {
               {updatedTask?.status === 'completed' && (
                 <Button
                   variant="outlined"
-                  onClick={() => onStatusChange(updatedTask._id,'active')}
+                  onClick={() => onStatusChange?.(updatedTask?._id,'active')}
                   disabled={loading}
                   size="small"
                   sx={{ 
@@ -2121,14 +2460,6 @@ const deleteProofFile = async (taskId, proofId) => {
         </Button>
       </DialogActions>
 
-      {/* Add Comment Dialog (to be implemented) */}
-      <Dialog open={commentDialogOpen} onClose={() => setCommentDialogOpen(false)}>
-        <DialogTitle>Add Comment</DialogTitle>
-        <DialogContent>
-          <Typography>Comment dialog to be implemented</Typography>
-        </DialogContent>
-      </Dialog>
-
       {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
@@ -2147,6 +2478,5 @@ const deleteProofFile = async (taskId, proofId) => {
     </Dialog>
   );
 };
-
 
 export default TaskDetailsModal;

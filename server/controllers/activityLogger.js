@@ -1,4 +1,4 @@
-// utils/activityLogger.js
+//activityLogger.js
 import TaskActivityEvent from "../models/taskActivityEvent.js";
 import User from "../models/user.js";
 

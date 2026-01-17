@@ -1,3 +1,4 @@
+//server/middleware/authMiddleware.js
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
 
@@ -19,7 +20,6 @@ export const protectAdmin = async (req, res, next) => {
     res.status(401).json({ message: "Invalid token" });
   }
 };
-
 
 export const authMiddleware = async (req, res, next) => {
   try {
@@ -55,7 +55,6 @@ export const authMiddleware = async (req, res, next) => {
     res.status(401).json({ message: "Unauthorized: Invalid token" });
   }
 };
-
 export const teacherOnlyMiddleware = (req, res, next) => {
   try {
     if (!req.user) {
@@ -64,14 +63,12 @@ export const teacherOnlyMiddleware = (req, res, next) => {
         error: "Unauthorized"
       });
     }
-
     if (req.user.role !== "teacher") {
       return res.status(403).json({
         success: false,
         error: "Access denied: Teachers only"
       });
     }
-
     next();
   } catch (error) {
     console.error("Teacher middleware error:", error);

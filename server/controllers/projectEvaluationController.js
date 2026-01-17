@@ -1,3 +1,4 @@
+// controllers/projectEvaluationController.js
 import ProjectEvaluation from "../models/projectEvaluation.js";
 import Project from "../models/projects.js";
 import { createNotification } from './notificationController.js';
@@ -12,13 +13,11 @@ export const submitProjectEvaluation = async (req, res) => {
       grading,
       memberEvaluations
     } = req.body;
-
     const evaluator = req.user.id;
     console.log("evalutation data: ",      projectId,
       evaluatorRole,
       grading,
       memberEvaluations );
-
     // Validate required fields
     if (!projectId || !evaluatorRole || !grading) {
       return res.status(400).json({ 
@@ -26,7 +25,6 @@ export const submitProjectEvaluation = async (req, res) => {
         error: "Missing required fields" 
       });
     }
-
     // Check if project exists
     const projectExists = await Project.findById(projectId);
     if (!projectExists) {
@@ -35,21 +33,17 @@ export const submitProjectEvaluation = async (req, res) => {
         error: "Project not found" 
       });
     }
-
     // Check if user has already evaluated this project
     const existingEvaluation = await ProjectEvaluation.findOne({
       projectId,
       evaluator
     });
-
     if (existingEvaluation) {
       return res.status(400).json({ 
         success: false, 
         error: "You have already evaluated this project" 
       });
     }
-
-    // Calculate final score (sum of all category scores)
     const categoryScores = [
       grading.technicalExecution?.score || 0,
       grading.taskValidity?.score || 0,
@@ -57,9 +51,7 @@ export const submitProjectEvaluation = async (req, res) => {
       grading.teamwork?.score || 0,
       grading.documentationQuality?.score || 0
     ];
-
     const finalScore = categoryScores.reduce((sum, score) => sum + score, 0);
-
     // Detect suspicion flags
     const suspicionFlags = {
       paddedTasksDetected: false,
@@ -67,10 +59,7 @@ export const submitProjectEvaluation = async (req, res) => {
       copyPasteWork: false,
       comment: ''
     };
-    
-
-
-    // Create the evaluation
+      // Create the evaluation
     const evaluation = new ProjectEvaluation({
       projectId,
       evaluatedTeam: projectExists.teamName || "Unnamed Team",
@@ -82,10 +71,6 @@ export const submitProjectEvaluation = async (req, res) => {
     });
 
     await evaluation.save();
-
-
-
-
     // Populate references for response
     const populatedEvaluation = await ProjectEvaluation.findById(evaluation._id)
       .populate('projectId', 'projectName')

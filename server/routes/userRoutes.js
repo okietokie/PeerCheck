@@ -64,12 +64,10 @@ router.post("/task/create", taskController.createTask);  // create new task
 router.patch("/task/:taskId", taskController.updateTask);
 
 router.put("/task/:taskId/status", taskController.updateTaskStatus); // update task status
-router.put("/task/:taskId/time", taskController.updateTaskTime); // update task time tracking
 router.delete("/task/:taskId", taskController.deleteTask); // delete task
 router.put("/task/:taskId/assign", taskController.assignTask); // assign task to user
 //Inline editing
 router.patch('/:taskId/field', taskController.updateTaskField); // Update single field
-router.patch('/:taskId/fields', taskController.updateTaskMultipleFields); // Update multiple fields
 router.patch('/:taskId/reassign', taskController.reassignTask); // reassign
 
 // Recent activities route
@@ -77,10 +75,7 @@ router.get("/task/activity/recent", userController.getRecentActivities); // rout
 
 router.put("/task/:taskId/details", taskController.updateTaskDetails); // update task details
 router.put("/task/:taskId/deadline", taskController.updateTaskDeadline); // update task deadline
-router.put("/task/:taskId/grading", taskController.updateTaskGrading); // update task grading
-router.post("/task/:taskId/comment", taskController.addTaskComment); // add comment to task
 
-router.put("/task/:taskId/flags", taskController.updateTaskFlags); // update task flags
 
 router.get("/task/:taskId/activity", taskController.getTaskActivityLogs); // get task activity logs
 
@@ -89,11 +84,6 @@ router.post("/task/:taskId/proof", upload.proofUpload.single('proofFile'), taskC
 router.get("/task/:taskId/proof/:proofId", taskController.getProofFile) ; // upload proof for task
 router.delete("/task/:taskId/proof/:proofId", taskController.deleteProof); // delete proof from task
 
-// userRoutes.js
-router.post("/task/:taskId/start", taskController.startTask); // start task
-router.post("/task/:taskId/pause", taskController.pauseTask); // pause task
-router.post("/task/:taskId/resume", taskController.resumeTask); // resume task
-router.post("/task/:taskId/complete", taskController.completeTask); // complete task
 
 // Connection routes
 router.get("/peerteam/", connectionController.getPeerTeam); // get user's peer team

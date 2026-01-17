@@ -1,3 +1,4 @@
+// src/Components/Login/AuthPage.jsx
 import { Routes, Route, useLocation } from "react-router-dom";
 import SignUp from "./Helper Components/Signup";
 import Login from "./Login";

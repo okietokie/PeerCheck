@@ -1,6 +1,7 @@
+// src/Components/ProtectedRoute.jsx
 import React, { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom';
-//note: "children" is a keyworda special prop automatically provided to every component. It represents whatever you wrap inside that component in JSX.
+// "children" is a keyworda special prop automatically provided to every component. It represents whatever you wrap inside that component in JSX.
 
 
 export default function ProtectedRoute({ children }) {

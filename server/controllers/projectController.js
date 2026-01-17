@@ -1,3 +1,4 @@
+// server/controllers/projectController.js
 import Project from "../models/projects.js";
 import DeletedProjects from "../models/deletedProjectInfo.js";
 import Task from "../models/tasks.js"; 
@@ -651,16 +652,11 @@ const projectData = {
     }
   }
 };
-
-    const newProject = new Project(projectData);
+   const newProject = new Project(projectData);
     await newProject.save();
-
     team.projects.push(newProject._id);
     await team.save();
-
-
-
-    if (mentorId) {
+   if (mentorId) {
       
       await MentorProjectAssignment.create({
         mentor:   mentorId,  

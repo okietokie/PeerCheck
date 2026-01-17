@@ -1,3 +1,4 @@
+//server/controllers/notificationController.js
 import Notification from '../models/notification.js';
 import User from '../models/user.js';
 import Task from '../models/tasks.js';

@@ -1,3 +1,4 @@
+// peerCheck-frontend/src/Components/user-dashboard/StickyNoteEditor.jsx
 'use client';
 
 import { useState } from 'react';

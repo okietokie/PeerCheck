@@ -410,7 +410,7 @@ useEffect(() => {
       <TableRow
         hover
         selected={isSelected}
-        onDoubleClick={handleRowClick}
+        onClick={handleRowClick}
         sx={{
           '&:hover': {
             backgroundColor: alpha(theme.palette.primary.main, 0.04),
@@ -760,29 +760,29 @@ useEffect(() => {
                   height: '100%',
                   borderRadius: '50%',
                   border: `2px solid transparent`,
-                  borderTopColor: getEfficiencyColor(task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) === 'error'
+                  borderTopColor: getEfficiencyColor(task.metrics?.efficiency?.percentage || task.metrics?.efficiency) === 'error'
                     ? theme.palette.error.main
-                    : getEfficiencyColor(task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) === 'warning'
+                    : getEfficiencyColor(task.metrics?.efficiency?.percentage || task.metrics?.efficiency) === 'warning'
                     ? theme.palette.warning.main
                     : theme.palette.success.main,
-                  borderRightColor: (task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency || 0) >= 25
-                    ? getEfficiencyColor(task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) === 'error'
+                  borderRightColor: (task.metrics?.efficiency?.percentage || task.metrics?.efficiency || 0) >= 25
+                    ? getEfficiencyColor(task.metrics?.efficiency?.percentage || task.metrics?.efficiency) === 'error'
                       ? theme.palette.error.main
-                      : getEfficiencyColor(task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) === 'warning'
+                      : getEfficiencyColor(task.metrics?.efficiency?.percentage || task.metrics?.efficiency) === 'warning'
                       ? theme.palette.warning.main
                       : theme.palette.success.main
                     : 'transparent',
-                  borderBottomColor: (task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency || 0) >= 50
-                    ? getEfficiencyColor(task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) === 'error'
+                  borderBottomColor: (task.metrics?.efficiency?.percentage || task.metrics?.efficiency || 0) >= 50
+                    ? getEfficiencyColor(task.metrics?.efficiency?.percentage || task.metrics?.efficiency) === 'error'
                       ? theme.palette.error.main
-                      : getEfficiencyColor(task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) === 'warning'
+                      : getEfficiencyColor(task.metrics?.efficiency?.percentage || task.metrics?.efficiency) === 'warning'
                       ? theme.palette.warning.main
                       : theme.palette.success.main
                     : 'transparent',
-                  borderLeftColor: (task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency || 0) >= 75
-                    ? getEfficiencyColor(task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) === 'error'
+                  borderLeftColor: (task.metrics?.efficiency?.percentage || task.metrics?.efficiency || 0) >= 75
+                    ? getEfficiencyColor(task.metrics?.efficiency?.percentage || task.metrics?.efficiency) === 'error'
                       ? theme.palette.error.main
-                      : getEfficiencyColor(task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) === 'warning'
+                      : getEfficiencyColor(task.metrics?.efficiency?.percentage || task.metrics?.efficiency) === 'warning'
                       ? theme.palette.warning.main
                       : theme.palette.success.main
                     : 'transparent',
@@ -809,14 +809,14 @@ useEffect(() => {
                   sx={{
                     fontWeight: 700,
                     fontSize: '0.7rem',
-                    color: getEfficiencyColor(task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) === 'error'
+                    color: getEfficiencyColor(task.metrics?.efficiency?.percentage || task.metrics?.efficiency) === 'error'
                       ? theme.palette.error.main
-                      : getEfficiencyColor(task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) === 'warning'
+                      : getEfficiencyColor(task.metrics?.efficiency?.percentage || task.metrics?.efficiency) === 'warning'
                       ? theme.palette.warning.main
                       : theme.palette.success.main,
                   }}
                 >
-                  {Math.round(task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency || 0)}%
+                  {Math.round(task.metrics?.efficiency?.percentage || task.metrics?.efficiency || 0)}%
                 </Typography>
               </Box>
               
@@ -855,9 +855,9 @@ useEffect(() => {
                   display: 'block',
                   fontWeight: 600,
                   fontSize: '0.7rem',
-                  color: getEfficiencyColor(task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) === 'error'
+                  color: getEfficiencyColor(task.metrics?.efficiency?.percentage || task.metrics?.efficiency) === 'error'
                     ? theme.palette.error.main
-                    : getEfficiencyColor(task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) === 'warning'
+                    : getEfficiencyColor(task.metrics?.efficiency?.percentage || task.metrics?.efficiency) === 'warning'
                     ? theme.palette.warning.main
                     : theme.palette.success.main,
                   textTransform: 'uppercase',
@@ -865,31 +865,31 @@ useEffect(() => {
                 }}
               >
                 {task.status === "active" ? "Live" : 
-                (task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) >= 90 ? "Optimal" :
-                (task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) >= 75 ? "High" :
-                (task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) >= 60 ? "Good" :
-                (task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) >= 40 ? "Fair" :
-                (task.taskMetrics?.efficiency?.percentage || task.taskMetrics?.efficiency) >= 20 ? "Low" : "Poor"}
+                (task.metrics?.efficiency?.percentage || task.metrics?.efficiency) >= 90 ? "Optimal" :
+                (task.metrics?.efficiency?.percentage || task.metrics?.efficiency) >= 75 ? "High" :
+                (task.metrics?.efficiency?.percentage || task.metrics?.efficiency) >= 60 ? "Good" :
+                (task.metrics?.efficiency?.percentage || task.metrics?.efficiency) >= 40 ? "Fair" :
+                (task.metrics?.efficiency?.percentage || task.metrics?.efficiency) >= 20 ? "Low" : "Poor"}
               </Typography>
               
               {/* Trend indicator */}
-              {task.taskMetrics?.efficiency?.trend && (
+              {task.metrics?.efficiency?.trend && (
                 <Typography
                   variant="caption"
                   sx={{
                     display: 'block',
                     fontSize: '0.6rem',
-                    color: task.taskMetrics.efficiency.trend > 0
+                    color: task.metrics.efficiency.trend > 0
                       ? theme.palette.success.main
-                      : task.taskMetrics.efficiency.trend < 0
+                      : task.metrics.efficiency.trend < 0
                       ? theme.palette.error.main
                       : theme.palette.text.secondary,
                     fontWeight: 500,
                   }}
                 >
-                  {task.taskMetrics.efficiency.trend > 0 ? '↗' : 
-                  task.taskMetrics.efficiency.trend < 0 ? '↘' : '→'} 
-                  {Math.abs(task.taskMetrics.efficiency.trend)}%
+                  {task.metrics.efficiency.trend > 0 ? '↗' : 
+                  task.metrics.efficiency.trend < 0 ? '↘' : '→'} 
+                  {Math.abs(task.metrics.efficiency.trend)}%
                 </Typography>
               )}
             </Box>
@@ -1117,7 +1117,7 @@ useEffect(() => {
                           <Box sx={{ position: 'relative', width: 60, height: 60, margin: 'auto' }}>
                             <CircularProgress
                               variant="determinate"
-                              value={Math.min(task.taskMetrics?.efficiency || 0, 100)}
+                              value={Math.min(task.metrics?.efficiency || 0, 100)}
                               size={60}
                               thickness={4}
                               sx={{
@@ -1135,7 +1135,7 @@ useEffect(() => {
                               justifyContent: 'center',
                             }}>
                               <Typography variant="body2" fontWeight="600">
-                                {Math.round(task.taskMetrics?.efficiency || 0)}%
+                                {Math.round(task.metrics?.efficiency || 0)}%
                               </Typography>
                             </Box>
                           </Box>

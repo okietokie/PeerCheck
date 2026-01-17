@@ -1,4 +1,4 @@
-// taskController.js - OPTIMIZED VERSION
+// taskController.js
 import Task from '../models/tasks.js';
 import Project from '../models/projects.js';
 import User from '../models/user.js';
@@ -9,98 +9,13 @@ import { updateProjectMetricsInDB } from './projectController.js';
 import Team from '../models/peergroup_log.js';
 import editDataInfo from '../models/editDataInfo.js';
 import MentorProjectAssignment from '../models/mentorProjectAssignment.js';
-import { r2Client, R2_BUCKET_NAME } from "../r2Client.js"; // your configured R2 client
+import { r2Client, R2_BUCKET_NAME } from "../r2Client.js";
 import cron from 'node-cron';
 import path from "path";
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { createNotification, notifyProofUploaded, notifyTaskAssigned, notifyTaskComment, notifyTaskCompleted, notifyTaskDeadline } from './notificationController.js';
 
-//individual task risk score
-/**
- * system flags paddedTiem, rushedCompletion, noProof, manualReviewRequired
- * task risk weighing logic:
-    riskScore =
-    (paddedTime ? 2 : 0) +
-    (rushedCompletion ? 2 : 0) +
-    (noProof ? 1 : 0) +
-    (manualReviewRequired ? 3 : 0)
 
-//Combines multiple suspicious behaviors into a single risk number.
-// Computes task and project risk scores to flag potential integrity issues
-
- */
-
-export const calculateTaskMetrics = (task) => { 
-  // Calculate efficiency 
-  const estimatedTime = task.estimatedTime || 1; 
-  const focusTime = task.totalFocusTime || 0; 
-
-
-  const efficiency = estimatedTime > 0 ? (focusTime / estimatedTime) * 100 : 0;
-  
-  const paddedTime = efficiency > 200;           // Worked >2x estimated
-  const rushedCompletion = task.status === 'completed' && efficiency < 40;
-  const noProof = !task.proofUploads || task.proofUploads.length === 0;
-  const manualReviewRequired = paddedTime || rushedCompletion || noProof;
-
-  let efficiencyStatus = 'normal'; 
-  let efficiencyLabel = 'Ideal'; 
-  
-  if (efficiency < 50) { 
-    efficiencyStatus = 'low'; 
-    efficiencyLabel = 'Rushed / Suspicious'; 
-  } else if (efficiency >= 50 && efficiency < 80) { 
-    efficiencyStatus = 'warning'; 
-    efficiencyLabel = 'Below Ideal'; 
-  } else if (efficiency >= 80 && efficiency <= 120) { 
-    efficiencyStatus = 'good'; 
-    efficiencyLabel = 'Ideal'; 
-  } else if (efficiency > 120 && efficiency <= 200) { 
-    efficiencyStatus = 'warning'; 
-    efficiencyLabel = 'Slightly Padded'; 
-  } else { 
-    efficiencyStatus = 'high'; 
-    efficiencyLabel = 'Padded Time'; 
-  }
-
-  
-  // Calculate risk score based on flag severity
-  const riskScore =    //total score point = 8  (2+2+1+3)
-    (paddedTime ? 2 : 0) +
-    (rushedCompletion ? 2 : 0) +
-    (noProof ? 1 : 0) +
-    (manualReviewRequired ? 3 : 0);  
-
-  // Determine risk level based on score
-  let riskLevel, riskLabel;
-  
-  if (riskScore >= 4) {
-    riskLevel = 'high';
-    riskLabel = 'High Risk';
-  } else if (riskScore >= 2) {
-    riskLevel = 'medium';
-    riskLabel = 'Medium Risk';
-  } else {
-    riskLevel = 'low';
-    riskLabel = 'Low Risk';
-  }
-
-
-    return {
-    efficiency,
-    flags: {
-      paddedTime,
-      rushedCompletion,
-      noProof,
-      manualReviewRequired
-    },
-    risk: {
-      riskScore,
-      riskLevel,
-      riskLabel
-    },
-    }
-};
 // Helper functions for derived metrics
 const getStatusWeight = (status) => {
   switch (status) {
@@ -121,77 +36,308 @@ const calculateStatusWeight = (status) => {
   return weights[status] || 0;
 };
 
-
-
-
-// Helper to calculate task efficiency
-// Returns 0 if estimatedTime is 0 or less
-const calculateTaskEfficiency = (task) => {
-  const estimatedTime = task.estimatedTime || 0;
-  const totalFocusTime = task.totalFocusTime || 0;
-  
-  if (estimatedTime <= 0) return 0;
-  
-  return (totalFocusTime / estimatedTime) * 100;
-};
-
 // Helper to calculate if task is overdue
-// Returns false if no deadline
 const calculateIsOverdue = (task) => {
   if (!task.deadline) return false;
   return new Date(task.deadline) < new Date() && task.status !== 'completed';
 };
 
 // Helper to calculate days until deadline
-// Returns 0 if overdue or no deadline
 const calculateDaysUntilDeadline = (task) => {
   if (!task.deadline) return 0;
   const days = Math.ceil((new Date(task.deadline) - new Date()) / (1000 * 60 * 60 * 24));
   return days < 0 ? 0 : days;
 };
 
-// Helper to enrich a single task with metrics
-//explanation: what enrichtaskwithmetrics does function: This function takes a task object as input and calculates various performance metrics for that task, such as efficiency, risk score, status weight, and whether the task is overdue. It then returns a new task object that includes these calculated metrics in a structured format under a "metrics" property.
+export const calculateTaskRisk = (task) => { 
+  // Calculate basic time metrics for risk assessment
+  const estimatedTime = task.estimatedTime || 1; 
+  const focusTime = task.totalFocusTime || 0; 
+  const timeRatio = estimatedTime > 0 ? (focusTime / estimatedTime) : 0;
+  
+  const paddedTime = timeRatio > 2;           // Worked >2x estimated
+  const rushedCompletion = task.status === 'completed' && timeRatio < 0.4;
+  const noProof = !task.proofUploads || task.proofUploads.length === 0;
+  const manualReviewRequired = paddedTime || rushedCompletion || noProof;
+
+  // Calculate risk score based on flag severity
+  const riskScore =    //total score point = 8  (2+2+1+3)
+    (paddedTime ? 2 : 0) +
+    (rushedCompletion ? 2 : 0) +
+    (noProof ? 1 : 0) +
+    (manualReviewRequired ? 3 : 0);  
+
+  // Determine risk level based on score
+  let riskLevel, riskLabel;
+  
+  if (riskScore >= 4) {
+    riskLevel = 'high';
+    riskLabel = 'High Risk';
+  } else if (riskScore >= 2) {
+    riskLevel = 'medium';
+    riskLabel = 'Medium Risk';
+  } else {
+    riskLevel = 'low';
+    riskLabel = 'Low Risk';
+  }
+    
+  return {
+    timeRatio,
+    flags: {
+      paddedTime,
+      rushedCompletion,
+      noProof,
+      manualReviewRequired
+    },
+    risk: {
+      riskScore,
+      riskLevel,
+      riskLabel
+    }
+  };
+};
+
+
+const calculateTimeEfficiency = (task) => {
+  const estimatedTime = task.estimatedTime || 1;
+  const focusTime = task.totalFocusTime || 0;
+  
+  // Calculate efficiency percentage
+  const rawEfficiency = (focusTime / estimatedTime) * 100;
+  
+  // Apply curve - optimal range is 80-120%
+  let timeScore;
+  if (rawEfficiency >= 80 && rawEfficiency <= 120) {
+    timeScore = 100; // Perfect efficiency
+  } else if (rawEfficiency < 40 || rawEfficiency > 200) {
+    timeScore = 30; // Very poor efficiency
+  } else if (rawEfficiency < 60 || rawEfficiency > 160) {
+    timeScore = 60; // Below average
+  } else {
+    timeScore = 80; // Acceptable but not optimal
+  }
+  
+  return timeScore;
+};
+
+const calculateCompletionQuality = (task) => {
+  let score = 0;
+  
+  // Status weight
+  const statusWeights = {
+    'completed': 100,
+    'active': 70,
+    'paused': 40,
+    'not_started': 0
+  };
+  score += statusWeights[task.status] || 0;
+  
+  // Add quality from grading
+  const gradingMeta = task.gradingMeta || {};
+  if (gradingMeta.teacherOverrideScore) {
+    score += gradingMeta.teacherOverrideScore * 10; // Convert 0-10 to 0-100
+  } else if (gradingMeta.qualityScore) {
+    score += gradingMeta.qualityScore * 10;
+  }
+  
+  return Math.min(score, 100);
+};
+
+const calculateTimelinessScore = (task) => {
+  if (!task.deadline) return 80; // Default if no deadline
+  
+  const now = new Date();
+  const deadline = new Date(task.deadline);
+  
+  if (task.status === 'completed' && task.endDate) {
+    const completionDate = new Date(task.endDate);
+    const daysLate = Math.max(0, (completionDate - deadline) / (1000 * 60 * 60 * 24));
+    
+    if (completionDate <= deadline) {
+      return 100; // Completed on or before deadline
+    } else if (daysLate <= 1) {
+      return 90; // 1 day late
+    } else if (daysLate <= 3) {
+      return 70; // 3 days late
+    } else if (daysLate <= 7) {
+      return 50; // 1 week late
+    } else {
+      return 30; // Very late
+    }
+  } else {
+    // Task not completed yet
+    const daysRemaining = Math.max(0, (deadline - now) / (1000 * 60 * 60 * 24));
+    const totalDuration = task.estimatedTime / (60 * 60 * 24); // Convert seconds to days
+    
+    if (task.status === 'not_started') {
+      // Not started yet - check if we're close to deadline
+      if (daysRemaining > totalDuration * 0.5) {
+        return 80; // Plenty of time left
+      } else if (daysRemaining > totalDuration * 0.25) {
+        return 60; // Some time left
+      } else if (daysRemaining > 0) {
+        return 40; // Little time left
+      } else {
+        return 20; // Overdue and not started
+      }
+    } else {
+      // Task in progress
+      const progress = task.totalFocusTime / task.estimatedTime;
+      const timeRatio = progress / (1 - (daysRemaining / totalDuration));
+      
+      if (timeRatio > 1.2) {
+        return 90; // Ahead of schedule
+      } else if (timeRatio > 0.8) {
+        return 80; // On track
+      } else if (timeRatio > 0.5) {
+        return 60; // Slightly behind
+      } else {
+        return 40; // Significantly behind
+      }
+    }
+  }
+};
+
+const calculateProofQualityScore = (task) => {
+  const proofs = task.proofUploads || [];
+  
+  if (proofs.length === 0) return 20; // No proof
+  
+  let score = 50; // Base score for having proof
+  
+  // Analyze proof quality
+  const proofTypes = proofs.map(p => p.fileType);
+  const hasImages = proofTypes.some(t => t.startsWith('image/'));
+  const hasPDF = proofTypes.some(t => t.includes('pdf') || t.includes('document'));
+  const hasVideo = proofTypes.some(t => t.startsWith('video/'));
+  
+  if (hasVideo) score += 30; // Video proof is strong
+  if (hasImages && hasPDF) score += 20; // Multiple proof types
+  else if (hasImages || hasPDF) score += 10; // Single proof type
+  
+  // Check proof descriptions
+  const hasDescriptions = proofs.some(p => p.description && p.description.trim() !== '');
+  if (hasDescriptions) score += 10;
+  
+  // Check file sizes (larger files might indicate more substantial proof)
+  const totalSize = proofs.reduce((sum, p) => sum + (p.fileSize || 0), 0);
+  if (totalSize > 5 * 1024 * 1024) score += 10; // >5MB total
+  
+  return Math.min(score, 100);
+};
+
+const calculateRiskFactorScore = (task) => {
+  const riskMetrics = calculateTaskRisk(task);
+  const riskScore = riskMetrics.risk.riskScore;
+  
+  // Convert risk score (0-8) to efficiency score (100-0)
+  // Higher risk = lower efficiency
+  const riskEfficiency = Math.max(0, 100 - (riskScore * 12.5));
+  
+  // Apply penalties for specific flags
+  let penalty = 0;
+  const flags = riskMetrics.flags || {};
+  
+  if (flags.rushedCompletion) penalty += 15;
+  if (flags.paddedTime) penalty += 10;
+  if (flags.noProof) penalty += 20;
+  if (flags.manualReviewRequired) penalty += 25;
+  
+  return Math.max(0, riskEfficiency - penalty);
+};
+
+const getEfficiencyLabel = (score) => {
+  if (score >= 85) return 'Outstanding';
+  if (score >= 70) return 'Excellent';
+  if (score >= 50) return 'Satisfactory';
+  if (score >= 30) return 'Needs Improvement';
+  return 'Unsatisfactory';
+};
+
+const calculateEnhancedTaskEfficiency = (task) => {
+  const factors = {
+    timeEfficiency: 0.30,      // 30% weight
+    completionQuality: 0.25,    // 25% weight
+    timeliness: 0.20,          // 20% weight
+    proofQuality: 0.15,        // 15% weight
+    riskFactor: 0.10           // 10% weight
+  };
+
+  // Calculate component scores
+  const timeEfficiencyScore = calculateTimeEfficiency(task);
+  const completionQualityScore = calculateCompletionQuality(task);
+  const timelinessScore = calculateTimelinessScore(task);
+  const proofQualityScore = calculateProofQualityScore(task);
+  const riskFactorScore = calculateRiskFactorScore(task);
+  
+  // Calculate weighted efficiency
+  const weightedEfficiency = 
+    (timeEfficiencyScore * factors.timeEfficiency) +
+    (completionQualityScore * factors.completionQuality) +
+    (timelinessScore * factors.timeliness) +
+    (proofQualityScore * factors.proofQuality) +
+    (riskFactorScore * factors.riskFactor);
+  
+  return Math.min(Math.max(weightedEfficiency, 0), 100); // Clamp between 0-100
+};
+
+
 const enrichTaskWithMetrics = (task) => {
   if (!task) return null;
 
-  const efficiency = calculateTaskEfficiency(task); // returns a number
-  const riskScore = calculateTaskMetrics(task); // returns risk object
+  const efficiency = calculateEnhancedTaskEfficiency(task);
+  const riskScore = calculateTaskRisk(task);
   const statusWeight = getStatusWeight(task.status);
   const isOverdue = calculateIsOverdue(task);
   const daysUntilDeadline = calculateDaysUntilDeadline(task);
-
-  // Map efficiency number to enum string
-  const efficiencyStatus = (efficiency) => {
-    if (efficiency < 40) return 'low';
-    if (efficiency < 70) return 'medium';
-    return 'high';
+  
+  // Calculate individual component scores for insights
+  const componentScores = {
+    timeEfficiency: calculateTimeEfficiency(task),
+    completionQuality: calculateCompletionQuality(task),
+    timeliness: calculateTimelinessScore(task),
+    proofQuality: calculateProofQualityScore(task),
+    riskFactor: calculateRiskFactorScore(task)
   };
 
+  // Determine efficiency status based on comprehensive score
+  const efficiencyStatus = (efficiency) => {
+    if (efficiency >= 85) return 'excellent';
+    if (efficiency >= 70) return 'good';
+    if (efficiency >= 50) return 'average';
+    if (efficiency >= 30) return 'poor';
+    return 'critical';
+  };
+  const taskObj = task.toObject ? task.toObject() : { ...task };
+
+
   return {
-    ...task,
+    ...taskObj,
     _id: task._id,
     metrics: {
       efficiency: Number(efficiency.toFixed(2)),
+      efficiencyStatus: efficiencyStatus(efficiency),
+      efficiencyLabel: getEfficiencyLabel(efficiency),
       riskScore: riskScore.risk.riskScore,
-      efficiencyStatus: efficiencyStatus(efficiency), 
+      riskLevel: riskScore.risk.riskLevel,
+      componentScores,
       statusWeight,
       statusWeightPercentage: statusWeight * 100,
       hasProof: task.proofUploads && task.proofUploads.length > 0,
       proofCount: task.proofUploads ? task.proofUploads.length : 0,
       isOverdue,
-      daysUntilDeadline
+      daysUntilDeadline,
+      overallScore: efficiency
     }
   };
 };
 
-// Helper to enrich multiple tasks with metrics
 const enrichTasksWithMetrics = (tasks) => {
   if (!tasks || !Array.isArray(tasks)) return [];
   return tasks.map(task => enrichTaskWithMetrics(task));
 };
 
-// Common function to calculate summary metrics
+
 const calculateSummaryMetrics = (enrichedTasks) => {
   const totalTasks = enrichedTasks.length;
   const completedTasks = enrichedTasks.filter(t => t.status === 'completed').length;
@@ -200,24 +346,31 @@ const calculateSummaryMetrics = (enrichedTasks) => {
   const averageRiskScore = totalTasks > 0 ? totalRiskScore / totalTasks : 0;
   const totalStatusWeight = enrichedTasks.reduce((sum, task) => sum + (task.metrics.statusWeight || 0), 0);
   const weightedProgress = totalTasks > 0 ? (totalStatusWeight / totalTasks) * 100 : 0;
+  const totalEfficiency = enrichedTasks.reduce((sum, task) => sum + (task.metrics.efficiency || 0), 0);
+  const averageEfficiency = totalTasks > 0 ? totalEfficiency / totalTasks : 0;
 
   return {
     totalTasks,
     completedTasks,
     activeTasks,
     averageRiskScore: Number(averageRiskScore.toFixed(2)),
+    averageEfficiency: Number(averageEfficiency.toFixed(2)),
     weightedProgress: Number(weightedProgress.toFixed(2)),
     summary: {
       highRiskTasks: enrichedTasks.filter(t => t.metrics.riskScore >= 4).length,
       mediumRiskTasks: enrichedTasks.filter(t => t.metrics.riskScore >= 2 && t.metrics.riskScore < 4).length,
       lowRiskTasks: enrichedTasks.filter(t => t.metrics.riskScore < 2).length,
       overdueTasks: enrichedTasks.filter(t => t.metrics.isOverdue).length,
-      tasksWithProof: enrichedTasks.filter(t => t.metrics.hasProof).length
+      tasksWithProof: enrichedTasks.filter(t => t.metrics.hasProof).length,
+      excellentTasks: enrichedTasks.filter(t => t.metrics.efficiencyStatus === 'excellent').length,
+      goodTasks: enrichedTasks.filter(t => t.metrics.efficiencyStatus === 'good').length,
+      averageTasks: enrichedTasks.filter(t => t.metrics.efficiencyStatus === 'average').length,
+      poorTasks: enrichedTasks.filter(t => t.metrics.efficiencyStatus === 'poor' || t.metrics.efficiencyStatus === 'critical').length
     }
   };
 };
 
-// Common error handler
+
 const handleError = (res, err, context) => {
   console.error(`Error in ${context}:`, err);
   res.status(500).json({ 
@@ -225,6 +378,7 @@ const handleError = (res, err, context) => {
     message: `Error ${context}: ${err.message}` 
   });
 };
+
 
 // Get all tasks for a project WITH METRICS
 export const getTasks = async (req, res) => {
@@ -270,8 +424,8 @@ export const getTasks = async (req, res) => {
     handleError(res, err, 'fetching tasks');
   }
 };
-// Get task details with activities AND METRICS 
 
+// Get task details with activities AND METRICS 
 export const getTaskDetails = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -310,36 +464,14 @@ export const getTaskDetails = async (req, res) => {
       .sort({ timestamp: -1 })
       .limit(50);
 
-    // Calculate metrics using helper functions
-    const efficiency = calculateTaskEfficiency(task);
-    const riskScore = calculateTaskMetrics(task);
-    const statusWeight = getStatusWeight(task.status);
-    const isOverdue = calculateIsOverdue(task);
-    const daysUntilDeadline = calculateDaysUntilDeadline(task);
+    // Calculate enhanced metrics
+    const enrichedTask = await enrichTaskWithMetrics(task);
 
     res.status(200).json({
       success: true,
-      task,
+      task: enrichedTask,
       activities,
-      statistics: {
-        efficiency: Number(efficiency.toFixed(2)),
-        riskScore: riskScore.risk.riskScore,
-        statusWeight,
-        statusWeightPercentage: statusWeight * 100,
-        totalFocusTime: task.totalFocusTime,
-        estimatedTime: task.estimatedTime,
-        proofCount: task.proofUploads.length,
-        isOverdue,
-        daysUntilDeadline,
-        hasProof: task.proofUploads && task.proofUploads.length > 0,
-        riskLevel: riskScore >= 4 ? 'high' : riskScore >= 2 ? 'medium' : 'low',
-        flags: {
-          paddedTime: task.flags?.paddedTime || false,
-          rushedCompletion: task.flags?.rushedCompletion || false,
-          noProof: task.flags?.noProof || false,
-          manualReviewRequired: task.flags?.manualReviewRequired || false
-        }
-      }
+      statistics: enrichedTask.metrics
     });
   } catch (err) {
     handleError(res, err, 'fetching task details');
@@ -401,27 +533,13 @@ export const getTasksWithFilter = async (req, res) => {
       .populate('projectId', 'projectName')
       .lean();
     
-    // Add metrics and filter by risk level
-    let tasksWithMetrics = tasks.map(task => {
-      const taskMetrics = calculateTaskMetrics(task);
-      return {
-        ...task,
-        taskMetrics,
-        metrics: {
-          efficiency: taskMetrics.efficiency,
-          riskScore: taskMetrics.risk.riskScore,
-          isOverdue: taskMetrics.isOverdue,
-          hasProof: taskMetrics.hasProof,
-          proofCount: taskMetrics.proofCount,
-          statusWeightPercentage: calculateStatusWeight(task.status),
-          daysUntilDeadline: taskMetrics.daysUntilDeadline
-        }
-      };
-    });
+    // Add enhanced metrics
+    const tasksWithMetrics = enrichTasksWithMetrics(tasks);
     
     // Filter by risk level
+    let filteredTasks = tasksWithMetrics;
     if (riskLevel && riskLevel !== 'all') {
-      tasksWithMetrics = tasksWithMetrics.filter(task => {
+      filteredTasks = tasksWithMetrics.filter(task => {
         const score = task.metrics.riskScore;
         if (riskLevel === 'high') return score >= 4;
         if (riskLevel === 'medium') return score >= 2 && score < 4;
@@ -431,8 +549,8 @@ export const getTasksWithFilter = async (req, res) => {
     
     res.json({
       success: true,
-      tasks: tasksWithMetrics,
-      total: tasksWithMetrics.length
+      tasks: filteredTasks,
+      total: filteredTasks.length
     });
   } catch (error) {
     console.error('Error getting filtered tasks:', error);
@@ -454,23 +572,7 @@ export const getUserTasks = async (req, res) => {
       .sort({ deadline: 1 })
       .lean();
     
-    const tasksWithMetrics = tasks.map(task => {
-      const taskMetrics = calculateTaskMetrics(task);
-      return {
-        ...task,
-        taskMetrics,
-        metrics: {
-          efficiency: taskMetrics.efficiency,
-          riskScore: taskMetrics.risk.riskScore,
-          isOverdue: taskMetrics.isOverdue,
-          hasProof: taskMetrics.hasProof,
-          proofCount: taskMetrics.proofCount,
-          statusWeightPercentage: calculateStatusWeight(task.status),
-          daysUntilDeadline: taskMetrics.daysUntilDeadline
-        }
-      };
-    });
-    
+    const tasksWithMetrics = enrichTasksWithMetrics(tasks);
     
     res.json({
       success: true,
@@ -501,7 +603,6 @@ export const getAllTasks = async (req, res) => {
     
     const projectIds = projects.map(p => p._id);
 
-
     // Find all tasks from these projects
     const tasks = await Task.find({
       $or: [
@@ -517,31 +618,17 @@ export const getAllTasks = async (req, res) => {
 
     const user = await User.findById(userId).select('name email avatar');
 
-    // Add metrics to each task
-    const tasksWithMetrics = tasks.map(task => {
-      const taskMetrics = calculateTaskMetrics(task);
-
-      return {
-        ...task,
-        taskMetrics,
-        metrics: {
-          efficiency: taskMetrics.efficiency,
-          riskScore: taskMetrics.risk.riskScore,
-          isOverdue: taskMetrics.isOverdue,
-          hasProof: taskMetrics.hasProof,
-          proofCount: taskMetrics.proofCount,
-          statusWeightPercentage: calculateStatusWeight(task.status),
-          daysUntilDeadline: taskMetrics.daysUntilDeadline
-        }
-      };
-    });
-
+    // Add enhanced metrics to each task
+    const tasksWithMetrics = enrichTasksWithMetrics(tasks);
     
     // Calculate summary metrics
     const totalTasks = tasks.length;
     const completedTasks = tasks.filter(t => t.status === 'completed').length;
     const highRiskTasks = tasksWithMetrics.filter(t => t.metrics.riskScore >= 4).length;
     const tasksWithoutProof = tasksWithMetrics.filter(t => !t.metrics.hasProof).length;
+    const totalEfficiency = tasksWithMetrics.reduce((sum, t) => sum + t.metrics.efficiency, 0);
+    const averageEfficiency = totalTasks > 0 ? totalEfficiency / totalTasks : 0;
+    
     res.json({
       success: true,
       user: user,
@@ -551,6 +638,7 @@ export const getAllTasks = async (req, res) => {
         completedTasks,
         highRiskTasks,
         tasksWithoutProof,
+        averageEfficiency: Number(averageEfficiency.toFixed(2)),
         summary: {
           highRiskTasks,
           completedTasks,
@@ -566,6 +654,7 @@ export const getAllTasks = async (req, res) => {
     });
   }
 };
+
 // Get all tasks with filtering options
 export const getAllTasksWithFilters = async (req, res) => {
   try {
@@ -584,7 +673,7 @@ export const getAllTasksWithFilters = async (req, res) => {
       search
     } = req.query;
 
-    // 1. Get all projects the user has access to
+    // Get all projects the user has access to
     const userProjects = await Project.find({
       $or: [
         { createdBy: userId },
@@ -610,7 +699,7 @@ export const getAllTasksWithFilters = async (req, res) => {
 
     const projectIds = userProjects.map(project => project._id);
     
-    // 2. Build query
+    // Build query
     const query = { projectId: { $in: projectIds } };
     
     if (status && status !== 'all') {
@@ -632,7 +721,7 @@ export const getAllTasksWithFilters = async (req, res) => {
       ];
     }
 
-    // 3. Get tasks with pagination
+    // Get tasks with pagination
     const skip = (page - 1) * limit;
     
     let tasks = await Task.find(query)
@@ -642,10 +731,10 @@ export const getAllTasksWithFilters = async (req, res) => {
       .limit(parseInt(limit))
       .lean();
 
-    // 4. Apply computed filters
+    // Apply computed filters
     if (riskLevel && riskLevel !== 'all') {
       tasks = tasks.filter(task => {
-        const riskScore = calculateTaskMetrics(task).risk.riskScore;
+        const riskScore = calculateTaskRisk(task).risk.riskScore;
         if (riskLevel === 'high') return riskScore >= 4;
         if (riskLevel === 'medium') return riskScore >= 2 && riskScore < 4;
         if (riskLevel === 'low') return riskScore < 2;
@@ -663,14 +752,14 @@ export const getAllTasksWithFilters = async (req, res) => {
       tasks = tasks.filter(task => calculateIsOverdue(task));
     }
 
-    // 5. Sort tasks
+    // Sort tasks
     const sortOptions = {
       deadline: (a, b) => new Date(a.deadline) - new Date(b.deadline),
       'deadline-desc': (a, b) => new Date(b.deadline) - new Date(a.deadline),
-      risk: (a, b) => calculateTaskMetrics(b).risk.riskScore - calculateTaskMetrics(a).risk.riskScore,
-      'risk-desc': (a, b) => calculateTaskMetrics(a).risk.riskScore - calculateTaskMetrics(b).risk.riskScore,
-      efficiency: (a, b) => calculateTaskEfficiency(a) - calculateTaskEfficiency(b),
-      'efficiency-desc': (a, b) => calculateTaskEfficiency(b) - calculateTaskEfficiency(a),
+      risk: (a, b) => calculateTaskRisk(b).risk.riskScore - calculateTaskRisk(a).risk.riskScore,
+      'risk-desc': (a, b) => calculateTaskRisk(a).risk.riskScore - calculateTaskRisk(b).risk.riskScore,
+      efficiency: (a, b) => calculateEnhancedTaskEfficiency(a) - calculateEnhancedTaskEfficiency(b),
+      'efficiency-desc': (a, b) => calculateEnhancedTaskEfficiency(b) - calculateEnhancedTaskEfficiency(a),
       updatedAt: (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt),
       'updatedAt-desc': (a, b) => new Date(a.updatedAt) - new Date(b.updatedAt)
     };
@@ -678,13 +767,13 @@ export const getAllTasksWithFilters = async (req, res) => {
     const sortFunc = sortOptions[`${sortBy}${sortOrder === 'desc' ? '-desc' : ''}`] || sortOptions.deadline;
     tasks.sort(sortFunc);
 
-    // 6. Get total count for pagination
+    // Get total count for pagination
     const totalTasks = await Task.countDocuments(query);
 
-    // 7. Enrich tasks with metrics
+    // Enrich tasks with metrics
     const enrichedTasks = enrichTasksWithMetrics(tasks);
 
-    // 8. Calculate summary
+    // Calculate summary
     const summaryMetrics = calculateSummaryMetrics(enrichedTasks);
 
     res.status(200).json({
@@ -716,13 +805,12 @@ export const getAllTasksWithFilters = async (req, res) => {
     handleError(res, err, 'fetching all tasks with filters');
   }
 };
+
 // Create a new task
 export const createTask = async (req, res) => {
   try {
     const { taskTitle, description, projectId, assignedTo, deadline, estimatedTime} = req.body;
-    
     const userId = req.user.id;
-
     // Validate required fields
     if (!taskTitle || !projectId || !assignedTo || !deadline || !estimatedTime) {
       return res.status(400).json({ 
@@ -730,7 +818,6 @@ export const createTask = async (req, res) => {
         message: 'Task title, project, assigned user, deadline, and estimated time are required' 
       });
     }
-
     // Check if project exists
     const project = await Project.findById(projectId);
     if (!project) {
@@ -739,7 +826,6 @@ export const createTask = async (req, res) => {
         message: 'Project not found'
       });
     }
-
     // Check if assigned user exists
     const assignedUser = await User.findById(assignedTo);
     if (!assignedUser) {
@@ -748,10 +834,8 @@ export const createTask = async (req, res) => {
         message: 'Assigned user not found'
       });
     }
-
     const selectedDate = new Date(deadline); // e.g., "2025-12-07"
     selectedDate.setHours(23, 59, 59, 999); //time is set to 11:59:59.999 PM
-
 
     // Create the task
     const task = new Task({
@@ -771,10 +855,10 @@ export const createTask = async (req, res) => {
         paddedTime: false,
         rushedCompletion: false,
         noProof: true,
-        manualReviewRequired: false
+        manualReviewRequired: project.gradingCriteria.allowPeerReview || true
       },
       gradingMeta: {
-        allowPeerReview: true,
+        allowPeerReview: project.gradingCriteria.allowPeerReview || false,
         qualityScore: 0,
         teacherOverrideScore: 0
       }
@@ -811,236 +895,6 @@ export const createTask = async (req, res) => {
 };
 
 
-// Start a task 
-export const startTask = async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const userId = req.user.id;
-
-
-    const task = await Task.findById(taskId); //fetches the full mongoose DB object not plain js object
-    if (!task) return res.status(404).json({ error: "Task not found" });
-    
-    // Check if user is assigned to this task
-    if (task.assignedTo.toString() !== userId.toString()) {
-      return res.status(403).json({ error: "Not authorized to start this task" });
-    }
-    
-    // Check if task can be started
-    if (task.status === 'completed') {
-      return res.status(400).json({ error: "Cannot start a completed task" });
-    }
-    const oldStatus = task.status;
-    task.status = "active";
-    task.lastEventTime = new Date();  //js Date object, represents the current date and time ("time right now in ISo format")
-    await task.save();
-    await createNotification({
-      userId: task.assignedBy,
-      type: 'task_status_changed',
-      title: 'Task Status Updated',
-      message: `Task "${task.taskTitle}" started!`,
-      data: {
-        taskId: task._id,
-        projectId: task.projectId,
-        status: task.status
-      },
-      priority: 'medium'
-    });
-    
-    // Log activity
-    await logActivity({
-      taskId: task._id,
-      userId,
-      projectId: task.projectId,
-      eventType: 'status_changed',
-      metadata: {
-        oldStatus: oldStatus,
-        newStatus: 'active'
-      }
-    });
-    
-    res.json({ success: true, task });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// Pause a task 
-export const pauseTask = async (req, res) => {
-  const { taskId } = req.params;
-  const userId = req.user.id;
-  
-  try {
-    const task = await Task.findById(taskId);
-    if (!task) return res.status(404).json({ error: "Task not found" });
-    
-    if (task.assignedTo.toString() !== userId.toString()) {
-      return res.status(403).json({ error: "Not authorized to pause this task" });
-    }
-    
-    if (task.status !== "active") {
-      return res.status(400).json({ error: "Task is not active" });
-    }
-    
-    // Calculate elapsed time since last event
-    const now = new Date();
-
-    const lastEvent = task.lastEventTime ? new Date(task.lastEventTime) : new Date();  // treat missing timestamp as current time to avoid negative elapsed time
-    if (lastEvent > now) {
-      lastEvent = now;
-    }
-
-
-    const elapsedSeconds = Math.floor((now - lastEvent) / 1000);  //1000 means convert milliseconds to seconds
-    
-    // Update focus time
-    if (task.lastEventTime) {
-      task.totalFocusTime += Math.max(elapsedSeconds, 0);  //.max to prevent negative elapsed time, 0 is the minimum value
-    }    
-
-    task.status = "paused";
-    task.lastEventTime = now;
-    
-    await task.save();
-    await createNotification({
-      userId: task.assignedBy,
-      type: 'task_status_changed',
-      title: 'Task Status Updated',
-      message: `Task "${task.taskTitle}" paused!`,
-      data: {
-        taskId: task._id,
-        projectId: task.projectId,
-        status: task.status
-      },
-      priority: 'medium'
-    });
-    
-    // Log activity
-    await logActivity({
-      taskId: task._id,
-      userId,
-      projectId: task.projectId,
-      eventType: 'status_changed',
-      metadata: {
-        oldStatus: 'active',
-        newStatus: 'paused',
-        elapsedTime: elapsedSeconds
-      }
-    });
-    
-    res.json({ 
-      success: true, 
-      totalFocusTime: task.totalFocusTime,
-      elapsedTime: elapsedSeconds
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// Resume task 
-export const resumeTask = async (req, res) => {
-  const { taskId } = req.params;
-  const userId = req.user.id;
-
-  
-  
-  try {
-    const task = await Task.findById(taskId);
-    if (!task) return res.status(404).json({ error: "Task not found" });
-    
-    if (task.assignedTo.toString() !== userId.toString()) {
-      return res.status(403).json({ error: "Not authorized to resume this task" });
-    }
-    
-    if (task.status !== 'paused') {
-      return res.status(400).json({ error: "Task is not paused" });
-    }
-    
-    task.status = "active";
-    task.lastEventTime = new Date();
-    await task.save();
-    await createNotification({
-      userId: task.assignedBy,
-      type: 'task_status_changed',
-      title: 'Task Status Updated',
-      message: `Resuming task "${task.taskTitle}" `,
-      data: {
-        taskId: task._id,
-        projectId: task.projectId,
-        status: task.status
-      },
-      priority: 'medium'
-    });
-    
-    
-    // Log activity
-    await logActivity({
-      taskId: task._id,
-      userId,
-      projectId: task.projectId,
-      eventType: 'status_changed',
-      metadata: {
-        oldStatus: 'paused',
-        newStatus: 'active'
-      }
-    });
-    
-    res.json({ success: true, task });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// Complete task
-export const completeTask = async (req, res) => {
-  const { taskId } = req.params;
-  const userId = req.user.id;
-  
-  try {
-    const task = await Task.findById(taskId);
-    if (!task) return res.status(404).json({ error: "Task not found" });
-    
-    if (task.assignedTo.toString() !== userId.toString()) {
-      return res.status(403).json({ error: "Not authorized to complete this task" });
-    }
-    
-    // If task was active, add remaining time
-    if (task.status === "active") {
-      const now = new Date();
-      const lastEvent = task.lastEventTime || task.updatedAt;
-      const elapsedSeconds = Math.floor((now - new Date(lastEvent)) / 1000);
-      task.totalFocusTime += Math.max(elapsedSeconds, 0);
-    }
-    
-    task.status = "completed";
-    task.lastEventTime = new Date();
-    await task.save();
-    
-    // Log activity
-    await logActivity({
-      taskId: task._id,
-      userId,
-      projectId: task.projectId,
-      eventType: 'status_changed',
-      metadata: {
-        oldStatus: task.status,
-        newStatus: 'completed'
-      }
-    });
-
-    await notifyTaskCompleted(task._id, userId);
-
-    
-    res.json({ 
-      success: true, 
-      totalFocusTime: task.totalFocusTime,
-      task
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
 
 // Delete task 
 export const deleteTask = async (req, res) => {
@@ -1111,7 +965,6 @@ export const deleteTask = async (req, res) => {
     handleError(res, err, 'deleting task');
   }
 };
-
 
 export const assignTask = async (req, res) => {
   try {
@@ -1243,11 +1096,6 @@ export const assignTask = async (req, res) => {
   }
 };
 
-
-
-
-
-
 // Update task details (title, description, etc)
 export const updateTaskDetails = async (req, res) => {
   try {
@@ -1373,7 +1221,6 @@ export const getTaskActivityLogs = async (req, res) => {
       });
     }
 
-
     // Check permissions
     const project = task?.projectId;
     const team = await Team.findById(project?.teamId)
@@ -1433,6 +1280,7 @@ export const getTaskActivityLogs = async (req, res) => {
     });
   }
 };
+
 // Update deadline
 export const updateTaskDeadline = async (req, res) => {
   try {
@@ -1513,285 +1361,6 @@ export const updateTaskDeadline = async (req, res) => {
   }
 };
 
-// Update grading
-export const updateTaskGrading = async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const { score, overrideType, comment } = req.body; // overrideType: 'teacher' or 'peer'
-    const userId = req.user.id;
-
-    const task = await Task.findById(taskId);
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        error: "Task not found"
-      });
-    }
-
-    // Validate score
-    const numericScore = parseFloat(score);
-    if (isNaN(numericScore) || numericScore < 0 || numericScore > 10) {
-      return res.status(400).json({
-        success: false,
-        error: "Score must be between 0 and 10"
-      });
-    }
-
-    let eventType = 'grading_updated';
-    const oldScore = task.gradingMeta?.teacherOverrideScore || 
-                     task.gradingMeta?.qualityScore || 
-                     null;
-
-    // Check permissions based on override type
-    if (overrideType === 'teacher') {
-      // Only teacher or admin can do teacher override
-      const isTeacher = req.user.role === 'teacher';
-      const isAdmin = req.user.role === 'admin';
-      
-      if (!isTeacher && !isAdmin) {
-        return res.status(403).json({
-          success: false,
-          error: "Only teachers or admins can override grades"
-        });
-      }
-      
-      if (!task.gradingMeta) task.gradingMeta = {};
-      task.gradingMeta.teacherOverrideScore = numericScore;
-      eventType = 'grade_override';
-      
-    } else if (overrideType === 'peer') {
-      // Check if user is in the project team (for peer review)
-      const project = await Project.findById(task.projectId);
-      const isTeamMember = project.teamId?.members.includes(userId);
-      
-      if (!isTeamMember && userId !== task.assignedTo.toString()) {
-        return res.status(403).json({
-          success: false,
-          error: "Only team members can submit peer reviews"
-        });
-      }
-      
-      if (!task.gradingMeta) task.gradingMeta = {};
-      // Store peer reviews differently - you might want an array for multiple reviews
-      task.gradingMeta.lastPeerReviewScore = numericScore;
-      task.gradingMeta.lastPeerReviewBy = userId;
-      task.gradingMeta.lastPeerReviewAt = new Date();
-      
-    } else {
-      // Regular quality score update (by task assignee)
-      if (task.assignedTo.toString() !== userId) {
-        return res.status(403).json({
-          success: false,
-          error: "Only task assignee can update quality score"
-        });
-      }
-      
-      if (!task.gradingMeta) task.gradingMeta = {};
-      task.gradingMeta.qualityScore = numericScore;
-    }
-
-    await task.save();
-    await createNotification({
-      userId: task.assignedTo,
-      type: 'grade_updated',
-      title: 'Task Graded',
-      message: `Task "${task.taskTitle}" has been graded with ${numericScore}/10`,
-      data: {
-        taskId: task._id,
-        projectId: task.projectId,
-        score: numericScore,
-        graderType: overrideType
-      },
-      priority: 'medium',
-      actionUrl: `/tasks/${task._id}`
-    });
-
-    // Log activity
-    await logActivity({
-      taskId,
-      userId,
-      projectId: task.projectId,
-      eventType,
-      metadata: {
-        oldScore,
-        newScore: numericScore,
-        overrideType,
-        comment
-      }
-    });
-
-    res.json({
-      success: true,
-      task,
-      message: "Grading updated successfully"
-    });
-  } catch (error) {
-    console.error('Error updating grading:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-// Add comment
-export const addTaskComment = async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const { comment } = req.body;
-    const userId = req.user.id;
-
-    if (!comment || comment.trim() === '') {
-      return res.status(400).json({
-        success: false,
-        error: "Comment cannot be empty"
-      });
-    }
-
-    const task = await Task.findById(taskId);
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        error: "Task not found"
-      });
-    }
-
-    // Check if user has access to this task
-    const project = await Project.findById(task.projectId);
-    const hasAccess = 
-      task.assignedTo.toString() === userId ||
-      project.createdBy.toString() === userId ||
-      project.teamId?.members.includes(userId);
-    
-    if (!hasAccess) {
-      return res.status(403).json({
-        success: false,
-        error: "Not authorized to comment on this task"
-      });
-    }
-
-    // You might want to store comments in a separate collection
-    // For now, we'll just log the activity
-    
-    // Log activity
-    await logActivity({
-      taskId,
-      userId,
-      projectId: task.projectId,
-      eventType: 'comment_added',
-      metadata: {
-        comment: comment.trim(),
-        timestamp: new Date()
-      }
-    });
-
-    if (task.assignedTo.toString() !== userId.toString()) {
-      await notifyTaskComment(taskId, userId, comment.trim());
-    }
-    res.json({
-      success: true,
-      message: "Comment added successfully",
-      comment: {
-        text: comment.trim(),
-        userId,
-        timestamp: new Date()
-      }
-    });
-  } catch (error) {
-    console.error('Error adding comment:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-
-// Update task flags
-export const updateTaskFlags = async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const { flags } = req.body; // { paddedTime: true, rushedCompletion: false, etc }
-    const userId = req.user.id;
-
-    const task = await Task.findById(taskId);
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        error: "Task not found"
-      });
-    }
-
-    // Only teacher, admin, or system can update flags
-    const isTeacher = req.user.role === 'teacher';
-    const isAdmin = req.user.role === 'admin';
-    
-    if (!isTeacher && !isAdmin) {
-      return res.status(403).json({
-        success: false,
-        error: "Only teachers or admins can update flags"
-      });
-    }
-
-    const oldFlags = { ...task.flags };
-    let changes = [];
-
-    // Update each flag and track changes
-    Object.keys(flags).forEach(flagName => {
-      if (task.flags[flagName] !== undefined && task.flags[flagName] !== flags[flagName]) {
-        changes.push({
-          flagName,
-          oldValue: task.flags[flagName],
-          newValue: flags[flagName]
-        });
-        task.flags[flagName] = flags[flagName];
-      }
-    });
-
-    await task.save();
-
-    // Log each flag change
-    for (const change of changes) {
-      await logActivity({
-        taskId,
-        userId,
-        projectId: task.projectId,
-        eventType: 'flag_update',
-        metadata: {
-          flagName: change.flagName,
-          flagValue: change.newValue,
-          riskScore: calculateRiskScore(task) // Recalculate risk score
-        }
-      });
-    }
-
-    res.json({
-      success: true,
-      task,
-      message: "Flags updated successfully",
-      changes
-    });
-  } catch (error) {
-    console.error('Error updating flags:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-// Helper to calculate risk score
-const calculateRiskScore = (task) => {
-  const flags = task.flags || {};
-  return (
-    (flags.paddedTime ? 2 : 0) +
-    (flags.rushedCompletion ? 2 : 0) +
-    (flags.noProof ? 1 : 0) +
-    (flags.manualReviewRequired ? 3 : 0)
-  );
-};
-
-
 export const updateTask = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -1815,7 +1384,7 @@ export const updateTask = async (req, res) => {
     // Update project fields
 
     Object.keys(updateData).forEach(key => {
-      if (updateData[key] !== undefined && updateData[key] !== task[key]) { //means only update if value is provided and is different
+      if (updateData[key] !== undefined && updateData[key] !== task[key]) {
         task[key] = updateData[key];
       }
     });
@@ -1851,6 +1420,7 @@ export const updateTask = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
 // Update the existing updateTaskStatus function
 export const updateTaskStatus = async (req, res) => {
   try {
@@ -1877,7 +1447,7 @@ export const updateTaskStatus = async (req, res) => {
 
     if (task.status === "active" && task.lastEventTime) {
       additionalTime = Math.floor(
-        (new Date(timestamp) - new Date(task.lastEventTime)) / 1000   //new Date() creates a real JS data object, converts to milliseconds, divide by 1000 to get seconds
+        (new Date(timestamp) - new Date(task.lastEventTime)) / 1000
       );
     }
     task.totalFocusTime += Math.max(additionalTime, 0);
@@ -1890,25 +1460,21 @@ export const updateTaskStatus = async (req, res) => {
       task.endDate = new Date();
     }
 
+    // Calculate new metrics
+    const riskMetrics = calculateTaskRisk(task);
+    const efficiency = calculateEnhancedTaskEfficiency(task);
     
-
-    const metrics = calculateTaskMetrics(task);
-
-    task.metrics.riskScore = metrics.risk.riskScore;
-    task.taskMetrics.efficiency = Math.round(metrics.efficiency * 100) / 100;
-    task.taskMetrics.label = metrics.efficiency.label;
-    task.taskMetrics.status = metrics.efficiency.status;
-
-    task.flags = metrics.flags; //update flags based on current task state
-
-    // Recalculate efficiency
-    if (task.estimatedTime) {
-      task.taskMetrics.efficiency =
-        Math.round((task.totalFocusTime / task.estimatedTime) * 100 * 100) / 100;
-    }
+    // Update task metrics
+    task.metrics = task.metrics || {};
+    task.metrics.riskScore = riskMetrics.risk.riskScore;
+    task.metrics.efficiency = efficiency;
+    task.metrics.efficiencyStatus = efficiency >= 85 ? 'excellent' : 
+                                     efficiency >= 70 ? 'good' : 
+                                     efficiency >= 50 ? 'average' : 
+                                     efficiency >= 30 ? 'poor' : 'critical';
+    task.metrics.efficiencyLabel = getEfficiencyLabel(efficiency);
     
-
-
+    task.flags = riskMetrics.flags;
 
     await task.save();
 
@@ -1929,13 +1495,6 @@ export const updateTaskStatus = async (req, res) => {
       'completed': 'completed'
     };
 
-    const statusActionMessages = {
-      'not_started': 'is ready to start',
-      'active': 'has been started',
-      'paused': 'has been paused',
-      'completed': 'has been completed'
-    };
-
     const notificationPriority = {
       'completed': 'high',
       'active': 'medium',
@@ -1944,8 +1503,6 @@ export const updateTaskStatus = async (req, res) => {
     };
 
     // Determine who should receive notifications
-    const notificationRecipients = [];
-
     // Always notify the task assignee about their own action (confirmation)
     if (task.assignedTo && task.assignedTo._id.toString() === userId) {
       // User is updating their own task - get confirmation notification
@@ -1990,6 +1547,7 @@ export const updateTaskStatus = async (req, res) => {
         actionUrl: `/tasks/${task._id}`
       });
     }
+    
     // Log activity with status_changed event type
     await logActivity({
       taskId,
@@ -2009,10 +1567,10 @@ export const updateTaskStatus = async (req, res) => {
       projectId: task.projectId,
       eventType: 'efficiency_update',
       metadata: {
-        efficiency: task.taskMetrics.efficiency,
-        label: task.taskMetrics.label,
-        status: task.taskMetrics.status
-    }
+        efficiency: efficiency,
+        label: getEfficiencyLabel(efficiency),
+        status: task.metrics.efficiencyStatus
+      }
     });
     
     const updatedTask = await Task.findById(taskId)
@@ -2030,53 +1588,6 @@ export const updateTaskStatus = async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating task status:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-};
-
-// Update the existing updateTaskTime function
-export const updateTaskTime = async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const { focusTime } = req.body;
-    const userId = req.user.id;
-
-    const task = await Task.findById(taskId);
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        error: "Task not found"
-      });
-    }
-
-    const oldFocusTime = task.totalFocusTime || 0;
-    const newFocusTime = oldFocusTime + parseInt(focusTime);
-
-    task.totalFocusTime = newFocusTime;
-    await task.save();
-
-    // Log activity with time_logged event type
-    await logActivity({
-      taskId,
-      userId,
-      projectId: task.projectId,
-      eventType: 'time_logged',
-      metadata: {
-        duration: parseInt(focusTime),
-        totalFocusTime: newFocusTime
-      }
-    });
-
-    res.json({
-      success: true,
-      task,
-      message: "Time logged successfully"
-    });
-  } catch (error) {
-    console.error('Error updating task time:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -2114,9 +1625,6 @@ export const scheduleTaskDeadlineReminders = () => {
   });
 };
 
-
-
-
 // Upload proof to R2
 export const uploadProof = async (req, res) => {
   try {
@@ -2135,7 +1643,7 @@ export const uploadProof = async (req, res) => {
   await r2Client.send(new PutObjectCommand({
     Bucket: R2_BUCKET_NAME,
     Key: r2Key,
-    Body: file.buffer,        // if multer memory storage
+    Body: file.buffer,
     ContentType: file.mimetype
   }));
   
@@ -2209,22 +1717,7 @@ export const getProofFile = async (req, res) => {
       Bucket: R2_BUCKET_NAME,
       Key: proof.r2Key
     }));
-    
 
-    /**
-     * backend route
-     * streaming a file from cloudflare to client
-     * sets MIME [- Multipurpose Internet Mail Extension (tells the client/browser the type of file/content being sent)] of file being sent
-     * proof.fileType could be 'image/png', 'application/pdf'
-     * Content-Disposition controls how the browser should treat the file
-     * * 'inline' means display in-browser if possible
-     * * 'attachment' forces download instead of displaying
-     * filename = sets the file its name for download
-     * encodeURIComponent ensures special characters dont break code, when filename is being set(if it has any special chrs)
-     * object.body is the readable sstreamof file from storage
-     * .pipe(res) connects it directyl to response
-     * * * tell the browser what type the file is, whether to view or download it, and then stream file directly to the user
-     */
     res.setHeader('Content-Type', proof.fileType);
     res.setHeader('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="${encodeURIComponent(proof.filename)}"`);
     object.Body.pipe(res);
@@ -2293,7 +1786,7 @@ export const deleteProof = async (req, res) => {
 export const updateTaskField = async (req, res) => {
   try {
     const { taskId } = req.params;
-    const { field, value } = req.body; // field can be: 'taskTitle', 'priority', 'startDate', 'deadline'
+    const { field, value } = req.body;
     const userId = req.user.id;
     const task = await Task.findById(taskId);
     if (!task) {
@@ -2434,8 +1927,6 @@ export const updateTaskField = async (req, res) => {
 
     // Update the field
     task[field] = newValue;
-
-    
     
     // If deadline is updated and task is overdue, recalculate metrics
     if (field === 'deadline') {
@@ -2450,10 +1941,18 @@ export const updateTaskField = async (req, res) => {
 
     // Recalculate task metrics if relevant field changed
     if (['estimatedTime', 'totalFocusTime', 'status'].includes(field)) {
-      const metrics = calculateTaskMetrics(task);
-      task.metrics.riskScore = metrics.risk.riskScore;
-      task.taskMetrics.efficiency = Math.round(metrics.efficiency * 100) / 100;
-      task.flags = metrics.flags;
+      const riskMetrics = calculateTaskRisk(task);
+      const efficiency = calculateEnhancedTaskEfficiency(task);
+      
+      task.metrics = task.metrics || {};
+      task.metrics.riskScore = riskMetrics.risk.riskScore;
+      task.metrics.efficiency = efficiency;
+      task.metrics.efficiencyStatus = efficiency >= 85 ? 'excellent' : 
+                                       efficiency >= 70 ? 'good' : 
+                                       efficiency >= 50 ? 'average' : 
+                                       efficiency >= 30 ? 'poor' : 'critical';
+      task.metrics.efficiencyLabel = getEfficiencyLabel(efficiency);
+      task.flags = riskMetrics.flags;
     }
 
     await task.save();
@@ -2526,7 +2025,6 @@ export const reassignTask = async (req, res) => {
     const { newAssigneeId } = req.body;
     const userId = req.user.id;
 
-
     const task = await Task.findById(taskId);
     if (!task) return res.status(404).json({ error: "Task not found" });
 
@@ -2573,174 +2071,5 @@ export const reassignTask = async (req, res) => {
   res.json({ success: true, message: "Task reassigned successfully" });
   } catch (error) {
     console.error(error);
-  }
-}
-
-/**
- * Bulk update multiple task fields at once
- */
-export const updateTaskMultipleFields = async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    const { field, value } = req.body; 
-    const userId = req.user.id;
-
-    const task = await Task.findById(taskId);
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        error: "Task not found"
-      });
-    }
-
-    // Check permissions
-    const project = await Project.findById(task.projectId);
-    const isCreator = project?.createdBy?.toString() === userId.toString();
-    const isAssignee = task.assignedTo?.toString() === userId.toString();
-    const isAdmin = req.user.role === 'admin';
-    const isTeacher = req.user.role === 'teacher';
-    
-    if (!isAssignee && !isCreator && !isTeacher && !isAdmin) {
-      return res.status(403).json({
-        success: false,
-        error: "Not authorized to edit this task"
-      });
-    }
-
-    const changes = [];
-
-    // Process each update
-    for (const [field, value] of Object.entries(updates)) {
-      if (field === 'status') {
-        // Status updates uses the dedicated updateTaskStatus endpoint
-        continue;
-      }
-
-      if (field === 'deadline') {
-        try {
-          newValue = new Date(value);
-          if (isNaN(newValue.getTime())) {
-            return res.status(400).json({
-              success: false,
-              error: "Invalid date format"
-            });
-          }
-          if (!isAssignee) {
-            return res.status(403).json({
-              success: false,
-              error: "You are not authorized to change deadline of tasks. Please contact your project lead."
-            });
-          }
-          
-          // Set time to end of day for deadline
-          newValue.setHours(23, 59, 59, 999);
-          eventType = 'deadline_updated';
-        } catch (err) {
-          return res.status(400).json({
-            success: false,
-            error: "Invalid date format"
-          });
-        }
-      } else if (field === 'priority') {
-        const validPriorities = ['urgent', 'high', 'normal', 'low'];
-        if (!validPriorities.includes(value)) {
-          return res.status(400).json({
-            success: false,
-            error: "Invalid priority value. Must be: urgent, high, normal, low"
-          });
-        }
-        if (!isAssignee) {
-          return res.status(403).json({
-            success: false,
-            error: "You are not authorized to change priority of tasks. Please contact your project lead."
-          });
-        }
-        newValue = value;
-        eventType = 'priority_updated';
-      } else if (field === 'estimatedTime') {
-        const minutes = parseInt(value);
-        if (isNaN(minutes) || minutes <= 0) {
-          return res.status(400).json({
-            success: false,
-            error: "Estimated time must be a positive number in minutes"
-          });
-        }
-        newValue = minutes * 60; // Convert minutes to seconds
-        eventType = 'estimated_time_updated';
-
-      } else if (field === 'taskTitle') {
-        if (!value || value.trim() === '') {
-          return res.status(400).json({
-            success: false,
-            error: "Task title cannot be empty"
-          });
-        }
-        newValue = value.trim();
-        eventType = 'title_updated';
-
-      } 
-      
-    changes.push({field: value});
-    }
-
-    if (changes.length === 0) {
-      return res.status(200).json({
-        success: true,
-        message: "No changes made",
-        task
-      });
-    }
-
-    // Recalculate metrics if needed
-    if (changes.some(change => ['estimatedTime', 'totalFocusTime'].includes(change.field))) {
-      const metrics = calculateTaskMetrics(task);
-      task.metrics.riskScore = metrics.risk.riskScore;
-      task.taskMetrics.efficiency = Math.round(metrics.efficiency * 100) / 100;
-      task.flags = metrics.flags;
-    }
-
-    await task.save();
-
-    // Log each change
-    for (const change of changes) {
-      await logActivity({
-        taskId,
-        userId,
-        projectId: task.projectId,
-        eventType: `${change.field}_updated`,
-        metadata: {
-          field: change.field,
-          oldValue: change.oldValue instanceof Date ? change.oldValue.toISOString() : change.oldValue,
-          newValue: change.newValue instanceof Date ? change.newValue.toISOString() : change.newValue
-        }
-      });
-    }
-
-    // Get populated task
-    const updatedTask = await Task.findById(taskId)
-      .populate('assignedTo', 'name email avatar')
-      .populate('assignedBy', 'name email')
-      .populate('projectId', 'projectName')
-      .lean();
-
-    const enrichedTask = enrichTaskWithMetrics(updatedTask);
-
-    res.json({
-      success: true,
-      task: enrichedTask,
-      message: `${changes.length} field(s) updated successfully`,
-      changes: changes.map(change => ({
-        field: change.field,
-        oldValue: change.oldValue instanceof Date ? change.oldValue.toISOString() : change.oldValue,
-        newValue: change.newValue instanceof Date ? change.newValue.toISOString() : change.newValue
-      }))
-    });
-
-  } catch (error) {
-    console.error('Error updating multiple task fields:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
   }
 };

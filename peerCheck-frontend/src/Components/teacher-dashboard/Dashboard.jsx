@@ -51,6 +51,7 @@ import {
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { IconPencil } from '@tabler/icons-react';
 
 export default function TeacherDashboard() {
   const navigate = useNavigate();
@@ -90,7 +91,7 @@ export default function TeacherDashboard() {
     statsDemo: false
   });
 
-  // Fetch teacher's assigned projects - USING ACTUAL ENDPOINTS
+  // Fetch teacher's assigned projects
   const fetchTeacherData = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -101,7 +102,7 @@ export default function TeacherDashboard() {
 
       setRefreshing(true);
 
-      // 1. Fetch teacher details - this endpoint should exist
+      // 1. Fetch teacher details
       try {
         const teacherRes = await axiosClient.get("user/me", {
           headers: { Authorization: `Bearer ${token}` }
@@ -113,7 +114,7 @@ export default function TeacherDashboard() {
         setTeacherName('Teacher');
       }
 
-      // 2. Fetch teacher's assigned projects - THIS ENDPOINT EXISTS!
+      // 2. Fetch teacher's assigned projects
       try {
         const projectsRes = await axiosClient.get("teacher/get-projects", {
           headers: { Authorization: `Bearer ${token}` }
@@ -161,7 +162,7 @@ export default function TeacherDashboard() {
         setAssignedProjects([]);
       }
 
-      // 3. Fetch teacher's teams (to get more student data) - THIS ENDPOINT EXISTS!
+      // 3. Fetch teacher's teams (to get more student data)
       try {
         const teamsRes = await axiosClient.get("teacher/get-teams", {
           headers: { Authorization: `Bearer ${token}` }
@@ -192,7 +193,7 @@ export default function TeacherDashboard() {
         console.error("Error fetching teams:", teamsErr);
       }
 
-      // 4. Fetch project evaluations - Use existing route from projectRoutes.js
+      // 4. Fetch project evaluations
       try {
         // We'll get evaluations from assigned projects
         const projectsWithEvals = await Promise.all(
@@ -236,7 +237,7 @@ export default function TeacherDashboard() {
         console.error("Error fetching evaluations:", evalErr);
       }
 
-      // 5. Generate alerts from project data (since no alerts endpoint exists)
+      
       generateAlertsFromProjects(assignedProjects);
 
       // Show data loaded snackbar
@@ -279,7 +280,7 @@ export default function TeacherDashboard() {
           projectName: project.projectName,
           action: 'Project updated',
           timestamp: project.updatedAt,
-          icon: '✏️'
+          icon: <IconPencil />
         });
       }
 
@@ -447,7 +448,7 @@ export default function TeacherDashboard() {
   const handleViewProject = (projectId) => {
     setSnackbars(prev => ({ ...prev, projectClick: true }));
     setTimeout(() => {
-      navigate(`/teacher-app/projects/${projectId}`);
+      navigate(`/teacher-app/classes`);
     }, 300);
   };
 
