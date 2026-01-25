@@ -39,6 +39,7 @@ import {
   AlertTitle,
   Slide,
   Fade,
+  Grid,
 } from '@mui/material';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -59,7 +60,34 @@ export default function Dashboard() {
   const [projects, setProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [recentActivities, setRecentActivities] = useState([]);
-  
+  const [productivityInsights, setProductivityInsights] = useState({
+                                                            averageEfficiency: 0,
+                                                            onTimeRate: 0,
+                                                            taskDistribution: {
+                                                              completed: 0,
+                                                              active: 0,
+                                                              paused: 0,
+                                                              notStarted: 0,
+                                                              highRisk: 0
+                                                            },
+                                                            recentPerformance: {
+                                                              tasksCompleted: 0,
+                                                              averageEfficiency: 0,
+                                                              totalFocusTime: 0
+                                                            },
+                                                            // Add these new fields for peer reviews
+                                                            peerReviewScore: 0,
+                                                            collaborationScore: 0,
+                                                            projectEvaluationScore: 0,
+                                                            peerReviewCount: 0,
+                                                            peerReviewBreakdown: {
+                                                              contribution: 0,
+                                                              collaboration: 0,
+                                                              quality: 0,
+                                                              punctuality: 0
+                                                            },
+                                                            recentPeerReviews: []
+                                                          }); 
   // Snackbar states
   const [snackbars, setSnackbars] = useState({
     welcome: false,
@@ -80,6 +108,64 @@ export default function Dashboard() {
     productivity: 0,
     highPriorityAlerts: 0
   });
+  const fetchProductivityData = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const response = await axiosClient.get(`user/productivity`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      console.log("response prod:", response);
+
+      if (response?.data?.success) {
+        const prodData = response?.data?.data?.productivity;
+        const recentPerf = response?.data?.data?.recentPerformance;
+        console.log("Fetched Productivity Data: ", prodData, recentPerf);
+        // all productivity insights at once updated
+        setProductivityInsights({
+          averageEfficiency: prodData.averageEfficiency || 0,
+          onTimeRate: prodData.onTimeRate || 0,
+          taskDistribution: prodData.taskDistribution || {
+            completed: 0,
+            active: 0,
+            paused: 0,
+            notStarted: 0,
+            highRisk: 0
+          },
+          recentPerformance: recentPerf || {
+            tasksCompleted: 0,
+            averageEfficiency: 0,
+            totalFocusTime: 0
+          },
+          // Peer review data
+          peerReviewScore: prodData.peerReviewScore || 0,
+          collaborationScore: prodData.collaborationScore || 0,
+          projectEvaluationScore: prodData.projectEvaluationScore || 0,
+          peerReviewCount: prodData.peerReviewCount || 0,
+          peerReviewBreakdown: prodData.peerReviewBreakdown || {
+            contribution: 0,
+            collaboration: 0,
+            quality: 0,
+            punctuality: 0
+          },
+          recentPeerReviews: prodData.recentPeerReviews || []
+        });
+
+        // Update main stats
+        setStats(prev => ({
+          ...prev,
+          productivity: prodData.score || 0,
+          highPriorityAlerts: prodData.highPriorityAlerts || 0,
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching productivity data:', error);
+    }
+  };
+
+
 
   const fetchDashboardData = async () => {
     try {
@@ -130,6 +216,7 @@ export default function Dashboard() {
           ...prev,
           activeProjects: fetchedProjects.filter(p => p.status === 'active' || p.status === 'ongoing').length
         }));
+        console.log("Fetched Projects: ", fetchedProjects);
 
       } catch (projectsErr) {
         console.error("Error fetching projects:", projectsErr);
@@ -171,6 +258,9 @@ export default function Dashboard() {
         setTasks([]);
       }
 
+      await fetchProductivityData();
+
+
       // Show data loaded snackbar
       setSnackbars(prev => ({ ...prev, dataLoaded: true }));
 
@@ -186,50 +276,48 @@ export default function Dashboard() {
     }
   };
 
-const calculateProductivity = (userTasks) => {
-  if (!userTasks || userTasks.length === 0) return 0;
+  const calculateProductivity = (userTasks) => {
+    // If you have backend productivity data, use it
+    if (productivityInsights?.score) {
+      return productivityInsights.score;
+    }
+    
+    // Fallback to your existing calculation
+    if (!userTasks || userTasks.length === 0) return 0;
 
-  let totalWeightedScore = 0;
-  let totalWeight = 0;
+    let totalWeightedScore = 0;
+    let totalWeight = 0;
 
-  userTasks.forEach(task => {
-    // Weights for components
-    const completionWeight = 0.5;
-    const timeWeight = 0.3;
-    const riskWeight = 0.2;
+    userTasks.forEach(task => {
+      const completionWeight = 0.5;
+      const timeWeight = 0.3;
+      const riskWeight = 0.2;
 
-    // Completion score (0 or 1)
-    const completionScore = task.status === 'completed' ? 1 : 0;
+      const completionScore = task.status === 'completed' ? 1 : 0;
+      const timeScore = task.estimatedTime
+        ? Math.min(1, task.totalFocusTime / task.estimatedTime)
+        : 1;
+      const riskScore = (task.risk?.riskScore || 0) / 5;
 
-    // Time efficiency score: ratio of focus time to estimated time, capped at 1
-    const timeScore = task.estimatedTime
-      ? Math.min(1, task.totalFocusTime / task.estimatedTime)
-      : 1;
+      let flagPenalty = 0;
+      if (task.flags?.rushedCompletion) flagPenalty += 0.2;
+      if (task.flags?.noProof) flagPenalty += 0.1;
+      if (task.flags?.manualReviewRequired) flagPenalty += 0.1;
+      flagPenalty = Math.min(flagPenalty, 1);
 
-    // Risk/complexity multiplier (0-1 normalized)
-    const riskScore = (task.risk?.riskScore || 0) / 5; // assuming max 5
+      const taskWeightedScore = (
+        completionScore * completionWeight +
+        timeScore * timeWeight +
+        riskScore * riskWeight
+      ) * (1 - flagPenalty);
 
-    // Flags reduce productivity
-    let flagPenalty = 0;
-    if (task.flags?.rushedCompletion) flagPenalty += 0.2;
-    if (task.flags?.noProof) flagPenalty += 0.1;
-    if (task.flags?.manualReviewRequired) flagPenalty += 0.1;
-    flagPenalty = Math.min(flagPenalty, 1);
+      totalWeightedScore += taskWeightedScore;
+      totalWeight += 1;
+    });
 
-    // Weighted score for this task
-    const taskWeightedScore = (
-      completionScore * completionWeight +
-      timeScore * timeWeight +
-      riskScore * riskWeight
-    ) * (1 - flagPenalty);
-
-    totalWeightedScore += taskWeightedScore;
-    totalWeight += 1;
-  });
-
-  const productivity = (totalWeightedScore / totalWeight) * 100;
-  return Math.min(100, Math.round(productivity));
-};
+    const productivity = (totalWeightedScore / totalWeight) * 100;
+    return Math.min(100, Math.round(productivity));
+  };
 
 
 
@@ -1111,27 +1199,33 @@ const calculateProductivity = (userTasks) => {
                   </Box>
                   
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                    <Button
-                      variant="contained"
-                      startIcon={<AddIcon />}
-                      onClick={() => {
-                        setSnackbars(prev => ({ ...prev, quickActionClick: true }));
-                        setTimeout(() => navigate('/user-app/tasks?create=true'), 300);
-                      }}
-                      sx={{
-                        background: 'white',
-                        color: theme.palette.primary.main,
-                        borderRadius: 2,
-                        py: 1.5,
-                        fontWeight: 600,
-                        '&:hover': {
-                          background: alpha('#fff', 0.9),
-                          transform: 'translateY(-1px)'
-                        }
-                      }}
-                    >
-                      Create New Task
-                    </Button>
+                    <Tooltip title="Create a project to create tasks" disableFocusListener={projects.length === 0}>
+                      <span>
+                        <Button
+                          variant="contained"
+                          startIcon={<AddIcon />}
+                          onClick={() => {
+                            setSnackbars(prev => ({ ...prev, quickActionClick: true }));
+                            setTimeout(() => navigate('/user-app/tasks?create=true'), 300);
+                          }}
+                          disabled={projects.length === 0}
+                          sx={{
+                            background: 'white',
+                            color: theme.palette.primary.main,
+                            borderRadius: 2,
+                            width: '100%',
+                            py: 1.5,
+                            fontWeight: 600,
+                            '&:hover': {
+                              background: alpha('#fff', 0.9),
+                              transform: 'translateY(-1px)'
+                            }
+                          }}
+                        >
+                          Create New Task
+                        </Button>
+                      </span>
+                    </Tooltip>
                     
                     
                     <Button
@@ -1183,17 +1277,15 @@ const calculateProductivity = (userTasks) => {
                       <TrendingUpIcon sx={{ fontSize: 20 }} />
                     </Box>
                     <Typography variant="h6" fontWeight="600">
-                      Performance
+                      Performance Analytics
                     </Typography>
                   </Box>
                   
-                  <Box 
-                    sx={{ mb: 3, cursor: 'pointer' }}
-                    onClick={handlePerformanceDemo}
-                  >
+                  {/* Overall Productivity Score */}
+                  <Box sx={{ mb: 3 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                       <Typography variant="body2" color="text.secondary">
-                        Task Completion
+                        Overall Productivity
                       </Typography>
                       <Typography variant="body2" fontWeight="600" color="primary.main">
                         {stats.productivity}%
@@ -1214,6 +1306,39 @@ const calculateProductivity = (userTasks) => {
                     />
                   </Box>
                   
+                  {/* Peer Review Score */}
+                  <Paper
+                    sx={{
+                      p: 2,
+                      mb: 2,
+                      borderRadius: 2,
+                      background: alpha(theme.palette.info.main, 0.05),
+                      border: `1px solid ${alpha(theme.palette.info.main, 0.1)}`,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        transform: 'translateY(-2px)',
+                        boxShadow: `0 4px 12px ${alpha(theme.palette.info.main, 0.1)}`
+                      }
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <PeopleIcon sx={{ fontSize: 16, color: theme.palette.info.main }} />
+                        <Typography variant="body2" fontWeight="500">
+                          Peer Review Score
+                        </Typography>
+                      </Box>
+                      <Typography variant="body2" fontWeight="600" color={theme.palette.info.main}>
+                        {Math.round(productivityInsights.peerReviewScore)}%
+                      </Typography>
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">
+                      Based on {productivityInsights.peerReviewCount} reviews from team members
+                    </Typography>
+                  </Paper>
+                  
+                  {/* Task Completion Metrics */}
                   <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
                     <Paper
                       sx={{
@@ -1235,7 +1360,7 @@ const calculateProductivity = (userTasks) => {
                       }}
                     >
                       <Typography variant="h4" fontWeight="800" color={theme.palette.success.main}>
-                        {tasks.filter(t => t.status === 'completed').length}
+                        {productivityInsights.taskDistribution.completed || tasks.filter(t => t.status === 'completed').length}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         Tasks Done
@@ -1247,13 +1372,13 @@ const calculateProductivity = (userTasks) => {
                         flex: 1,
                         p: 2,
                         borderRadius: 2,
-                        background: alpha(theme.palette.info.main, 0.05),
-                        border: `1px solid ${alpha(theme.palette.info.main, 0.1)}`,
+                        background: alpha(theme.palette.warning.main, 0.05),
+                        border: `1px solid ${alpha(theme.palette.warning.main, 0.1)}`,
                         cursor: 'pointer',
                         transition: 'all 0.2s ease',
                         '&:hover': {
                           transform: 'translateY(-2px)',
-                          boxShadow: `0 4px 12px ${alpha(theme.palette.info.main, 0.1)}`
+                          boxShadow: `0 4px 12px ${alpha(theme.palette.warning.main, 0.1)}`
                         }
                       }}
                       onClick={() => {
@@ -1261,8 +1386,8 @@ const calculateProductivity = (userTasks) => {
                         setTimeout(() => navigate('/user-app/tasks?filter=active'), 300);
                       }}
                     >
-                      <Typography variant="h4" fontWeight="800" color={theme.palette.info.main}>
-                        {tasks.filter(t => t.status === 'active').length}
+                      <Typography variant="h4" fontWeight="800" color={theme.palette.warning.main}>
+                        {productivityInsights.taskDistribution.active || tasks.filter(t => t.status === 'active').length}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         In Progress
@@ -1270,10 +1395,176 @@ const calculateProductivity = (userTasks) => {
                     </Paper>
                   </Box>
                   
+                  {/* Efficiency & Collaboration Metrics */}
+                  <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                    <Paper
+                      sx={{
+                        flex: 1,
+                        p: 2,
+                        borderRadius: 2,
+                        background: alpha(theme.palette.primary.main, 0.05),
+                        border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          transform: 'translateY(-2px)',
+                          boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.1)}`
+                        }
+                      }}
+                      onClick={() => navigate('/user-app/analytics')}
+                    >
+                      <Typography variant="h4" fontWeight="800" color={theme.palette.primary.main}>
+                        {Math.round(productivityInsights.averageEfficiency)}%
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Avg. Efficiency
+                      </Typography>
+                    </Paper>
+                    
+                    <Paper
+                      sx={{
+                        flex: 1,
+                        p: 2,
+                        borderRadius: 2,
+                        background: alpha(theme.palette.secondary.main, 0.05),
+                        border: `1px solid ${alpha(theme.palette.secondary.main, 0.1)}`,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          transform: 'translateY(-2px)',
+                          boxShadow: `0 4px 12px ${alpha(theme.palette.secondary.main, 0.1)}`
+                        }
+                      }}
+                      onClick={() => navigate('/user-app/peer-reviews')}
+                    >
+                      <Typography variant="h4" fontWeight="800" color={theme.palette.secondary.main}>
+                        {Math.round(productivityInsights.collaborationScore)}%
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Collaboration
+                      </Typography>
+                    </Paper>
+                  </Box>
+                  
+                  {/* Peer Review Breakdown (if available) */}
+                  {productivityInsights.peerReviewBreakdown && (
+                    <Paper
+                      sx={{
+                        p: 2,
+                        mb: 2,
+                        borderRadius: 2,
+                        background: alpha(theme.palette.info.main, 0.03),
+                        border: `1px solid ${alpha(theme.palette.info.main, 0.08)}`
+                      }}
+                    >
+                      <Typography variant="body2" fontWeight="500" sx={{ mb: 1 }}>
+                        Peer Review Breakdown
+                      </Typography>
+                      <Grid container spacing={3}>
+                        <Grid item xs={6}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="caption" color="text.secondary">
+                              Contribution
+                            </Typography>
+                            <Typography variant="caption" fontWeight="600" ml={1}>
+                              {Math.round(productivityInsights.peerReviewBreakdown.contribution)}/5
+                            </Typography>
+                          </Box>
+                          <LinearProgress
+                            variant="determinate"
+                            value={(productivityInsights.peerReviewBreakdown.contribution / 5) * 100}
+                            sx={{ height: 4, mt: 0.5 }}
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="caption" color="text.secondary">
+                              Collaboration
+                            </Typography>
+                            <Typography variant="caption" fontWeight="600" ml={1}>
+                              {Math.round(productivityInsights.peerReviewBreakdown.collaboration)}/5
+                            </Typography>
+                          </Box>
+                          <LinearProgress
+                            variant="determinate"
+                            value={(productivityInsights.peerReviewBreakdown.collaboration / 5) * 100}
+                            sx={{ height: 4, mt: 0.5 }}
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="caption" color="text.secondary">
+                              Quality
+                            </Typography>
+                            <Typography variant="caption" fontWeight="600" ml={1}>
+                              {Math.round(productivityInsights.peerReviewBreakdown.quality)}/5
+                            </Typography>
+                          </Box>
+                          <LinearProgress
+                            variant="determinate"
+                            value={(productivityInsights.peerReviewBreakdown.quality / 5) * 100}
+                            sx={{ height: 4, mt: 0.5 }}
+                          />
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <Typography variant="caption" color="text.secondary">
+                              Punctuality
+                            </Typography>
+                            <Typography variant="caption" fontWeight="600" ml={1}>
+                              {Math.round(productivityInsights.peerReviewBreakdown.punctuality)}/5
+                            </Typography>
+                          </Box>
+                          <LinearProgress
+                            variant="determinate"
+                            value={(productivityInsights.peerReviewBreakdown.punctuality / 5) * 100}
+                            sx={{ height: 4, mt: 0.5 }}
+                          />
+                        </Grid>
+                      </Grid>
+                    </Paper>
+                  )}
+                  
+                  {/* Recent Peer Reviews */}
+                  {productivityInsights.recentPeerReviews && productivityInsights.recentPeerReviews.length > 0 && (
+                    <Paper
+                      sx={{
+                        p: 2,
+                        borderRadius: 2,
+                        background: alpha(theme.palette.success.main, 0.03),
+                        border: `1px solid ${alpha(theme.palette.success.main, 0.08)}`
+                      }}
+                    >
+                      <Typography variant="body2" fontWeight="500" sx={{ mb: 1 }}>
+                        Recent Peer Feedback
+                      </Typography>
+                      {productivityInsights.recentPeerReviews.slice(0, 2).map((review, index) => (
+                        <Box key={index} sx={{ mb: 1, pb: 1, borderBottom: index === 0 ? `1px solid ${alpha(theme.palette.divider, 0.1)}` : 'none' }}>
+                          <Typography variant="caption" fontWeight="500" sx={{ display: 'block' }}>
+                            {review.reviewer}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                            "{review.comment?.substring(0, 60)}{review.comment?.length > 60 ? '...' : ''}"
+                          </Typography>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
+                            <Typography variant="caption" color="text.secondary">
+                              Score: {review.totalScore}/5
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {formatTimeAgo(review.submittedAt)}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      ))}
+                    </Paper>
+                  )}
+                  
+                  {/* High Priority Alerts */}
                   {stats.highPriorityAlerts > 0 && (
                     <Paper
                       sx={{
                         p: 2,
+                        mt: 2,
                         borderRadius: 2,
                         background: alpha(theme.palette.error.main, 0.05),
                         border: `1px solid ${alpha(theme.palette.error.main, 0.1)}`,

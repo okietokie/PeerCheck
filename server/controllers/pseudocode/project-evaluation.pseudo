@@ -1,0 +1,161 @@
+#BEGIN SubmitProjectEvaluation
+
+READ projectId, evaluatorRole, grading, memberEvaluations FROM request
+SET evaluator = logged-in user ID
+
+IF projectId OR evaluatorRole OR grading is missing
+    RETURN error "Missing required fields"
+END IF
+
+FIND project using projectId
+IF project does not exist
+    RETURN error "Project not found"
+END IF
+
+CHECK if evaluator has already evaluated this project
+IF evaluation already exists
+    RETURN error "Already evaluated"
+END IF
+
+EXTRACT scores from grading categories
+CALCULATE finalScore = sum of category scores
+
+INITIALIZE suspicionFlags (default false)
+
+CREATE new evaluation record with:
+    project details
+    evaluator details
+    grading
+    suspicion flags
+    finalScore
+
+SAVE evaluation
+
+IF project creator is different from evaluator
+    CREATE notification for project creator
+END IF
+
+RETURN success response with evaluation details
+
+END
+
+
+BEGIN GetProjectEvaluations
+
+READ projectId FROM request
+SET userId = logged-in user ID
+
+FIND project using projectId
+IF project not found
+    RETURN error "Project not found"
+END IF
+
+CHECK if user is:
+    project creator OR
+    team member OR
+    teacher
+
+IF user has no access
+    RETURN error "Access denied"
+END IF
+
+FETCH all evaluations for the project
+SORT evaluations by latest first
+
+INITIALIZE averageScores for all categories
+
+FOR each evaluation
+    ADD category scores to total
+    ADD finalScore to total
+END FOR
+
+CALCULATE average for each category
+
+RETURN:
+    evaluations list
+    average scores
+    total evaluations
+    peer vs teacher evaluation count
+
+END
+
+
+BEGIN GetMemberEvaluationSummary
+
+READ projectId and optional memberId
+
+FETCH project and team members
+IF project not found
+    RETURN error
+END IF
+
+FETCH:
+    all project evaluations (team-based)
+    all peer reviews (individual-based)
+
+INITIALIZE summary object for each team member
+
+FOR each project evaluation
+    CALCULATE evaluation average from grading categories
+    EXTRACT evaluator comments
+
+    FOR each team member
+        ADD evaluation average to member
+        STORE evaluation comments
+        INCREMENT project evaluation count
+    END FOR
+END FOR
+
+FOR each peer review
+    IDENTIFY reviewee
+    ADD peer review score to that member
+    STORE peer review details
+    INCREMENT peer review count
+END FOR
+
+FOR each member
+    CALCULATE:
+        project evaluation average
+        peer review average
+
+    APPLY weights:
+        30% project evaluation
+        70% peer review
+
+    NORMALIZE scores to 10-point scale
+    COMPUTE finalScore
+
+    GROUP comments by evaluator
+    CALCULATE evaluator-wise average score
+END FOR
+
+SORT members by finalScore (descending)
+
+IF specific member requested
+    FILTER result
+END IF
+
+RETURN summary and statistics
+
+END
+
+
+BEGIN DeleteEvaluation
+
+READ evaluationId
+SET userId = logged-in user ID
+
+FIND evaluation
+IF evaluation not found
+    RETURN error
+END IF
+
+IF user is NOT evaluator AND NOT admin
+    RETURN error "Not authorized"
+END IF
+
+DELETE evaluation
+
+RETURN success message
+
+END

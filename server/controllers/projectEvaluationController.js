@@ -77,24 +77,24 @@ export const submitProjectEvaluation = async (req, res) => {
       .populate('evaluator', 'name email')
       .populate('memberEvaluations.member', 'name email');
 
-// Create notification for project creator
-if (projectExists.createdBy && projectExists.createdBy.toString() !== evaluator.toString()) {
-  await createNotification({
-    userId: projectExists.createdBy,
-    type: 'project_evaluated',
-    title: 'Project Evaluated',
-    message: `${req.user.name} has evaluated your project "${projectExists.projectName}"`,
-    data: {
-      projectId: projectId,
-      projectName: projectExists.projectName,
-      evaluatorId: evaluator,
-      evaluatorRole,
-      finalScore
-    },
-    priority: 'medium',
-    actionUrl: `/projects/${projectId}/evaluations` // FIXED: Use projectId
-  });
-}
+    // Create notification for project creator
+    if (projectExists.createdBy && projectExists.createdBy.toString() !== evaluator.toString()) {
+      await createNotification({
+        userId: projectExists.createdBy,
+        type: 'project_evaluated',
+        title: 'Project Evaluated',
+        message: `${req.user.name} has evaluated your project "${projectExists.projectName}"`,
+        data: {
+          projectId: projectId,
+          projectName: projectExists.projectName,
+          evaluatorId: evaluator,
+          evaluatorRole,
+          finalScore
+        },
+        priority: 'medium',
+        actionUrl: `/projects/${projectId}/evaluations`
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -199,7 +199,7 @@ export const getProjectEvaluations = async (req, res) => {
 export const getMemberEvaluationSummary = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const { memberId } = req.query; // Optional specific member
+    const { memberId } = req.query;
 
     // Get project with team members
     const project = await Project.findById(projectId)
@@ -250,11 +250,11 @@ export const getMemberEvaluationSummary = async (req, res) => {
         totalProjectEvaluations: 0,
         totalPeerReviews: 0,
         projectEvaluationComments: [], // Comments from project evaluations
-        peerReviews: [] // Individual peer reviews about this member
+        peerReviews: [] // Individual peer reviews about member
       };
     });
 
-    // Process PROJECT EVALUATIONS (whole team evaluations)
+    // Process PROJECT EVALUATIONS
     projectEvaluations.forEach(evaluation => {
       // Calculate average score from all categories for this evaluation
       const categoryScores = evaluation.grading ? [
@@ -271,23 +271,23 @@ export const getMemberEvaluationSummary = async (req, res) => {
 
       // Collect comments from this evaluation
       const evaluationComments = [];
-      if (evaluation.grading) {
-        Object.entries(evaluation.grading).forEach(([category, data]) => {
-          if (data && data.comment) {
-            evaluationComments.push({
-              category: category.charAt(0).toUpperCase() + category.slice(1).replace(/([A-Z])/g, ' $1'),
-              comment: data.comment,
-              score: data.score || 0,
-              evaluator: evaluation.evaluator,
-              evaluatorRole: evaluation.evaluatorRole,
-              evaluatedAt: evaluation.createdAt,
-              type: 'project_evaluation'
-            });
-          }
-        });
-      }
+        if (evaluation.grading) {
+          Object.entries(evaluation.grading).forEach(([category, data]) => {
+            if (data && data.comment) {
+              evaluationComments.push({
+                category: category.charAt(0).toUpperCase() + category.slice(1).replace(/([A-Z])/g, ' $1'),
+                comment: data.comment,
+                score: data.score || 0,
+                evaluator: evaluation.evaluator,
+                evaluatorRole: evaluation.evaluatorRole,
+                evaluatedAt: evaluation.createdAt,
+                type: 'project_evaluation'
+              });
+            }
+          });
+        }
 
-      // Add this evaluation to ALL team members (since it's a team evaluation)
+      // evaluation added to all team members (since it's a team evaluation)
       teamMembers.forEach(member => {
         const memberIdStr = member._id.toString();
         
@@ -337,18 +337,19 @@ export const getMemberEvaluationSummary = async (req, res) => {
         ? member.peerReviewScore / member.totalPeerReviews
         : 0;
       
-      // Combine scores (you can adjust weights here)
-      // For example: 70% project evaluation + 30% peer reviews
-      const projectWeight = 0.7;
-      const peerWeight = 0.3;
+      // Combine scores
+      // 30% project evaluation + 70% peer reviews
+      const projectWeight = 0.3;
+      const peerWeight = 0.7;
       
       member.projectEvaluationAverage = parseFloat(projectEvalAvg.toFixed(2));
       member.peerReviewAverage = parseFloat(peerReviewAvg.toFixed(2));
+
       member.finalScore = parseFloat((
-        (projectEvalAvg * 10 * projectWeight) + 
-        (peerReviewAvg * 2 * peerWeight) // Convert 5-point scale to 10-point scale
+        (projectEvalAvg * projectWeight) +
+        ((peerReviewAvg * 2) * peerWeight)
       ).toFixed(2));
-      
+
       // Group project evaluation comments by evaluator
       const commentsByEvaluator = {};
       member.projectEvaluationComments.forEach(comment => {

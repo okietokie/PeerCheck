@@ -29,27 +29,54 @@ function makeTheme(mode, primaryColor, secondaryColor, backgroundColor) {
   const isDark = mode === 'dark';
   return createTheme({
     typography: typographyConfig,
-palette: {
-      mode,
-      primary: {
-        main: primaryColor,
-        // Automatically creates a lighter version for "Soft" chips
-        light: isDark ? lighten(primaryColor, 0.2) : lighten(primaryColor, 0.4),
-        // Automatically creates a darker version for hover states
-        dark: darken(primaryColor, 0.2),
-        contrastText: isDark ? '#fff' : '#000',
-      },
-      secondary: {
-        main: secondaryColor,
-        light: lighten(secondaryColor, 0.3),
-        dark: darken(secondaryColor, 0.3),
-      },
-      background: {
-        default: backgroundColor,
-        // Make 'paper' slightly different so cards "pop"
-        paper: isDark ? lighten(backgroundColor, 0.05) : darken(backgroundColor, 0.02),
-      },
-    },
+    palette: {
+          mode,
+          primary: {
+            main: primaryColor,
+            // Automatically creates a lighter version for "Soft" chips
+            light: isDark ? lighten(primaryColor, 0.2) : lighten(primaryColor, 0.4),
+            // Automatically creates a darker version for hover states
+            dark: darken(primaryColor, 0.2),
+            contrastText: isDark ? '#fff' : '#000',
+          },
+          secondary: {
+            main: secondaryColor,
+            light: lighten(secondaryColor, 0.3),
+            dark: darken(secondaryColor, 0.3),
+          },
+          background: {
+            default: backgroundColor,
+            // Make 'paper' slightly different so cards "pop"
+            paper: isDark ? lighten(backgroundColor, 0.05) : darken(backgroundColor, 0.02),
+          },
+        },
+
+    components:{
+      MuiTooltip:{
+        defaultProps:{
+          arrow: true,
+          enterDelay: 300,
+        },
+        styleOverrides:{
+          tooltip:{
+            backgroundColor: isDark
+              ? lighten(backgroundColor, 0.15)
+              : darken(backgroundColor, 0.05),
+            color: isDark ? "#fff" : "#000",
+            fontSize: '0.85rem',
+            fontFamily:'"Inter",  sans-serif',
+            boxShadow: '0px 0px 10px rgba(0,0,0,0.3)',
+            padding: '8px 12px',
+            borderRadius: '8px',
+          },
+          arrow: {
+            color: isDark
+              ? lighten(backgroundColor, 0.15)
+              : darken(backgroundColor, 0.05),
+          },
+        }
+      }
+    }
   });
 }
 

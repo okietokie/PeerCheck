@@ -21,6 +21,7 @@ const peergroupSchema = new mongoose.Schema({
         reviewedAgain: {type: Boolean, default: false},
         reviewCount: {type: Number, default: 0}
     },
+    createdBy: {type: mongoose.Schema.Types.ObjectId, ref: "User"},
     deletedAt: { type: Date }
 }, { timestamps: true });
 

@@ -33,6 +33,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Badge,
 } from '@mui/material';
 import axios from 'axios';
 import { useSnackbar } from 'notistack';
@@ -43,12 +44,11 @@ const AssigneeSelectPopover = ({
   anchorEl, 
   open, 
   onClose, 
-  teamMembers, 
-  currentAssignee,
+  currentAssignee: propCurrentAssignee,
   onAssigneeSelect,
   theme,
-  task, // Add task prop for reassignment
-  currentUser, // Current logged-in user for authorization check
+  task, 
+  currentUser, 
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
@@ -56,24 +56,124 @@ const AssigneeSelectPopover = ({
   const [showReassignConfirm, setShowReassignConfirm] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [teamMembersList, setTeamMembersList] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [currentAssignee, setCurrentAssignee] = useState(propCurrentAssignee);
   const { enqueueSnackbar } = useSnackbar();
 
+  // Reset states when popover closes
+  useEffect(() => {
+    if (!open) {
+      setSearchTerm('');
+      setSelectedMember(null);
+      setError('');
+      setShowReassignConfirm(false);
+      setShowHistory(false);
+    }
+  }, [open]);
+
+  // Sync prop with state
+  useEffect(() => {
+    setCurrentAssignee(propCurrentAssignee);
+  }, [propCurrentAssignee]);
+
+  // Fetch team members when popover opens
+  useEffect(() => {
+    const fetchTeamMembers = async () => {
+      if (open && task?.projectId) {
+        setLoadingMembers(true);
+        try {
+          const response = await axiosClient.get(
+            `/user/projects/${task.projectId._id}/members`,
+            {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              },
+            }
+          );
+          
+          if (response.data.success) {
+            const members = response.data.members || [];
+            
+            // Sort members: current user first, then by productivity score
+            const sortedMembers = members.sort((a, b) => {
+              // Put current user at the top
+              if (a.user._id === currentUser?.id) return -1;
+              if (b.user._id === currentUser?.id) return 1;
+              
+              // Then sort by productivity score
+              const scoreA = a.user.productivity?.overallProductivityScore || 0;
+              const scoreB = b.user.productivity?.overallProductivityScore || 0;
+              return scoreB - scoreA;
+            });
+            
+            setTeamMembersList(sortedMembers);
+            
+            // Find current assignee in team members if not provided
+            if (task.assignedTo && !currentAssignee) {
+              const currentAssigneeMember = sortedMembers.find(
+                member => member.user._id === task.assignedTo
+              );
+              if (currentAssigneeMember) {
+                setCurrentAssignee(currentAssigneeMember.user);
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Failed to fetch team members:', err);
+          enqueueSnackbar('Failed to load team members', { variant: 'error' });
+        } finally {
+          setLoadingMembers(false);
+        }
+      }
+    };
+
+    if (open) {
+      fetchTeamMembers();
+    }
+  }, [open, task?.projectId, currentUser?.id, task?.assignedTo, currentAssignee]);
+
   // Check if current user can reassign this task
-  const canReassign = task && (
-    task.assignedBy.toString() === currentUser?.id ||
-    currentUser?.role === 'teacher'
+  const canReassign = task && currentUser && (
+    task.assignedBy?.toString() === currentUser?.id?.toString() ||
+    currentUser?.role === 'teacher' ||
+    currentUser?.role === 'admin'
   );
 
-  // Filter team members based on search
-  const filteredMembers = (teamMembers || []).filter(member =>
-    member.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.user?.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  // Filter team members based on search, exclude current assignee
+  const filteredMembers = teamMembersList.filter(member =>
+    member.user && (
+      member.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      member.user?.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    ) &&
+    member.user?._id !== task?.assignedTo?.toString()
   );
+
+  // Get current assignee name for display
+  const getCurrentAssigneeName = () => {
+    if (!currentAssignee && task?.assignedTo) {
+      const assignee = teamMembersList.find(member => 
+        member.user?._id === task.assignedTo
+      );
+      return assignee?.user?.name || 'Unknown';
+    }
+    return currentAssignee?.name || 'Unknown';
+  };
+
+  // Get current assignee avatar
+  const getCurrentAssigneeAvatar = () => {
+    if (!currentAssignee && task?.assignedTo) {
+      const assignee = teamMembersList.find(member => 
+        member.user?._id === task.assignedTo
+      );
+      return assignee?.user?.avatar;
+    }
+    return currentAssignee?.avatar;
+  };
 
   // Handle member selection
   const handleMemberSelect = (member) => {
     if (!task || !canReassign) {
-      // If no task or no reassign permission, just assign normally
       if (onAssigneeSelect) {
         onAssigneeSelect(member);
       }
@@ -82,7 +182,7 @@ const AssigneeSelectPopover = ({
     }
 
     // If selecting same user, just close
-    if (member?.user?._id === task.assignedTo) {
+    if (member?.user?._id === task.assignedTo?.toString()) {
       onClose();
       return;
     }
@@ -101,8 +201,10 @@ const AssigneeSelectPopover = ({
       setError('');
 
       const response = await axiosClient.patch(
-        `/tasks/${task._id}/reassign`,
-        { newAssigneeId: selectedMember.user._id },
+        `/user/task/${task._id}/reassign`,
+        { 
+          newAssigneeId: selectedMember.user._id 
+        },
         {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -113,23 +215,73 @@ const AssigneeSelectPopover = ({
       if (response.data.success) {
         enqueueSnackbar('Task reassigned successfully!', { variant: 'success' });
         
-        // Call the onAssigneeSelect callback with new assignee
         if (onAssigneeSelect) {
           onAssigneeSelect(selectedMember);
         }
 
+        setCurrentAssignee(selectedMember.user);
+        onClose();
       }
-
-      setShowReassignConfirm(false);
-      onClose();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to reassign task');
-      enqueueSnackbar(err.response?.data?.error || 'Failed to reassign task', { 
-        variant: 'error' 
-      });
+      const errorMsg = err.response?.data?.error || 'Failed to reassign task';
+      setError(errorMsg);
+      enqueueSnackbar(errorMsg, { variant: 'error' });
+    } finally {
+      setLoading(false);
+      setShowReassignConfirm(false);
+      setSelectedMember(null);
+    }
+  };
+
+  // Handle unassign
+  const handleUnassign = async () => {
+    if (!task || !canReassign) return;
+
+    try {
+      setLoading(true);
+      setError('');
+
+      const response = await axiosClient.patch(
+        `/tasks/${task._id}/reassign`,
+        { newAssigneeId: null },
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          },
+        }
+      );
+
+      if (response.data.success) {
+        enqueueSnackbar('Task unassigned successfully!', { variant: 'success' });
+        
+        if (onAssigneeSelect) {
+          onAssigneeSelect(null);
+        }
+
+        setCurrentAssignee(null);
+        onClose();
+      }
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Failed to unassign task';
+      setError(errorMsg);
+      enqueueSnackbar(errorMsg, { variant: 'error' });
     } finally {
       setLoading(false);
     }
+  };
+
+  // Handle close reassign confirm
+  const handleCloseReassignConfirm = () => {
+    if (!loading) {
+      setShowReassignConfirm(false);
+      setSelectedMember(null);
+      setError('');
+    }
+  };
+
+  // Handle close history
+  const handleCloseHistory = () => {
+    setShowHistory(false);
   };
 
   // Render assignment history badge
@@ -138,13 +290,19 @@ const AssigneeSelectPopover = ({
 
     return (
       <Tooltip title="View assignment history">
-        <IconButton
-          size="small"
-          onClick={() => setShowHistory(true)}
+        <Badge 
+          badgeContent={task.assignmentHistory.length} 
+          color="primary"
           sx={{ ml: 1 }}
         >
-          <History fontSize="small" />
-        </IconButton>
+          <IconButton
+            size="small"
+            onClick={() => setShowHistory(true)}
+            disabled={loading}
+          >
+            <History fontSize="small" />
+          </IconButton>
+        </Badge>
       </Tooltip>
     );
   };
@@ -159,140 +317,51 @@ const AssigneeSelectPopover = ({
         alignItems: 'center', 
         mb: 1,
         p: 1,
-        bgcolor: alpha(theme.palette.warning.light, 0.1),
+        bgcolor: alpha(theme.palette.info.light, 0.1),
         borderRadius: 1,
-        border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`,
+        border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
       }}>
         <Info fontSize="small" sx={{ 
-          color: theme.palette.warning.main,
+          color: theme.palette.info.main,
           mr: 1 
         }} />
         <Typography variant="caption" color="text.secondary">
-          Reassigning will track focus time and update assignment history
+          Reassigning will track focus time and update productivity metrics
         </Typography>
       </Box>
     );
   };
 
-  // History Dialog Component
-  const HistoryDialog = () => (
-    <Dialog
-      open={showHistory}
-      onClose={() => setShowHistory(false)}
-      maxWidth="sm"
-      fullWidth
-    >
-      <DialogTitle>
-        Assignment History
-        <Typography variant="caption" display="block" color="text.secondary">
-          {task?.title}
-        </Typography>
-      </DialogTitle>
-      <DialogContent>
-        <List>
-          {task?.assignmentHistory?.map((entry, index) => (
-            <React.Fragment key={index}>
-              <ListItem alignItems="flex-start">
-                <ListItemAvatar>
-                  <Avatar>
-                    {entry.userId?.name?.charAt(0) || 'U'}
-                  </Avatar>
-                </ListItemAvatar>
-                <ListItemText
-                  primary={
-                    <Typography variant="body2" fontWeight={500}>
-                      {entry.userId?.name || 'Unknown User'}
-                    </Typography>
-                  }
-                  secondary={
-                    <>
-                      <Typography variant="caption" display="block">
-                        From: {new Date(entry.from).toLocaleDateString()}
-                      </Typography>
-                      <Typography variant="caption" display="block">
-                        To: {new Date(entry.to).toLocaleDateString()}
-                      </Typography>
-                      {entry.focusTime && (
-                        <Typography variant="caption" display="block">
-                          Focus Time: {Math.floor(entry.focusTime / 60)} minutes
-                        </Typography>
-                      )}
-                      {entry.efficiency && (
-                        <Typography variant="caption" display="block">
-                          Efficiency: {entry.efficiency.toFixed(1)}%
-                        </Typography>
-                      )}
-                    </>
-                  }
-                />
-              </ListItem>
-              {index < task.assignmentHistory.length - 1 && <Divider />}
-            </React.Fragment>
-          ))}
-        </List>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={() => setShowHistory(false)}>Close</Button>
-      </DialogActions>
-    </Dialog>
-  );
+  // Render productivity indicators for members
+  const renderProductivityBadge = (member) => {
+    if (!member?.user) return null;
+    
+    const productivity = member.user?.productivity;
+    if (!productivity?.overallProductivityScore) return null;
 
-  // Reassign Confirmation Dialog
-  const ReassignConfirmDialog = () => (
-    <Dialog
-      open={showReassignConfirm}
-      onClose={() => setShowReassignConfirm(false)}
-    >
-      <DialogTitle>
-        Confirm Reassignment
-      </DialogTitle>
-      <DialogContent>
-        <Typography variant="body2" gutterBottom>
-          Are you sure you want to reassign this task?
-        </Typography>
-        
-        <Box sx={{ mt: 2, p: 2, bgcolor: alpha(theme.palette.info.light, 0.1), borderRadius: 1 }}>
-          <Typography variant="caption" color="text.secondary" display="block">
-            Current assignee: {currentAssignee?.user?.name}
-          </Typography>
-          <Typography variant="caption" color="text.secondary" display="block">
-            New assignee: {selectedMember?.user?.name}
-          </Typography>
-        </Box>
+    const score = productivity.overallProductivityScore;
+    let color = 'default';
+    
+    if (score >= 80) color = 'success';
+    else if (score >= 60) color = 'warning';
+    else color = 'error';
 
-        {task?.lastEventTime && (
-          <Box sx={{ mt: 2, p: 2, bgcolor: alpha(theme.palette.warning.light, 0.1), borderRadius: 1 }}>
-            <Typography variant="caption" color="text.secondary">
-              Note: Focus time will be recorded for the previous assignee
-            </Typography>
-          </Box>
-        )}
-
-        {error && (
-          <Alert severity="error" sx={{ mt: 2 }}>
-            {error}
-          </Alert>
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button 
-          onClick={() => setShowReassignConfirm(false)}
-          disabled={loading}
-        >
-          Cancel
-        </Button>
-        <Button
-          variant="contained"
-          onClick={handleReassignConfirm}
-          disabled={loading}
-          startIcon={loading ? <CircularProgress size={20} /> : <Replay />}
-          color="warning"
-        >
-          {loading ? 'Reassigning...' : 'Confirm Reassign'}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
+    return (
+      <Tooltip title={`Productivity: ${score.toFixed(0)}%`}>
+        <Chip
+          label={`${score.toFixed(0)}%`}
+          size="small"
+          color={color}
+          variant="outlined"
+          sx={{ 
+            height: 20, 
+            fontSize: '0.65rem',
+            ml: 1 
+          }}
+        />
+      </Tooltip>
+    );
+  };
 
   return (
     <>
@@ -314,8 +383,8 @@ const AssigneeSelectPopover = ({
             border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
             backgroundColor: theme.palette.background.paper,
             boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-            width: 320,
-            maxHeight: 400,
+            width: 360,
+            maxHeight: 500,
             overflow: 'hidden',
           }
         }}
@@ -338,10 +407,36 @@ const AssigneeSelectPopover = ({
               </Typography>
               {renderHistoryBadge()}
             </Box>
-            <IconButton size="small" onClick={onClose}>
+            <IconButton 
+              size="small" 
+              onClick={onClose}
+              disabled={loading}
+            >
               <Close fontSize="small" />
             </IconButton>
           </Box>
+          
+          {/* Current Assignee Info */}
+          {task?.assignedTo && (
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              mb: 1,
+              p: 1,
+              bgcolor: alpha(theme.palette.primary.light, 0.1),
+              borderRadius: 1,
+            }}>
+              <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
+                Currently assigned to:
+              </Typography>
+              <Chip
+                label={getCurrentAssigneeName()}
+                size="small"
+                color="primary"
+                variant="outlined"
+              />
+            </Box>
+          )}
           
           {/* Reassign warning */}
           {renderReassignIndicator()}
@@ -364,17 +459,24 @@ const AssigneeSelectPopover = ({
           />
           
           <Typography variant="caption" color="text.secondary">
-            {filteredMembers.length} member{filteredMembers.length !== 1 ? 's' : ''} available
+            {loadingMembers ? 'Loading members...' : `${filteredMembers.length} available member${filteredMembers.length !== 1 ? 's' : ''}`}
           </Typography>
         </Box>
 
         {/* Member List */}
-        <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
-          {filteredMembers.length > 0 ? (
+        <Box sx={{ maxHeight: 350, overflow: 'auto' }}>
+          {loadingMembers ? (
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <CircularProgress size={32} />
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                Loading team members...
+              </Typography>
+            </Box>
+          ) : filteredMembers.length > 0 ? (
             <List disablePadding>
               {filteredMembers.map((member) => (
                 <ListItem 
-                  key={member.user._id} 
+                  key={member.user?._id || member.user?.id} 
                   disablePadding
                   sx={{
                     borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
@@ -383,60 +485,43 @@ const AssigneeSelectPopover = ({
                 >
                   <ListItemButton
                     onClick={() => handleMemberSelect(member)}
-                    selected={currentAssignee?._id === member.user._id}
-                    disabled={member.user._id === task?.assignedTo && canReassign}
+                    disabled={loading}
                     sx={{
                       py: 1.5,
                       px: 2,
-                      '&.Mui-selected': {
-                        backgroundColor: alpha(theme.palette.primary.main, 0.08),
-                      },
                       '&:hover': {
                         backgroundColor: alpha(theme.palette.action.hover, 0.05),
-                      },
-                      '&.Mui-disabled': {
-                        opacity: 0.5,
                       },
                     }}
                   >
                     <ListItemAvatar>
                       <Avatar
-                        src={member.user.avatar}
+                        src={member.user?.avatar}
                         sx={{
-                          width: 36,
-                          height: 36,
+                          width: 40,
+                          height: 40,
                           bgcolor: alpha(theme.palette.primary.main, 0.1),
                           color: theme.palette.primary.main,
                         }}
                       >
-                        {member.user.name?.charAt(0)}
+                        {member.user?.name?.charAt(0) || 'U'}
                       </Avatar>
                     </ListItemAvatar>
                     <ListItemText
                       primary={
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Typography variant="body2" fontWeight={500}>
-                            {member.user.name}
+                            {member.user?.name || 'Unknown User'}
                           </Typography>
-                          {member.user._id === task?.assignedTo && canReassign && (
-                            <Chip
-                              label="Current"
-                              size="small"
-                              color="primary"
-                              variant="outlined"
-                            />
-                          )}
+                          {renderProductivityBadge(member)}
                         </Box>
                       }
                       secondary={
                         <Typography variant="caption" color="text.secondary">
-                          {member.user.email}
+                          {member.user?.email}
                         </Typography>
                       }
                     />
-                    {currentAssignee?._id === member.user._id && (
-                      <Check fontSize="small" color="primary" />
-                    )}
                   </ListItemButton>
                 </ListItem>
               ))}
@@ -465,45 +550,226 @@ const AssigneeSelectPopover = ({
                 }} />
               </Box>
               <Typography variant="body2" color="text.secondary">
-                No team members found
+                No available team members found
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Try a different search term
+                {searchTerm ? 'Try a different search term' : 'All team members are already assigned'}
               </Typography>
             </Box>
           )}
         </Box>
 
         {/* Footer */}
-        {teamMembers?.length > 0 && (
-          <Box sx={{
-            p: 1.5,
-            borderTop: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
-            backgroundColor: alpha(theme.palette.background.default, 0.5),
-            display: 'flex',
-            justifyContent: 'space-between',
-          }}>
-            {task && canReassign && (
-              <Button
-                size="small"
-                onClick={() => handleMemberSelect(null)}
-                disabled={!task.assignedTo}
-                startIcon={<Close />}
-                sx={{ fontSize: '0.75rem' }}
-              >
-                Unassign
-              </Button>
-            )}
-            <Typography variant="caption" color="text.secondary">
-              {task && canReassign ? 'Reassign tracks history' : 'Click to assign'}
-            </Typography>
-          </Box>
-        )}
+        <Box sx={{
+          p: 1.5,
+          borderTop: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+          backgroundColor: alpha(theme.palette.background.default, 0.5),
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}>
+          {task && canReassign && task.assignedTo && (
+            <Button
+              size="small"
+              onClick={handleUnassign}
+              disabled={loading}
+              startIcon={<Close />}
+              sx={{ fontSize: '0.75rem' }}
+              color="error"
+              variant="outlined"
+            >
+              Unassign Task
+            </Button>
+          )}
+          <Typography variant="caption" color="text.secondary">
+            {task && canReassign ? 'Click a member to reassign' : 'Select assignee'}
+          </Typography>
+        </Box>
       </Popover>
 
-      {/* Dialogs */}
-      <ReassignConfirmDialog />
-      <HistoryDialog />
+      {/* Reassign Confirmation Dialog - RENDERED OUTSIDE POPOVER */}
+      <Dialog
+        open={showReassignConfirm}
+        onClose={handleCloseReassignConfirm}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Confirm Task Reassignment
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" gutterBottom>
+            You are about to reassign this task:
+          </Typography>
+          
+          <Box sx={{ 
+            mt: 2, 
+            p: 2, 
+            bgcolor: alpha(theme.palette.background.paper, 0.5), 
+            borderRadius: 1,
+            border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+          }}>
+            <Typography variant="body2" fontWeight={600} gutterBottom>
+              {task?.title}
+            </Typography>
+            
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              mt: 1,
+              flexWrap: 'wrap',
+              gap: 2,
+            }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Avatar 
+                  src={getCurrentAssigneeAvatar()} 
+                  sx={{ width: 32, height: 32 }}
+                >
+                  {getCurrentAssigneeName()?.charAt(0)}
+                </Avatar>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    From:
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    {getCurrentAssigneeName()}
+                  </Typography>
+                </Box>
+              </Box>
+              
+              <Replay color="action" sx={{ flexShrink: 0 }} />
+              
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    To:
+                  </Typography>
+                  <Typography variant="body2" fontWeight={500}>
+                    {selectedMember?.user?.name}
+                  </Typography>
+                </Box>
+                <Avatar 
+                  src={selectedMember?.user?.avatar} 
+                  sx={{ width: 32, height: 32 }}
+                >
+                  {selectedMember?.user?.name?.charAt(0)}
+                </Avatar>
+              </Box>
+            </Box>
+          </Box>
+
+          {task?.lastEventTime && (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              Focus time will be recorded for the previous assignee and productivity metrics will be updated.
+            </Alert>
+          )}
+
+          {error && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {error}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={handleCloseReassignConfirm}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleReassignConfirm}
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} /> : <Check />}
+            color="primary"
+          >
+            {loading ? 'Reassigning...' : 'Confirm Reassign'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* History Dialog - RENDERED OUTSIDE POPOVER */}
+      <Dialog
+        open={showHistory}
+        onClose={handleCloseHistory}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <History sx={{ mr: 1 }} />
+            Assignment History
+          </Box>
+          <Typography variant="caption" display="block" color="text.secondary">
+            {task?.title}
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          {task?.assignmentHistory?.length > 0 ? (
+            <List>
+              {task.assignmentHistory.map((entry, index) => {
+                const user = teamMembersList.find(m => 
+                  m.user?._id === entry.userId?.toString() || 
+                  m.user?._id === entry.userId?._id?.toString()
+                )?.user;
+                
+                return (
+                  <React.Fragment key={index}>
+                    <ListItem alignItems="flex-start">
+                      <ListItemAvatar>
+                        <Avatar src={user?.avatar}>
+                          {user?.name?.charAt(0) || 'U'}
+                        </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body2" fontWeight={500}>
+                              {user?.name || 'Unknown User'}
+                            </Typography>
+                            {entry.efficiency > 0 && (
+                              <Chip
+                                label={`Eff: ${entry.efficiency.toFixed(1)}%`}
+                                size="small"
+                                color={entry.efficiency > 100 ? 'error' : 'success'}
+                                variant="outlined"
+                              />
+                            )}
+                          </Box>
+                        }
+                        secondary={
+                          <>
+                            <Typography variant="caption" display="block">
+                              {new Date(entry.from).toLocaleDateString()} → {new Date(entry.to).toLocaleDateString()}
+                            </Typography>
+                            {entry.focusTime > 0 && (
+                              <Typography variant="caption" display="block">
+                                Focus: {Math.floor(entry.focusTime / 60)} min
+                              </Typography>
+                            )}
+                          </>
+                        }
+                      />
+                    </ListItem>
+                    {index < task.assignmentHistory.length - 1 && <Divider />}
+                  </React.Fragment>
+                );
+              })}
+            </List>
+          ) : (
+            <Box sx={{ p: 4, textAlign: 'center' }}>
+              <Typography color="text.secondary">
+                No assignment history available
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseHistory}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 };

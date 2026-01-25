@@ -1,6 +1,6 @@
 //server/controllers/userController.js
 
-import Group from "../models/peergroup_log.js";
+import Team from "../models/peergroup_log.js";
 import Project from "../models/projects.js";
 import User from "../models/user.js";
 import path from 'path';
@@ -136,10 +136,10 @@ export const fetchUserDetails = async (req, res) => {
 
 export const existingPeerGroup = async ({ name, members }) => {
     try {
-        const group = await Group.findOne({ members: { $all: members, $size: members.length } });
+        const group = await Team.findOne({ members: { $all: members, $size: members.length } });
 
         if (group) {
-            await Group.findByIdAndUpdate(
+            await Team.findByIdAndUpdate(
                 group._id, 
                 { $push: { projects: name } },
                 { new: true, runValidators: true }
@@ -148,7 +148,7 @@ export const existingPeerGroup = async ({ name, members }) => {
         }
 
         // Only create new group if no existing group found
-        const newGroup = new Group({ members: members, projects: [name] });
+        const newGroup = new Team({ members: members, projects: [name] });
         await newGroup.save();
 
     } catch (err) {

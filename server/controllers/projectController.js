@@ -372,7 +372,7 @@ const calculateDeadlineHealth = (tasks) => {
 
 /**
  * Calculate project health score
- * 
+ * Combines progress + risk + proof + deadlines into ONE score.
 
  */
 const calculateProjectHealth = (metrics) => {
@@ -392,7 +392,7 @@ const calculateProjectHealth = (metrics) => {
   const riskAdjustedScore = Math.max(0, 100 - (riskScore * 25));
   const deadlineAdjustedScore = Math.max(0, 100 - overdueRate);
 
-  // Weighted health score (PeerCheck formula)
+  // Weighted health score
   const healthScore = 
     (progressScore * 0.4) +
     (riskAdjustedScore * 0.3) +
@@ -1248,7 +1248,7 @@ export const notifyProjectEvents = {
         }
       }
 
-      // // Also notify the creator
+      // notify the creator
       // await createNotification({
       //   userId: creatorId,
       //   type: 'project_created_confirm',

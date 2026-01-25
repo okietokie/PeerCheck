@@ -98,6 +98,7 @@ import {
   Task,
   Settings,
   DeleteForeverSharp,
+  Insights,
 } from '@mui/icons-material';
 import axiosClient from '@/api/axiosClient.js';
 import { getAuthToken } from '@/utils/auth.js';
@@ -105,6 +106,9 @@ import CommentTab from '@/Components/user-dashboard/CommentsTab.jsx';
 import { getUserData } from '@/utils/user.js';
 import TourGuide from '@/Components/TourGuide.jsx';
 import useTasks from '@/hooks/useTasks';
+import TaskMetricsInsights from './TaskMetrics';
+import { set } from 'date-fns';
+import AssigneeSelectPopover from './AssigneeSelectPopover';
 
 // Helper function to safely get nested values
 const safeGet = (obj, path, defaultValue = '') => {
@@ -139,7 +143,11 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
   const [projectTeam, setProjectTeam] = useState([]);
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
   const [updatedTask, setUpdatedTask] = useState(null);
+  const [metricsInsightsOpen, setMetricsInsightsOpen] = useState(false);
   const [user, setUser] = useState(null);
+  const [assigneeAnchorEl, setAssigneeAnchorEl] = useState(null);
+  const [currentAssignee, setCurrentAssignee] = useState(null);
+
   const [isEditing, setIsEditing] = useState(false);
   const [updateTaskMessage, setUpdateTaskMessage] = useState(null);
   const [showEfficiencyBreakdown, setShowEfficiencyBreakdown] = useState(false);
@@ -229,8 +237,10 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
           timeliness: safeGet(taskData, 'metrics.componentScores.timeliness', 0),
           proofQuality: safeGet(taskData, 'metrics.componentScores.proofQuality', 0),
           riskFactor: safeGet(taskData, 'metrics.componentScores.riskFactor', 0)
-        }
+        },
+        risk: safeGet(taskData, 'metrics.risk', {}),
       },
+      
       flags: {
         paddedTime: safeGet(taskData, 'flags.paddedTime', false),
         rushedCompletion: safeGet(taskData, 'flags.rushedCompletion', false),
@@ -280,6 +290,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
           const userData = await getUserData();
           if (userData) {
             setUser(userData);
+            setCurrentAssignee(safeGet(cleanedTask, 'assignedTo._id'));
           }
         } else {
           throw new Error(response?.data?.error || 'Failed to fetch task details');
@@ -298,80 +309,18 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
    
     fetchTaskData();
   }, [open, updatedTask?._id, isEditing, activeTab]);
-
-  const handleEditTask = async () => {
-    try {
-      if (isEditing) {
-        if (!updatedTask?.taskTitle?.trim()) {
-          setError('Task title is required');
-          return;
-        }
-
-        const token = localStorage.getItem("token");
-        if (!token) {
-          throw new Error('No authentication token');
-        }
-
-        const taskData = {
-          taskTitle: updatedTask?.taskTitle.trim(),
-          description: updatedTask?.description?.trim() || '',
-          deadline: updatedTask?.deadline,
-          estimatedTime: Number(updatedTask?.estimatedTime) || 0,
-        };
-
-        if (updatedTask?.assignedTo?._id) {
-          taskData.assignedTo = updatedTask?.assignedTo._id;
-        }
-
-        if (updatedTask?.projectId?._id) {
-          taskData.projectId = updatedTask?.projectId._id;
-        }
-
-        const response = await axiosClient.patch(
-          `/user/task/${updatedTask?._id}`,
-          taskData,
-          {
-            headers: {  
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        if (response?.data?.success) {
-          const cleanedTask = initializeTask(response?.data?.task);
-          setUpdatedTask(cleanedTask);
-          setUpdateTaskMessage({
-            open: true,
-            message: "Task updated successfully!",
-            severity: "success"
-          });
-          onTaskUpdate?.();
-        } else {
-          throw new Error(response?.data?.error || 'Failed to update task');
-        }
-      }
-    } catch (error) {
-      console.error("Error updating task details: ", error);
-      let errorMessage = 'Failed to update task';
-      if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      setError(errorMessage);
-      setUpdateTaskMessage({
-        open: true,
-        message: errorMessage,
-        severity: "error"
-      });
-    } finally {
-      setIsEditing(!isEditing);
-    }
+  const handleAssigneeClick = (event) => {
+    setAssigneeAnchorEl(event.currentTarget);
   };
+  const handleAssigneeChange = (newAssignee) => {
+    setUpdatedTask(prev => ({
+      ...prev,
+      assignedTo: newAssignee?.user?._id,
+      assignedUserName: newAssignee?.user?.name
+    }));
+    
+  };
+
 
   const viewProofFile = async (taskId, proofId) => {
     try {
@@ -699,6 +648,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
         }
       }}
     >
+
       {/* Header with gradient accent */}
       <Box sx={{ 
         position: 'relative',
@@ -729,17 +679,24 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                 {updatedTask?.taskTitle}
               </Typography>
               <Typography>
-                Assigned To: <Chip 
-                  label={assignedUserName} 
-                  color={theme.palette.secondary.main}
-                  sx={{
-                    fontWeight: 700,
-                    borderRadius: 2,
-                    height: 28,
-                    fontSize: '0.75rem',
-                    boxShadow: `0 3px 8px ${alpha(theme.palette.secondary.main, 0.2)}`,
-                  }}
-                />
+                Assigned To:                 
+                
+                <Box onClick={handleAssigneeClick} sx={{ cursor: 'pointer', display: 'inline-flex', marginLeft:1, marginBottom: 0.5 }}>
+                  <Chip 
+                    label={assignedUserName} 
+                    color={theme.palette.secondary.main}
+                    sx={{
+                      fontWeight: 700,
+                      borderRadius: 2,
+                      height: 28,
+                      fontSize: '0.75rem',
+                      boxShadow: `0 3px 8px ${alpha(theme.palette.secondary.main, 0.2)}`,
+                      '&:hover': { backgroundColor: alpha(theme.palette.secondary.main, 0.15) },
+                    }}
+                  />
+                </Box>
+            
+
               </Typography>
               
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mt: 1 }}>
@@ -786,30 +743,62 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                 )}
               </Box>
             </Box>
+              <Stack direction="row" spacing={2}>
+                <Tooltip title="View Metrics Insights">
+                  <IconButton 
+                    onClick={() => setMetricsInsightsOpen(true)}
+                    disabled={loading}
+                    size="medium"
+                    sx={{
+                      color: theme.palette.primary.main,
+                      backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                      border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                      '&:hover': {
+                        backgroundColor: alpha(theme.palette.primary.main, 0.2),
+                        transform: 'scale(1.1)',
+                        borderColor: alpha(theme.palette.primary.main, 0.4),
+                      },
+                      transition: 'all 0.3s ease',
+                      width: 44,
+                      height: 44,
+                      borderRadius: 2,
+                      ml: 1,
+                    }}
+                  >
+                    <Insights />
+                  </IconButton>
+                </Tooltip>
+                <IconButton 
+                  onClick={onClose} 
+                  disabled={loading} 
+                  size="medium"
+                  sx={{
+                    color: theme.palette.text.secondary,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                    border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                    '&:hover': {
+                      backgroundColor: alpha(theme.palette.primary.main, 0.15),
+                      color: theme.palette.primary.main,
+                      transform: 'rotate(90deg)',
+                      borderColor: alpha(theme.palette.primary.main, 0.4),
+                    },
+                    transition: 'all 0.3s ease',
+                    width: 44,
+                    height: 44,
+                    borderRadius: 2,
+                  }}
+                > 
+                  <Close />
+                </IconButton>
+              </Stack>
 
-            <IconButton 
-              onClick={onClose} 
-              disabled={loading} 
-              size="medium"
-              sx={{
-                color: theme.palette.text.secondary,
-                backgroundColor: alpha(theme.palette.primary.main, 0.08),
-                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                '&:hover': {
-                  backgroundColor: alpha(theme.palette.primary.main, 0.15),
-                  color: theme.palette.primary.main,
-                  transform: 'rotate(90deg)',
-                  borderColor: alpha(theme.palette.primary.main, 0.4),
-                },
-                transition: 'all 0.3s ease',
-                width: 44,
-                height: 44,
-                borderRadius: 2,
-              }}
-            > 
-              <Close />
-            </IconButton>
           </Box>
+          <TaskMetricsInsights
+            task={updatedTask}
+            open={metricsInsightsOpen}
+            onClose={() => setMetricsInsightsOpen(false)}
+            theme={theme}
+          />
         </DialogTitle>
       </Box>
       
@@ -823,7 +812,6 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
         <Box sx={{ display: 'flex', gap: 1 }}>
           {[
             { key: 'overview', label: 'Overview', icon: <Dashboard fontSize="small" /> },
-            { key: 'metrics', label: 'Metrics', icon: <Assessment fontSize="small" /> },
             { key: 'proof', label: 'Proof', icon: <Upload fontSize="small" /> },
             { key: 'activity', label: 'Activity', icon: <HistoryIcon fontSize="small" /> },
             { key: 'comments', label: 'Comments', icon: <Comment fontSize="small" /> }
@@ -1294,83 +1282,11 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                 </Paper>
               </Box>
 
-              {/* Quick Actions - Minimalist Bar */}
-              {(userRole?.role === 'teacher' || userRole?.role === 'admin' || isAssignedUser) && (
-                <Paper 
-                  elevation={0}
-                  sx={{ 
-                    p: 2.5, 
-                    borderRadius: 3,
-                    backgroundColor: alpha(theme.palette.primary.main, 0.02),
-                    border: `1px dashed ${alpha(theme.palette.primary.main, 0.2)}`,
-                  }}
-                >
-                  <Typography variant="body2" fontWeight="600" sx={{ 
-                    mb: 2.5,
-                    color: theme.palette.text.secondary,
-                    fontFamily: '"Adlam Display", serif',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                  }}>
-                    <PlayCircleOutline fontSize="small" />
-                    Quick Actions
-                  </Typography>
-                  
-                  <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>     
-                    {(userRole?.role === 'teacher' || userRole?.role === 'admin') && (
-                      <>
-                        <Button
-                          variant="outlined"
-                          color="warning"
-                          startIcon={<Flag />}
-                          onClick={handleEditFlags}
-                          size="medium"
-                          sx={{ borderRadius: 2, px: 3, py: 1, fontWeight: 600 }}
-                        >
-                          Edit Flags
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          color="primary"
-                          startIcon={<Grade />}
-                          onClick={handleGradeOverride}
-                          size="medium"
-                          sx={{ borderRadius: 2, px: 3, py: 1, fontWeight: 600 }}
-                        >
-                          Override Grade
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          color="secondary"
-                          startIcon={<Person />}
-                          onClick={handleReassignTask}
-                          size="medium"
-                          sx={{ borderRadius: 2, px: 3, py: 1, fontWeight: 600 }}
-                        >
-                          Reassign
-                        </Button>
-                      </>
-                    )}
-                    
-                    <Button
-                      variant="outlined"
-                      color="info"
-                      startIcon={<Edit />}
-                      onClick={handleEditTask}
-                      size="medium"
-                      sx={{ borderRadius: 2, px: 3, py: 1, fontWeight: 600 }}
-                    > 
-                      {isEditing ? "Save Changes" : "Edit Details"}
-                    </Button>
-                  </Box>
-                </Paper>
-              )}
             </Box>
           </Box>
         )}
 
-        {/* Metrics Tab - Minimalist */}
+        {/* Metrics Tab */}
         {!loading && !error && activeTab === 'metrics' && (
           <Box sx={{ p: 4 }}>
             <Typography variant="h5" fontWeight="700" gutterBottom sx={{ 
@@ -2347,22 +2263,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
               >
                 Override Grade
               </Button>
-              <Button
-                startIcon={<Edit />}
-                color="info"
-                disabled={loading}
-                onClick={handleEditTask}
-                size="small"
-                sx={{ 
-                  borderRadius: 2,
-                  px: 2.5,
-                  py: 1,
-                  fontWeight: 600,
-                  fontFamily: '"Inter", sans-serif',
-                }}
-              >
-                Edit Task
-              </Button>
+
               {updatedTask?.assignedTo?._id && (
                 <Button
                   startIcon={<Person />}
@@ -2475,6 +2376,16 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
           {snackbar.message}
         </Alert>
       </Snackbar>
+      <AssigneeSelectPopover
+        anchorEl={assigneeAnchorEl}
+        open={Boolean(assigneeAnchorEl)}
+        onClose={() => setAssigneeAnchorEl(null)}
+        currentAssignee={currentAssignee}
+        onAssigneeSelect={handleAssigneeChange}
+        theme={theme}
+        task={updatedTask}
+        currentUser={user}
+      />
     </Dialog>
   );
 };

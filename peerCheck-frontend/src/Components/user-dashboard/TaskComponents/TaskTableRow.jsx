@@ -27,6 +27,11 @@ import {
   Chat,
   Timer,
   Flag,
+  Timeline,
+  TrendingUp,
+  ArrowRightAltRounded,
+  ExpandCircleDown,
+  
 } from "@mui/icons-material";
 import {
   TextField,
@@ -62,6 +67,10 @@ import { getAuthToken } from "@/utils/auth";
 import axiosClient from "@/api/axiosClient";
 import AssigneeSelectPopover from "./AssigneeSelectPopover";
 import useGeneral from "@/hooks/useGeneralUIlogic";
+import TaskPerformancePanel from "./TaskPerformance";
+import TaskRiskPanel from "./TaskRisk";
+import TaskTimelinePanel from "./TaskTimeline";
+import TaskMetricsPanel from "./TaskMetrics";
 
 // Status options for dropdown
 const STATUS_OPTIONS = [
@@ -104,6 +113,11 @@ export const TaskTableRow = ({
   const [assigneeAnchorEl, setAssigneeAnchorEl] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
 
+  const [metricsOpen, setMetricsOpen] = useState(false);
+  const [riskOpen, setRiskOpen] = useState(false);
+  const [performanceOpen, setPerformanceOpen] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
+
 
   const {
     getEfficiencyColor
@@ -119,6 +133,25 @@ export const TaskTableRow = ({
       default: return 'default';
     }
   };
+  const MetricCard = ({ icon, label, children }) => (
+  <Box
+    sx={{
+      p: 1.5,
+      borderRadius: 2,
+      backgroundColor: alpha(theme.palette.background.paper, 0.5),
+      textAlign: 'center',
+    }}
+  >
+    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 1 }}>
+      {icon}
+      <Typography variant="body2" fontWeight={600}>
+        {label}
+      </Typography>
+    </Box>
+    {children}
+  </Box>
+);
+
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -419,7 +452,7 @@ useEffect(() => {
             backgroundColor: alpha(theme.palette.primary.main, 0.08),
           },
           cursor: 'pointer',
-          height: '72px',
+          height: '70px',
           borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
           transition: 'all 0.2s ease',
         }}
@@ -449,13 +482,13 @@ useEffect(() => {
               color: theme.palette.text.secondary,
             }}
           >
-            {expanded ? <ExpandLess /> : <ExpandMore />}
+            {expanded ? <ExpandMore /> : <ExpandCircleDown />}
           </IconButton>
         </TableCell>
 
         {/* Task Name (Editable) */}
         <TableCell>
-          <Tooltip title="edit title">
+          <Tooltip title="Edit title">
           <Box
             onClick={handleTaskNameClick}
             sx={{
@@ -953,7 +986,7 @@ useEffect(() => {
               backgroundColor: alpha(theme.palette.background.default, 0.5),
               borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
             }}>
-              <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+              <Box sx={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                 {/* Left Column - Task Details */}
                 <Box sx={{ flex: 1, minWidth: 300 }}>
                   <Stack spacing={2}>
@@ -1046,6 +1079,14 @@ useEffect(() => {
                       </Box>
                     </Box>
 
+
+                    <TaskMetricsPanel
+                      task={task}
+                      open={metricsOpen}
+                      onClose={() => setMetricsOpen(false)}
+                      theme={theme}
+                    />
+
                     {/* Assigned Information */}
                     <Box>
                       <Typography variant="subtitle2" fontWeight={600} gutterBottom>
@@ -1093,129 +1134,114 @@ useEffect(() => {
                 <Box sx={{ flex: 1, minWidth: 300 }}>
                   <Stack spacing={2}>
                     {/* Metrics */}
-                    <Box>
-                      <Typography variant="subtitle2" fontWeight={600} gutterBottom>
-                        <Assignment fontSize="small" sx={{ mr: 1, verticalAlign: 'middle' }} />
-                        Metrics
-                      </Typography>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                        {/* Efficiency */}
-                        <Box sx={{ 
-                          flex: '1 1 calc(50% - 8px)', 
-                          minWidth: 120,
-                          textAlign: 'center',
-                          p: 1.5,
-                          borderRadius: 2,
-                          backgroundColor: alpha(theme.palette.background.paper, 0.5),
-                        }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
-                            <Speed fontSize="small" />
-                            <Typography variant="body2" fontWeight={600}>
-                              Efficiency
-                            </Typography>
-                          </Box>
-                          <Box sx={{ position: 'relative', width: 60, height: 60, margin: 'auto' }}>
-                            <CircularProgress
-                              variant="determinate"
-                              value={Math.min(task.metrics?.efficiency || 0, 100)}
-                              size={60}
-                              thickness={4}
-                              sx={{
-                                color: theme.palette.primary.main,
-                              }}
-                            />
-                            <Box sx={{
-                              position: 'absolute',
-                              top: 0,
-                              left: 0,
-                              right: 0,
-                              bottom: 0,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                            }}>
-                              <Typography variant="body2" fontWeight="600">
-                                {Math.round(task.metrics?.efficiency || 0)}%
-                              </Typography>
-                            </Box>
-                          </Box>
-                        </Box>
+<Box>
+  <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+    <Assignment fontSize="small" sx={{ mr: 1, verticalAlign: 'middle' }} />
+    Metrics
+  </Typography>
 
-                        {/* Risk Level */}
-                        <Box sx={{ 
-                          flex: '1 1 calc(50% - 8px)', 
-                          minWidth: 120,
-                          textAlign: 'center',
-                          p: 1.5,
-                          borderRadius: 2,
-                          backgroundColor: alpha(theme.palette.background.paper, 0.5),
-                        }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
-                            <Security fontSize="small" />
-                            <Typography variant="body2" fontWeight={600}>
-                              Risk Level
-                            </Typography>
-                          </Box>
-                          <Chip
-                            label={task.metrics?.riskScore >= 4 ? 'HIGH' :
-                              task.metrics?.riskScore >= 2 ? 'MEDIUM' : 'LOW'}
-                            color={getRiskColor(task.metrics?.riskScore)}
-                            size="medium"
-                            sx={{ height: 32, fontWeight: 600 }}
-                          />
-                        </Box>
+  <Box
+    sx={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gap: 2,
+    }}
+  >
+    {/* Efficiency – Hero Card */}
+    <Box
+      sx={{
+        gridColumn: '1 / -1',
+        p: 2,
+        borderRadius: 2,
+        backgroundColor: alpha(theme.palette.background.paper, 0.6),
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Speed fontSize="small" />
+        <Typography variant="body2" fontWeight={600}>
+          Efficiency
+        </Typography>
+      </Box>
 
-                        {/* Comments */}
-                        <Box sx={{ 
-                          flex: '1 1 calc(50% - 8px)', 
-                          minWidth: 120,
-                          textAlign: 'center',
-                          p: 1.5,
-                          borderRadius: 2,
-                          backgroundColor: alpha(theme.palette.background.paper, 0.5),
-                        }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
-                            <Chat fontSize="small" />
-                            <Typography variant="body2" fontWeight={600}>
-                              Comments
-                            </Typography>
-                          </Box>
-                          <Chip
-                            label={task.commentsCount || 0}
-                            color="primary"
-                            variant="outlined"
-                            sx={{ height: 32, fontWeight: 600 }}
-                          />
-                        </Box>
+      <Box sx={{ position: 'relative', width: 70, height: 70 }}>
+        <CircularProgress
+          variant="determinate"
+          value={Math.min(task.metrics?.efficiency || 0, 100)}
+          size={70}
+          thickness={4}
+        />
+        <Box
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Typography fontWeight={600}>
+            {Math.round(task.metrics?.efficiency || 0)}%
+          </Typography>
+        </Box>
+      </Box>
+    </Box>
 
-                        {/* Proof */}
-                        <Box sx={{ 
-                          flex: '1 1 calc(50% - 8px)', 
-                          minWidth: 120,
-                          textAlign: 'center',
-                          p: 1.5,
-                          borderRadius: 2,
-                          backgroundColor: alpha(theme.palette.background.paper, 0.5),
-                        }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
-                            <AttachFile fontSize="small" />
-                            <Typography variant="body2" fontWeight={600}>
-                              Proof
-                            </Typography>
-                          </Box>
-                          <Chip
-                            icon={task.metrics?.hasProof ? 
-                              <CheckCircle fontSize="small" /> : 
-                              <Warning fontSize="small" />
-                            }
-                            label={task.metrics?.hasProof ? "Submitted" : "Pending"}
-                            color={task.metrics?.hasProof ? "success" : "error"}
-                            variant="outlined"
-                            sx={{ height: 32, fontWeight: 600 }}
-                          />
-                        </Box>
-                      </Box>
-                    </Box>
+    {/* Risk Level */}
+    <MetricCard
+      icon={<Security fontSize="small" />}
+      label="Risk"
+    >
+      <Chip
+        label={
+          task.metrics?.riskScore >= 4
+            ? 'HIGH'
+            : task.metrics?.riskScore >= 2
+            ? 'MEDIUM'
+            : 'LOW'
+        }
+        color={getRiskColor(task.metrics?.riskScore)}
+        size="small"
+        sx={{ fontWeight: 600 }}
+      />
+    </MetricCard>
+
+    {/* Comments */}
+    <MetricCard
+      icon={<Chat fontSize="small" />}
+      label="Comments"
+    >
+      <Chip
+        label={task.commentsCount || 0}
+        variant="outlined"
+        size="small"
+      />
+    </MetricCard>
+
+    {/* Proof */}
+    <MetricCard
+      icon={<AttachFile fontSize="small" />}
+      label="Proof"
+    >
+      <Chip
+        icon={
+          task.metrics?.hasProof ? (
+            <CheckCircle fontSize="small" />
+          ) : (
+            <Warning fontSize="small" />
+          )
+        }
+        label={task.metrics?.hasProof ? 'Submitted' : 'Pending'}
+        color={task.metrics?.hasProof ? 'success' : 'error'}
+        variant="outlined"
+        size="small"
+      />
+    </MetricCard>
+  </Box>
+</Box>
+
 
                     {/* Quick Actions */}
                     <Box>
@@ -1223,14 +1249,6 @@ useEffect(() => {
                         Quick Actions
                       </Typography>
                       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          startIcon={<ChatBubbleOutline />}
-                          className="no-expand"
-                        >
-                          Add Comment
-                        </Button>
                         {isAssignedUser && task.status !== 'completed' && (
                           <Button
                             variant="outlined"

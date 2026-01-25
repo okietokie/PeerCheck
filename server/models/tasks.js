@@ -89,9 +89,26 @@ const taskSchema = new mongoose.Schema(
       focusTime: { type: Number, default: 0 },
       label: { type: String, default: "" },
       percentage: { type: Number, default: 0 },
-      status: { type: String, default: "" }
+      status: { type: String, default: "" },
     },
-
+    progressByUser: [
+      {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        progress: { type: Number, default: 0, min: 0, max: 100 }, // percentage contributed
+        focusTime: { type: Number, default: 0 }, // seconds spent
+        efficiency: { type: Number, default: 0 }, // their efficiency on this task
+        startedAt: { type: Date },
+        completedAt: { type: Date },
+        status: { type: String, enum: ["assigned", "working", "reassigned", "completed"] },
+        proofUploaded : {
+          yesOrNo: { type: Boolean, default: false},
+          uploadedAt: { type: Date }
+        }
+      }
+    ],
+    
+    // Current assignee's efficiency only (not overall)
+    currentAssigneeEfficiency: { type: Number, default: 0 },
     // Risk assessment object
     risk: {
       riskLabel: { type: String, default: "Low Risk" },

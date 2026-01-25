@@ -35,7 +35,7 @@ export default function TaskTableHeader({allSelected,selectedTasks, handleSelect
                         }}
                       />
                     </TableCell>
-                    {[ { label: '', width: '5%'},
+                    {[{ label: '', width: '2%'},
                       { label: 'TASK TITLE', width: '25%' },
                       { label: 'STATUS', width: '12%' },
                       { label: 'ASSIGNEE', width: '15%' },
@@ -73,8 +73,8 @@ export default function TaskTableHeader({allSelected,selectedTasks, handleSelect
                             gap: 1,
                           }}
                         >
-                          {index === 0 && <Expand fontSize='small' /> }
-                          {index === 1 &&  <Title fontSize="small" />}
+                          {index === 0 }
+                          {index === 1 }
                           {index === 2 && <SignalWifiStatusbar1BarTwoTone fontSize="small" />}
                           {index === 3 && <Person  fontSize="small" />}
                           {index === 4 && <Error fontSize="small" />}

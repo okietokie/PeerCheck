@@ -1,6 +1,7 @@
 // userRoutes.js
 import express from 'express';
 import * as userController from '../controllers/userController.js';
+import * as productivityController from '../controllers/userProductivity.js';
 import * as connectionController from '../controllers/connectionController.js';
 import * as teamController from '../controllers/teamController.js';
 
@@ -27,6 +28,7 @@ router.use("/comments", commentRoutes);
 
 router.use(protect);
 router.get("/dashboard-stats", userController.getDashboardStats);
+router.get("/productivity", productivityController.getUserProductivity);
 
 
 router.post("/upload-avatar", upload.avatarUpload.single("avatar"), userController.uploadAvatar);
@@ -68,7 +70,7 @@ router.delete("/task/:taskId", taskController.deleteTask); // delete task
 router.put("/task/:taskId/assign", taskController.assignTask); // assign task to user
 //Inline editing
 router.patch('/:taskId/field', taskController.updateTaskField); // Update single field
-router.patch('/:taskId/reassign', taskController.reassignTask); // reassign
+router.patch('/task/:taskId/reassign', taskController.reassignTask); // reassign
 
 // Recent activities route
 router.get("/task/activity/recent", userController.getRecentActivities); // route for recent activities
@@ -97,9 +99,11 @@ router.delete("/remove-connection/:connectionId", connectionController.removeCon
 router.get('/teams', teamController.getUserTeams); // get user's teams
 router.post('/create-team', teamController.createTeam);  // create new team
 router.delete('/leave-team/:teamId', teamController.leaveTeam);  // leave team
+router.delete('/delete-team/:teamId', teamController.deleteTeam);
 router.put('/update-team/:teamId', teamController.updateTeam); // update team details
 router.post('/invite-to-team/:teamId', teamController.inviteToTeam); 
 router.get('/team-suggestions', teamController.getTeamSuggestions); // get team suggestions
+router.get('/projects/:projectId/members', teamController.getProjectTeamMembers);
 
 // User discovery routes
 router.get("/suggested-users", userDiscoveryController.getSuggestedUsers); // get suggested users for connections

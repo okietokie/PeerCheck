@@ -87,6 +87,7 @@ const Tasks = () => {
     filters,
     userRole,
     activeTab,
+    userTeacher,
     
     // Actions
     setSearchQuery,
@@ -108,6 +109,7 @@ const Tasks = () => {
     handleOpenUploadProof,
     handleProofUploadSuccess,
     handleTaskFieldUpdate,
+    handleViewDetails,
     handleDeleteSelected,
     handleTaskUpdate,
     setError
@@ -130,7 +132,14 @@ const Tasks = () => {
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Box>
-            <Typography variant="h5" fontWeight="600" gutterBottom sx={{ color: theme.palette.text.primary }}>
+            <Typography variant="h3" fontWeight="700" gutterBottom sx={{ 
+              color: theme.palette.text.primary,
+              background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              mb: 1}}
+              >
               {isProjectView ? 'Project Tasks' : 'My Tasks'}
             </Typography>
             <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
@@ -667,12 +676,10 @@ const Tasks = () => {
                       theme={theme}
                       userRole={userRole}
                       onUploadProof={handleOpenUploadProof}
-                      onViewDetails={() => {
-                        setSelectedTask(task);
-                        setDetailsOpen(true);
-                      }}
+                      onViewDetails={handleViewDetails}
                       onStatusChange={handleStatusChange}
                       onTaskUpdate={handleTaskFieldUpdate}
+                      userTeacher={userTeacher}
                     />
                   ))}
                 </TableBody>

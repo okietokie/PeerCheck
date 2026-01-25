@@ -62,12 +62,12 @@ export const formatDate = (dateString, short = false) => {
 };
 
 // Get status color
-export const getStatusColor = (status) => {
+export const getStatusColor = (status, theme) => {
   switch (status) {
-    case 'completed': return 'success';
-    case 'active': return 'info';
-    case 'paused': return 'warning';
-    default: return 'default';
+    case 'completed': return theme.palette.success.main;
+    case 'active': return theme.palette.info.main;
+    case 'paused': return theme.palette.warning.main;
+    default: return theme.palette.default.main;
   }
 };
 

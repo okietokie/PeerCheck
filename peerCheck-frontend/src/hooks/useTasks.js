@@ -270,34 +270,22 @@ const useTasks = () => {
     fetchTasks(); // Refetch to get updated metrics from backend
   };
 
-  // Task field update - UPDATED to handle backend response
-  const handleTaskFieldUpdate = async (taskId, updates) => {
+  const handleTaskFieldUpdate = useCallback(async (taskId, updates) => {
     try {
       const token = getAuthToken();
-      
-      const response = await axiosClient.patch(`/user/task/${taskId}/field`, 
-        {
-          field: updates.field,  
-          value: updates.value  
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        }
+      const response = await axiosClient.patch(`/user/${taskId}/field`, 
+        { field: updates.field, value: updates.value },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
       
       if (response.data?.success) {
-        const updatedTask = response.data.task;
-        
-        // Update local state with backend-calculated metrics
         setTasks(prevTasks => 
           prevTasks.map(task => 
             task._id === taskId 
               ? { 
-                  ...updatedTask,
-                  metrics: updatedTask.metrics || useBackendMetrics(updatedTask)
+                  ...task, 
+                  [updates.field]: updates.value,
+                  ...response.data.task
                 }
               : task
           )
@@ -311,8 +299,12 @@ const useTasks = () => {
       console.error('Error updating task:', error);
       throw error;
     }
+  }, []);
+  const handleViewDetails = (task) => {
+    console.log("Viewing details for task:", task);
+    setSelectedTask(task);
+    setDetailsOpen(true);
   };
-
   // Delete selected tasks
   const handleDeleteSelected = async () => {
     if (selectedTasks.size === 0) return;
@@ -476,7 +468,8 @@ const useTasks = () => {
     handleDeleteSelected,
     handleTaskUpdate,
     deleteTask,
-    formatTime
+    formatTime,
+    handleViewDetails
   };
 };
 

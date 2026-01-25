@@ -5,17 +5,18 @@ import dotenv from "dotenv";  //to load and handle .env files
 import mongoose from "mongoose";
 import path from "path";
 import connectDB from "./mongodbConnectivity.js";
+
 //dotenv.config() loads .env file
 //path.resolve() provides exact file location to load it 
 dotenv.config({ path: path.resolve('./server/.env') });  
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
+
 // Middleware
 app.use(cors());  //allows your frontend (React) to access your backend. Without it, browsers block requests for security.
 app.use(express.json()); //allows Express to understand JSON data sent from the frontend (like { email: "...", password: "..." }).
-//establish connectivity
-connectDB();
+
 // Routes
 import authRoutes from "./routes/authRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
@@ -41,5 +42,18 @@ app.use("/api/teacher", teacherRoutes);
 app.use("/api/todos", todoRoutes);
 
 // Start Server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+async function startServer() {
+  try {
+    await connectDB(); //connect to Mongodb
+
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () =>
+      console.log(`Server running on port ${PORT}`)
+    );
+  } catch (error) {
+    console.error("Server failed to start:", error);
+    process.exit(1);
+  }
+}
+
+startServer();

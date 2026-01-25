@@ -14,7 +14,7 @@ import cron from 'node-cron';
 import path from "path";
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { createNotification, notifyProofUploaded, notifyTaskAssigned, notifyTaskComment, notifyTaskCompleted, notifyTaskDeadline } from './notificationController.js';
-
+import { updateUserProductivity } from './userProductivity.js';
 
 // Helper functions for derived metrics
 const getStatusWeight = (status) => {
@@ -50,27 +50,86 @@ const calculateDaysUntilDeadline = (task) => {
 };
 
 export const calculateTaskRisk = (task) => { 
-  // Calculate basic time metrics for risk assessment
+  // Get basic task data
   const estimatedTime = task.estimatedTime || 1; 
   const focusTime = task.totalFocusTime || 0; 
   const timeRatio = estimatedTime > 0 ? (focusTime / estimatedTime) : 0;
   
+  // Calculate individual risk flags
   const paddedTime = timeRatio > 2;           // Worked >2x estimated
   const rushedCompletion = task.status === 'completed' && timeRatio < 0.4;
   const noProof = !task.proofUploads || task.proofUploads.length === 0;
-  const manualReviewRequired = paddedTime || rushedCompletion || noProof;
+  
+  // checking task overdue
+  let isOverdue = false;
+  let daysUntilDeadline = null;
+  
+  if (task.deadline) {
+    const now = new Date();
+    const deadline = new Date(task.deadline);
+    isOverdue = deadline < now && task.status !== 'completed';
+    
+    // Calculate days until deadline
+    daysUntilDeadline = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
+  }
 
-  // Calculate risk score based on flag severity
-  const riskScore =    //total score point = 8  (2+2+1+3)
-    (paddedTime ? 2 : 0) +
-    (rushedCompletion ? 2 : 0) +
-    (noProof ? 1 : 0) +
-    (manualReviewRequired ? 3 : 0);  
+  const notStartedNearDeadline = 
+    task.status === 'not_started' && 
+    daysUntilDeadline !== null && 
+    daysUntilDeadline <= 1;
+  
+  const nearDeadline = 
+    daysUntilDeadline !== null && 
+    daysUntilDeadline <= 3 && 
+    task.status !== 'completed';
+  
+  // Manual review required if any risk flag exists
+  const manualReviewRequired = 
+      paddedTime || 
+      rushedCompletion || 
+      noProof || 
+      isOverdue || 
+      notStartedNearDeadline;
 
-  // Determine risk level based on score
+  // Calculate risk score
+  // Each flag contributes independently
+ let riskScore = 0;
+  const riskFactors = [];
+  
+  if (paddedTime) {
+    riskScore += 2;
+    riskFactors.push('padded_time');
+  }
+  if (rushedCompletion) {
+    riskScore += 2;
+    riskFactors.push('rushed_completion');
+  }
+  if (noProof) {
+    riskScore += 1;
+    riskFactors.push('no_proof');
+  }
+  if (isOverdue) {
+    riskScore += 1;
+    riskFactors.push('overdue');
+  }
+  if (notStartedNearDeadline) {
+    riskScore += 2;
+    riskFactors.push('not_started_urgent');
+  } else if (nearDeadline) {
+    riskScore += 1;
+    riskFactors.push('near_deadline');
+  }
+  
+  // Cap at 8 points (for frontend)
+  riskScore = Math.min(riskScore, 8);
+
+  // Determine risk level
   let riskLevel, riskLabel;
   
-  if (riskScore >= 4) {
+  if (riskScore >= 6) {
+    riskLevel = 'critical';
+    riskLabel = 'Critical Risk';
+  } else if (riskScore >= 4) {
     riskLevel = 'high';
     riskLabel = 'High Risk';
   } else if (riskScore >= 2) {
@@ -81,22 +140,27 @@ export const calculateTaskRisk = (task) => {
     riskLabel = 'Low Risk';
   }
     
+  // Return detailed structure
   return {
     timeRatio,
     flags: {
       paddedTime,
       rushedCompletion,
       noProof,
-      manualReviewRequired
+      manualReviewRequired,
+      isOverdue,
+      nearDeadline,
+      notStartedNearDeadline
     },
     risk: {
       riskScore,
       riskLevel,
-      riskLabel
+      riskLabel,
+      riskFactors,
+      daysUntilDeadline
     }
   };
 };
-
 
 const calculateTimeEfficiency = (task) => {
   const estimatedTime = task.estimatedTime || 1;
@@ -282,7 +346,7 @@ const calculateEnhancedTaskEfficiency = (task) => {
 };
 
 
-const enrichTaskWithMetrics = (task) => {
+export const enrichTaskWithMetrics = (task) => {
   if (!task) return null;
 
   const efficiency = calculateEnhancedTaskEfficiency(task);
@@ -310,7 +374,6 @@ const enrichTaskWithMetrics = (task) => {
   };
   const taskObj = task.toObject ? task.toObject() : { ...task };
 
-
   return {
     ...taskObj,
     _id: task._id,
@@ -319,6 +382,7 @@ const enrichTaskWithMetrics = (task) => {
       efficiencyStatus: efficiencyStatus(efficiency),
       efficiencyLabel: getEfficiencyLabel(efficiency),
       riskScore: riskScore.risk.riskScore,
+      risk: riskScore,
       riskLevel: riskScore.risk.riskLevel,
       componentScores,
       statusWeight,
@@ -865,6 +929,8 @@ export const createTask = async (req, res) => {
     });
 
     await task.save();
+    await updateUserProductivity(assignedTo);
+    await updateProjectMetricsInDB(projectId);
 
     await notifyTaskAssigned(task._id, assignedTo, userId);
 
@@ -937,6 +1003,8 @@ export const deleteTask = async (req, res) => {
       assignedTo: task.assignedTo
     });
 
+
+
     if (task.assignedTo) {
       await createNotification({
         userId: task.assignedTo,
@@ -951,6 +1019,8 @@ export const deleteTask = async (req, res) => {
         priority: 'high'
       });
     }
+
+    await updateUserProductivity(task.assignedTo._id ? task.assignedTo._id : task.assignedTo);
     // Delete the task
     await Task.findByIdAndDelete(taskId);
     
@@ -1581,6 +1651,8 @@ export const updateTaskStatus = async (req, res) => {
       await notifyTaskCompleted(taskId, userId);
     }
 
+    await updateUserProductivity(userId);
+
     res.json({
       success: true,
       task: updatedTask,
@@ -1957,6 +2029,8 @@ export const updateTaskField = async (req, res) => {
 
     await task.save();
 
+
+
     // Log activity
     await logActivity({
       taskId,
@@ -2000,6 +2074,7 @@ export const updateTaskField = async (req, res) => {
 
     // Enrich with metrics
     const enrichedTask = enrichTaskWithMetrics(updatedTask);
+    await updateUserProductivity(task.assignedTo._id ? task.assignedTo._id : task.assignedTo);
 
     res.json({
       success: true,
@@ -2023,39 +2098,49 @@ export const reassignTask = async (req, res) => {
   try {
     const { taskId } = req.params;
     const { newAssigneeId } = req.body;
-    const userId = req.user.id;
+    const userId = req.userId || req.user.id;
 
     const task = await Task.findById(taskId);
     if (!task) return res.status(404).json({ error: "Task not found" });
 
-    const isAuthorized =
-      task.assignedBy.toString() === userId ||
-      req.user.role === "teacher";
-
+    const isAuthorized = task.assignedBy.toString() === userId.toString() || req.user.role === "teacher";
     if (!isAuthorized) {
       return res.status(403).json({ error: "Not authorized to reassign task" });
     }
 
-    if (task.lastEventTime) {
-      const focusTimeByPrevUser =
-        Math.floor((Date.now() - task.lastEventTime) / 1000);
+    const assignedTo = task.assignedTo._id ? task.assignedTo._id.toString() : task.assignedTo;
 
+    // Calculate focus time for current assignee
+    if (task.lastEventTime && assignedTo) {
+      const focusTimeByPrevUser = Math.floor((Date.now() - task.lastEventTime) / 1000);
+      
+      // Add to assignment history
+      task.assignmentHistory.push({
+        userId: assignedTo,
+        from: task.lastAssignedAt || task.createdAt,
+        to: new Date(),
+        focusTime: focusTimeByPrevUser,
+        efficiency: task.estimatedTime > 0 
+          ? (focusTimeByPrevUser / task.estimatedTime) * 100 
+          : 0
+      });
+      
+      // Add to total focus time
       task.totalFocusTime += Math.max(focusTimeByPrevUser, 0);
     }
 
-      task.assignmentHistory.push({
-        userId: task.assignedTo,
-        from: task.lastAssignedAt,
-        to: new Date(),
-        focusTime: task.totalFocusTime,
-        efficiency: (task.totalFocusTime / task.estimatedTime) * 100
-      });
+    // Reassign task
+    const oldAssignee = assignedTo;
     task.assignedTo = newAssigneeId;
     task.lastAssignedAt = new Date();
     task.lastEventTime = null;
     task.status = "not_started";
-        
+    
     await task.save();
+
+    // Update productivity stats for both users
+    if (oldAssignee) await updateUserProductivity(oldAssignee);
+    if (newAssigneeId) await updateUserProductivity(newAssigneeId);
 
     await logActivity({
       taskId,
@@ -2063,13 +2148,15 @@ export const reassignTask = async (req, res) => {
       projectId: task.projectId,
       eventType: "task_reassigned",
       metadata: {
-        from: task.assignmentHistory.at(-1).userId,
+        from: oldAssignee,
         to: newAssigneeId
       }
     });
 
-  res.json({ success: true, message: "Task reassigned successfully" });
+    res.json({ success: true, message: "Task reassigned successfully" });
+    
   } catch (error) {
     console.error(error);
+    res.status(500).json({ error: error.message });
   }
 };

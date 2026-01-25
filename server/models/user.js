@@ -72,6 +72,32 @@ const userSchema = new mongoose.Schema({
   onlineStatus: {type: String},
   resetPasswordToken: String,
   resetPasswordExpires: Date,
+  productivity: {
+    // Core metrics
+    tasksAssigned: { type: Number, default: 0 },
+    tasksCompleted: { type: Number, default: 0 },
+    totalFocusTime: { type: Number, default: 0 }, // seconds
+    
+    // Efficiency (calculated on-demand)
+    overallEfficiency: { type: Number, default: 0 }, // percentage
+    
+    // Risk score (calculated on-demand)
+    averageRiskScore: { type: Number, default: 0 },
+    
+    // Timeliness
+    onTimeRate: { type: Number, default: 0 }, // percentage
+    
+    // Project contributions
+    projectsContributed: [{
+      projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project" },
+      projectName: String,
+      tasksCompleted: { type: Number, default: 0 },
+      efficiency: { type: Number, default: 0 },
+      lastContribution: Date
+    }],
+    
+    lastUpdated: { type: Date, default: Date.now }
+  }
 }, {
   timestamps: true // Adds createdAt and updatedAt automatically
 });

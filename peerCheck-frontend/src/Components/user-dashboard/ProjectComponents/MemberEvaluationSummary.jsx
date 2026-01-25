@@ -595,7 +595,7 @@ const MemberEvaluationSummary = ({ projectId, theme }) => {
           {/* Note about evaluations */}
           <Alert severity="info" sx={{ mt: 2 }}>
             <Typography variant="caption">
-              <strong>Note:</strong> Overall score combines project evaluations (70% weight) and peer reviews (30% weight). 
+              <strong>Note:</strong> Overall score combines project evaluations (30% weight) and peer reviews (70% weight). 
               Project evaluations assess the entire team's work, while peer reviews evaluate individual contributions.
             </Typography>
           </Alert>

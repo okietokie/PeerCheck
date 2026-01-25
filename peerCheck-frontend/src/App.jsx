@@ -1,4 +1,4 @@
-// App.js
+// App.jsx
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./Components/Login/Home.jsx";
 import AuthPage from "./Components/Login/AuthPage.jsx";
@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 
 import ProtectedRoute from "./Components/ProtectedRoute.jsx";
 import { ThemeProvider } from "@mui/material/styles";
-import { Box } from "@mui/material";
+import { Box, CssBaseline } from "@mui/material"; // Added CssBaseline
 
 import themes from './assets/theme.js';
 import { useInView } from "react-intersection-observer";
@@ -33,19 +33,33 @@ import { getThemeNames } from "./utils/themeUtils.js";
 import TeacherApp from "./Components/teacher-dashboard/teacher-dash-app.jsx";
 import TeacherDashboard from "./Components/teacher-dashboard/Dashboard.jsx";
 import TeacherClasses from "./Components/teacher-dashboard/TeacherClasses.jsx";
-import { Analytics } from "@mui/icons-material";
 import Feedback from "./Components/teacher-dashboard/Feedback.jsx";
 
 // Extract theme names dynamically
 const themeNames = getThemeNames(themes);
 
+const getSavedTheme = () => {
+  try {
+    const saved = localStorage.getItem('themeName');
+    return themeNames.includes(saved) ? saved : themeNames[0];
+  } catch {
+    return themeNames[0];
+  }
+};
+
 export default function App() {
-  const [themeName, setThemeName] = useState(themeNames[0]);
+  const [themeName, setThemeName] = useState(getSavedTheme());
   const [user, setUser] = useState(null);
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
   const { ref, inView } = useInView();
 
+  // Save theme preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('themeName', themeName);
+  }, [themeName]);
+
+  // Apply theme to body
   useEffect(() => {
     const theme = themes[themeName];
     document.body.style.backgroundColor = theme.palette.background.default;
@@ -68,10 +82,34 @@ export default function App() {
     setShowThemePicker(!showThemePicker);
   };
 
+  const handleThemeChange = (newThemeName) => {
+    setThemeName(newThemeName);
+
+  };
+
+  // Close picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showThemePicker && !event.target.closest('.theme-picker') && !event.target.closest('.theme-toggle-button')) {
+        setShowThemePicker(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showThemePicker]);
+
   return (
     <ThemeProvider theme={themes[themeName]}>
+      <CssBaseline /> {/* resets default browser styles */}
+      
       {/* Main App Content */}
-      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }} ref={ref}>
+      <Box sx={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        flexDirection: 'column',
+        position: 'relative' 
+      }} ref={ref}>
         <Router>
           <Routes>
             <Route path="/" element={<Home />} />
@@ -104,30 +142,33 @@ export default function App() {
               <Route path="dashboard" element={<TeacherDashboard />} />
               <Route path="classes" element={<TeacherClasses />} />
               <Route path="peer-teams" element={<PeerTeams />} />
-              <Route path="analytics" element={<Analytics />} />
+              <Route path="analytics" element={<div>Analytics Page</div>} />
               <Route path="feedback" element={<Feedback />} />
               <Route path="profile" element={<Profile />} />
             </Route>
           </Routes>
         </Router>
 
-        {/* Theme Toggle Button - Fixed at bottom right */}
-        {!showThemePicker && (
+        {/* Theme Toggle Button */}
+        <div className="theme-toggle-button">
           <ThemeToggleButton 
             theme={themes[themeName]}
             onClick={toggleThemePicker}
+            isPickerOpen={showThemePicker}
           />
-        )}
+        </div>
 
-        {/* Theme Picker - Shows when button is clicked */}
+        {/* Theme Picker */}
         {showThemePicker && (
-          <ThemePicker 
-            themes={themes}
-            themeNames={themeNames}
-            currentThemeName={themeName}
-            onThemeChange={setThemeName}
-            onClose={toggleThemePicker}
-          />
+          <div className="theme-picker">
+            <ThemePicker 
+              themes={themes}
+              themeNames={themeNames}
+              currentThemeName={themeName}
+              onThemeChange={handleThemeChange}
+              onClose={toggleThemePicker}
+            />
+          </div>
         )}
       </Box>
     </ThemeProvider>

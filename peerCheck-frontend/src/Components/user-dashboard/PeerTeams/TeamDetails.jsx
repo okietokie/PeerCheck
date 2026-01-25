@@ -337,7 +337,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
   // Handle view project
   const handleViewProject = (projectId) => {
     if (projectId) {
-      navigate(`/projects/${projectId}`);
+      navigate(`/user-app/my-project/${projectId}`);
     } else {
       setMessage({ type: 'info', text: 'Project details coming soon!' });
     }
@@ -547,7 +547,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
                               <Typography fontWeight={600} variant="subtitle1">
                                 {member.user?.name || member.name || 'Unknown Member'}
                               </Typography>
-                              {member.role === 'leader' && (
+                              {team.createdBy === member._id && (
                                 <Chip 
                                   label="Team Lead" 
                                   size="small" 

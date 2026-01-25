@@ -1,16 +1,16 @@
 // server/controllers/teamController.js
-import mongoose from 'mongoose'; //since some functions need mongoose import
-import Group from "../models/peergroup_log.js";
+import mongoose from 'mongoose'; //some functions need mongoose import
+import Team from "../models/peergroup_log.js";
 import User from "../models/user.js";
 import Connection from '../models/connection.js';
-
+import Project from '../models/projects.js';
 // Get user's teams
 export const getUserTeams = async (req, res) => {
   try {
     const userId = req.user.id;
 
     // Find groups where the user is a member
-    const teams = await Group.find({
+    const teams = await Team.find({
       members: userId,
       deletedAt: { $exists: false }
     })
@@ -42,7 +42,8 @@ export const getUserTeams = async (req, res) => {
       })),
       projects: team.projects || [],
       createdAt: team.createdAt,
-      updatedAt: team.updatedAt
+      updatedAt: team.updatedAt,
+      createdBy: team.createdBy
     }));
 
     res.status(200).json({ 
@@ -67,21 +68,23 @@ export const createTeam = async (req, res) => {
     const currentUserId = req.userId;
     // Basic validation
     if (!name || !name.trim()) {
-      return res.status(400).json({ success: false, message: "Team name is required" });
+      return res.status(200).json({ success: false, message: "Failed to create team. Team name is required" });
     }
     if (name.trim().length < 2) {
-      return res.status(400).json({ success: false, message: "Team name must be at least 2 characters long" });
+      return res.status(200).json({ success: false, message: "Failed to create team. Team name must be at least 2 characters long" });
     }
     // Check if team with same name already exists for this user
-    const existingTeam = await Group.findOne({name: name.trim(), members: currentUserId, deletedAt: { $exists: false } });
+    const existingTeam = await Team.findOne({name: name.trim(), members: currentUserId});
     if (existingTeam) {
-      return res.status(400).json({ success: false, message: "You already have a team with this name"  });
+      return res.status(200).json({ success: false, message: "Failed to create team. You already have a team with this name"  });
     }
+
     // Create the team
-    const team = new Group({ name: name.trim(), members: [currentUserId], projects: []});
+    const team = new Team({ name: name.trim(), members: [currentUserId], projects: [], createdBy: currentUserId});
     await team.save();
+
     // Populate the created team to get user details
-    const populatedTeam = await Group.findById(team._id)
+    const populatedTeam = await Team.findById(team._id)
       .populate('members', 'name username email course institution bio avatar skills year onlineStatus');
     // Format response
     const teamResponse = {
@@ -107,7 +110,8 @@ export const createTeam = async (req, res) => {
       })),
       projects: populatedTeam.projects || [],
       createdAt: populatedTeam.createdAt,
-      updatedAt: populatedTeam.updatedAt
+      updatedAt: populatedTeam.updatedAt,
+      createdBy: currentUserId
     };
 
     res.status(201).json({  success: true, message: "Team created successfully",  team: teamResponse });
@@ -133,7 +137,7 @@ export const leaveTeam = async (req, res) => {
       });
     }
 
-    const team = await Group.findOne({
+    const team = await Team.findOne({
       _id: teamId,
       members: userId,
       deletedAt: { $exists: false }
@@ -172,6 +176,39 @@ export const leaveTeam = async (req, res) => {
   }
 };
 
+export const deleteTeam = async (req, res) => {
+  try {
+    const { teamId } = req.params;
+    const userId = req.userId;
+console.log("team: ", teamId, "user: ", userId);
+    //Validate user is creator
+    const team = await Team.findOne({
+      _id: teamId,
+      createdBy: userId,
+      deletedAt: { $exists: false }
+    });
+    console.log("team:", team);
+    if (!team) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Team not found or you are not the creator" 
+      });
+    }
+    // Soft delete the team
+    team.deletedAt = new Date();
+    await team.save();
+    res.status(200).json({ 
+      success: true,
+      message: "Team deleted successfully" 
+    });
+  } catch (err) {
+    console.error('Error deleting team:', err);
+    res.status(500).json({ 
+      success: false, 
+      message: `Error deleting team: ${err.message}`
+    });
+  };
+};
 // Update team name 
 export const updateTeam = async (req, res) => {
   try {
@@ -202,7 +239,7 @@ export const updateTeam = async (req, res) => {
       });
     }
 
-    const team = await Group.findOne({
+    const team = await Team.findOne({
       _id: teamId,
       members: userId,
       deletedAt: { $exists: false }
@@ -216,7 +253,7 @@ export const updateTeam = async (req, res) => {
     }
 
     // Check if new name conflicts with existing team names for this user
-    const existingTeamWithSameName = await Group.findOne({
+    const existingTeamWithSameName = await Team.findOne({
       _id: { $ne: teamId },
       name: name.trim(),
       members: userId,
@@ -234,7 +271,7 @@ export const updateTeam = async (req, res) => {
     await team.save();
 
     // Populate the updated team for response
-    const updatedTeam = await Group.findById(teamId)
+    const updatedTeam = await Team.findById(teamId)
       .populate('members', 'name username email course institution bio avatar skills year onlineStatus');
 
     const teamResponse = {
@@ -318,7 +355,7 @@ export const inviteToTeam = async (req, res) => {
     }
 
     // Check if team exists and user is a member
-    const team = await Group.findOne({
+    const team = await Team.findOne({
       _id: teamId,
       members: currentUserId,
       deletedAt: { $exists: false }
@@ -331,6 +368,12 @@ export const inviteToTeam = async (req, res) => {
       });
     }
 
+    if(team.createdBy.toString() !== currentUserId.toString()){
+      return res.status(200).json({
+        success: false,
+        message: "Only the team creator can invite members to the team"
+      })
+    }
     // Find user to invite
     let userToInvite;
     if (email) {
@@ -367,7 +410,7 @@ export const inviteToTeam = async (req, res) => {
     await team.save();
 
     // Populate the updated team for response
-    const updatedTeam = await Group.findById(teamId)
+    const updatedTeam = await Team.findById(teamId)
       .populate('members', 'name username email course institution bio avatar skills year onlineStatus');
 
     const teamResponse = {
@@ -433,6 +476,85 @@ export const getTeamSuggestions = async (req, res) => {
     res.status(500).json({ 
       success: false,
       message: `Error fetching suggestions: ${err.message}` 
+    });
+  }
+};
+
+export const getProjectTeamMembers = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const userId = req.userId;
+
+    // Find the project
+    const project = await Project.findById(projectId)
+      .populate({
+        path: 'teamId',
+        select: 'name members',
+        populate: {
+          path: 'members',
+          select: 'name username email avatar role skills year institution course productivity onlineStatus',
+          model: 'User'
+        }
+      });
+
+    if (!project) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Project not found' 
+      });
+    }
+
+    // Check if user has access to this project
+    const userTeams = await Team.find({
+      members: userId,
+      deletedAt: { $exists: false }
+    });
+    const userHasAccess = userTeams.some(team => 
+      team._id.toString() === project.teamId._id.toString()
+    );
+    if (!userHasAccess) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'You do not have access to this project team members' 
+      });
+    }
+    // Format team members
+    const teamMembers = project.teamId.members.map(member => ({
+      user: {
+        _id: member._id,
+        name: member.name,
+        username: member.username,
+        email: member.email,
+        avatar: member.avatar,
+        role: member.role,
+        skills: member.skills || [],
+        year: member.year,
+        institution: member.institution,
+        course: member.course,
+        productivity: member.productivity || {
+          tasksAssigned: 0,
+          tasksCompleted: 0,
+          overallEfficiency: 0,
+          averageRiskScore: 0,
+          overallProductivityScore: 0
+        },
+        onlineStatus: member.onlineStatus
+      },
+      joinDate: member.createdAt
+    }));
+
+    res.json({
+      success: true,
+      members: teamMembers,
+      teamName: project.teamId.name,
+      projectName: project.projectName
+    });
+
+  } catch (error) {
+    console.error('Error fetching project team members:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
     });
   }
 };
