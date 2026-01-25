@@ -123,7 +123,7 @@ const TaskMetricsPanel = ({ task, open, onClose, theme }) => {
 
   const timeUtilization = getTimeUtilization();
   const proofQuality = getProofQuality();
-
+console.log("Rendering TaskMetricsPanel for task:", task);
   if (!open || !task) return null;
 
   return (
@@ -354,13 +354,15 @@ const TaskMetricsPanel = ({ task, open, onClose, theme }) => {
                 
                 {/* Risk Factors */}
                 {[
-                  { label: 'Padded Time', value: task?.flags?.paddedTime, weight: 2 },
-                  { label: 'Rushed Completion', value: task?.flags?.rushedCompletion, weight: 2 },
-                  { label: 'No Proof', value: task?.flags?.noProof, weight: 1 },
-                  { label: 'Overdue', value: task?.metrics?.isOverdue, weight: 1 },
+                  { label: 'Padded Time', value: task?.metrics?.risk?.flags?.paddedTime, weight: 2 },
+                  { label: 'Rushed Completion', value: task?.metrics?.risk?.flags?.rushedCompletion, weight: 2 },
+                  { label: 'No Proof', value: task?.metrics?.risk?.flags?.noProof, weight: 1 },
+                  { label: 'Overdue', value: task?.metrics?.risk?.flags?.isOverdue, weight: 1 },
+                  { label: 'Task Nearing Deadline', value: task?.metrics?.risk?.flags?.nearDeadline, weight: 1 },
+                  { label: 'Task Not Started: Deadline Approaching', value: task?.metrics?.risk?.flags?.notStartedNearDeadline, weight: 1 },
                   { 
                     label: 'Manual Review Needed', 
-                    value: task?.flags?.manualReviewRequired, 
+                    value: task?.metrics?.risk?.flags?.manualReviewRequired, 
                     weight: 0,
                     info: true 
                   }

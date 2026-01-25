@@ -1774,13 +1774,16 @@ export const getProofFile = async (req, res) => {
     if (!proof) return res.status(404).json({ success: false, error: "Proof not found" });
 
     // Authorization
-    const isAssignee = task.assignedTo?.toString() === userId.toString() || task.assignedTo?._id.toString() === userId.toString();
-    const isTeacherOrAdmin = ['teacher', 'admin'].includes(req.user.role);
 
-    if (!isAssignee && !isTeacherOrAdmin) {
-      const project = await Project.findById(task.projectId);
-      const team = project?.teamId ? await Team.findById(project.teamId) : null;
-      if (!team?.members.some(m => m.user?.toString() === userId.toString()))
+    const isTeacherOrAdmin = ['teacher', 'admin'].includes(req.user.role);
+    const project = await Project.findById(task.projectId._id ? task.projectId._id : task.projectId).populate('teamId');
+    const members = project.teamId?.members;
+    const isMember = members
+      ? members.some(m => m.toString() === userId.toString())
+      : false;
+
+
+    if (!isMember && !isTeacherOrAdmin) {
         return res.status(403).json({ success: false, error: "Access denied" });
     }
 
