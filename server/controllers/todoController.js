@@ -18,12 +18,12 @@ export const getTodos = async (req, res) => {
     
     let query = { user: userId };
     
-    // Filter by project
+    //Filter by project
     if (projectId && mongoose.Types.ObjectId.isValid(projectId)) {
       query.project = projectId;
     }
     
-    // Filter by completion status
+    //filter by completion status
     if (completed !== undefined) {
       query.completed = completed === 'true';
     }
@@ -384,7 +384,7 @@ export const bulkUpdateTodos = async (req, res) => {
   }
 };
 
-// Quick add todo (minimal data)
+// Quick add todo
 export const quickAddTodo = async (req, res) => {
   try {
     const { title, priority = 'medium' } = req.body;

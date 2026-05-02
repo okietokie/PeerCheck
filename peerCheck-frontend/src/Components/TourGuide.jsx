@@ -316,9 +316,7 @@ if (typeof position.left === 'number') {
   };
   const handleAppBarTourStart = () => {
     setTourOpen(true);
-    setActiveStep(0);
-    // If we're not on the navigation page, navigate there first
-    
+    setActiveStep(0);    
   };
 
   // Auto-start tour on first visit
@@ -393,16 +391,16 @@ if (typeof position.left === 'number') {
           <Box
             sx={{
               position: 'fixed',
-              bottom: 24,
-              left: 24,
+              bottom: { xs: 82, sm: 24 },
+              left: { xs: 16, sm: 24 },
               zIndex: 9998,
             }}
           >
             <IconButton
               onClick={handleStart}
               sx={{
-                width: 56,
-                height: 56,
+                width: { xs: 52, sm: 56 },
+                height: { xs: 52, sm: 56 },
                 background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                 color: 'white',
                 boxShadow: `0 6px 20px ${alpha(theme.palette.primary.main, 0.3)}`,

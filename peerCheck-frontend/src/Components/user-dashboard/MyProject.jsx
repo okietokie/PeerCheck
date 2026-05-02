@@ -134,7 +134,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 // Components
 import { CreateTaskModal } from './Projects';
 import UploadProofModal from './UploadProofModal';
-import { StickyNoteEditor } from './StickyNoteEditor.jsx';
+import { StickyNoteEditor } from './NotesPanel.jsx';
 import PeerReviewTab from './PeerReviewTab.jsx';
 import { TaskTableRow } from './TaskComponents/TaskTableRow.jsx';
 import TaskDetailsModal from './TaskComponents/TaskDetailsModal.jsx';
@@ -162,7 +162,7 @@ const MyProject = () => {
   const { projectId } = useParams();
   const isMobile = useMediaQuery('(max-width: 900px)');
 
-  // Use custom hook for all business logic
+  // custom hook for all logic
   const {
     // State
     loading,
@@ -1282,76 +1282,112 @@ const MyProject = () => {
                             }
                           }}
                         >
-                          <TableContainer 
-                            sx={{
-                              borderRadius: 3,
-                              backgroundColor: 'transparent',
-                              maxHeight: 600,
-                              '&::-webkit-scrollbar': {
-                                width: '8px',
-                                height: '8px',
-                              },
-                              '&::-webkit-scrollbar-track': {
-                                background: alpha(theme.palette.divider, 0.1),
-                                borderRadius: 4,
-                              },
-                              '&::-webkit-scrollbar-thumb': {
-                                background: alpha(theme.palette.primary.main, 0.3),
-                                borderRadius: 4,
-                                '&:hover': {
-                                  background: alpha(theme.palette.primary.main, 0.5),
+                          {isMobile ? (
+                            <Box sx={{ p: { xs: 1.25, sm: 2 } }}>
+                              {tasks
+                                .filter(task => {
+                                  if (!task) return false;
+                                  const query = searchQuery.toLowerCase();
+                                  return (
+                                    task.taskTitle?.toLowerCase().includes(query) ||
+                                    task.description?.toLowerCase().includes(query) ||
+                                    task.assignedTo?.name?.toLowerCase().includes(query)
+                                  );
+                                })
+                                .filter(task => {
+                                  if (filters.status !== 'all' && task.status !== filters.status) return false;
+                                  if (filters.isOverdue && !task.metrics?.isOverdue) return false;
+                                  return true;
+                                })
+                                .map((task) => (
+                                  <TaskTableRow
+                                    key={task._id}
+                                    task={task}
+                                    isSelected={selectedTasks.has(task._id)}
+                                    onSelect={handleSelectTask}
+                                    theme={theme}
+                                    userRole={userRole}
+                                    onUploadProof={handleUploadProof}
+                                    onViewDetails={handleViewDetails}
+                                    onStatusChange={handleStatusChange}
+                                    onTaskUpdate={handleTaskFieldUpdate}
+                                    userTeacher={userTeacher}
+                                    mobile
+                                  />
+                                ))}
+                            </Box>
+                          ) : (
+                            <TableContainer 
+                              sx={{
+                                borderRadius: 3,
+                                backgroundColor: 'transparent',
+                                maxHeight: 600,
+                                '&::-webkit-scrollbar': {
+                                  width: '8px',
+                                  height: '8px',
+                                },
+                                '&::-webkit-scrollbar-track': {
+                                  background: alpha(theme.palette.divider, 0.1),
+                                  borderRadius: 4,
+                                },
+                                '&::-webkit-scrollbar-thumb': {
+                                  background: alpha(theme.palette.primary.main, 0.3),
+                                  borderRadius: 4,
+                                  '&:hover': {
+                                    background: alpha(theme.palette.primary.main, 0.5),
+                                  }
                                 }
-                              }
-                            }}
-                          >
-                            <Table 
-                              stickyHeader
-                              sx={{ 
-                                minWidth: 800,
-                                borderCollapse: 'separate',
-                                borderSpacing: 0,
                               }}
                             >
-                            <TaskTableHeader
-                              allSelected= {allSelected}
-                              selectedTasks= {selectedTasks}
-                              handleSelectAll={handleSelectAll}
-                              theme={theme}
-                            />
-                              <TableBody>
-                                {tasks
-                                  .filter(task => {
-                                    if (!task) return false;
-                                    const query = searchQuery.toLowerCase();
-                                    return (
-                                      task.taskTitle?.toLowerCase().includes(query) ||
-                                      task.description?.toLowerCase().includes(query) ||
-                                      task.assignedTo?.name?.toLowerCase().includes(query)
-                                    );
-                                  })
-                                  .filter(task => {
-                                    if (filters.status !== 'all' && task.status !== filters.status) return false;
-                                    if (filters.isOverdue && !task.metrics?.isOverdue) return false;
-                                    return true;
-                                  })
-                                  .map((task) => (
-                                    <TaskTableRow
-                                      key={task._id}
-                                      task={task}
-                                      isSelected={selectedTasks.has(task._id)}
-                                      onSelect={handleSelectTask}
-                                      theme={theme}
-                                      userRole={userRole}
-                                      onUploadProof={handleUploadProof}
-                                      onViewDetails={handleViewDetails}
-                                      onStatusChange={handleStatusChange}
-                                      onTaskUpdate={handleTaskFieldUpdate}
-                                      userTeacher={userTeacher}
-                                    />
-                                  ))}
-                              </TableBody>
-                            </Table>
-                          </TableContainer>
+                              <Table 
+                                stickyHeader
+                                sx={{ 
+                                  minWidth: 800,
+                                  borderCollapse: 'separate',
+                                  borderSpacing: 0,
+                                }}
+                              >
+                              <TaskTableHeader
+                                allSelected= {allSelected}
+                                selectedTasks= {selectedTasks}
+                                handleSelectAll={handleSelectAll}
+                                theme={theme}
+                              />
+                                <TableBody>
+                                  {tasks
+                                    .filter(task => {
+                                      if (!task) return false;
+                                      const query = searchQuery.toLowerCase();
+                                      return (
+                                        task.taskTitle?.toLowerCase().includes(query) ||
+                                        task.description?.toLowerCase().includes(query) ||
+                                        task.assignedTo?.name?.toLowerCase().includes(query)
+                                      );
+                                    })
+                                    .filter(task => {
+                                      if (filters.status !== 'all' && task.status !== filters.status) return false;
+                                      if (filters.isOverdue && !task.metrics?.isOverdue) return false;
+                                      return true;
+                                    })
+                                    .map((task) => (
+                                      <TaskTableRow
+                                        key={task._id}
+                                        task={task}
+                                        isSelected={selectedTasks.has(task._id)}
+                                        onSelect={handleSelectTask}
+                                        theme={theme}
+                                        userRole={userRole}
+                                        onUploadProof={handleUploadProof}
+                                        onViewDetails={handleViewDetails}
+                                        onStatusChange={handleStatusChange}
+                                        onTaskUpdate={handleTaskFieldUpdate}
+                                        userTeacher={userTeacher}
+                                      />
+                                    ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          )}
                           
                           {/* Empty State */}
                           {tasks.length === 0 && (

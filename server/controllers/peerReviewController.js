@@ -51,17 +51,17 @@ export const applyPeerScoreToGrading = async (req, res) => {
     members.forEach(member => {
       const memberId = member.userId._id.toString();
       
-      // 1. Task completion score (0-100)
+      // Task completion score
       const memberTasks = tasks.filter(task => task.assignedTo.toString() === memberId);
       const completedTasks = memberTasks.filter(task => task.status === 'completed').length;
       const taskCompletionScore = memberTasks.length > 0 
         ? (completedTasks / memberTasks.length) * 100 
         : 0;
 
-      // 2. Peer review score (0-100)
+      // Peer review score 
       const peerScore = project.metrics?.peerReview?.members?.[memberId]?.normalizedScore || 0;
 
-      // 3. Teacher review score (0-100) - would come from separate evaluation
+      
       const teacherScore = member.teacherEvaluation?.score || 0;
 
       // Calculate final grade
@@ -235,9 +235,7 @@ export const submitPeerReview = async (req, res) => {
     if (!members.includes(reviewerId.toString())) {
       return res.status(403).json({ success: false, message: 'Reviewer must be a project member' });
     }
-    // if (existingReview) {
-    //   return res.status(409).json({ success: false, message: 'Already reviewed this member' });
-    // }
+
     if (values.some(v => v < 1 || v > 5)) {
       return res.status(400).json({ success: false, message: 'Scores must be between 1 and 5' });
     }

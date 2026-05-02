@@ -25,6 +25,11 @@ import {
 } from '@mui/icons-material';
 
 const TaskPerformancePanel = ({ task, open, onClose, theme }) => {
+  const rawTimeEfficiency = Number(
+    task?.metrics?.rawTimeEfficiency ??
+    (((task?.totalFocusTime || 0) / (task?.estimatedTime || 1)) * 100)
+  ) || 0;
+
   const getEfficiencyColor = (score) => {
     const eff = Number(score) || 0;
     if (eff >= 85) return theme.palette.success.main;
@@ -108,7 +113,7 @@ const TaskPerformancePanel = ({ task, open, onClose, theme }) => {
         }}>
           {/* Performance Metrics */}
           <Stack spacing={3}>
-            {/* Time Efficiency */}
+            {/* Time Usage */}
             <Paper
               elevation={0}
               sx={{
@@ -121,7 +126,7 @@ const TaskPerformancePanel = ({ task, open, onClose, theme }) => {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                 <Timer sx={{ color: theme.palette.info.main }} />
                 <Typography variant="subtitle1" fontWeight="600">
-                  Time Efficiency
+                  Time Used vs Estimate
                 </Typography>
               </Box>
               
@@ -134,10 +139,13 @@ const TaskPerformancePanel = ({ task, open, onClose, theme }) => {
                     Actual: {formatTime(task?.totalFocusTime || 0)}
                   </Typography>
                 </Box>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 1 }}>
+                  {rawTimeEfficiency.toFixed(0)}% of the original estimate
+                </Typography>
                 
                 <LinearProgress
                   variant="determinate"
-                  value={Math.min(((task?.totalFocusTime || 0) / (task?.estimatedTime || 1)) * 100, 100)}
+                  value={Math.min(rawTimeEfficiency, 100)}
                   sx={{
                     height: 6,
                     borderRadius: 3,

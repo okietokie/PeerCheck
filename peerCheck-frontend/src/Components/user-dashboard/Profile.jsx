@@ -298,7 +298,7 @@ export default function Profile() {
     const resultsWithStatus = await Promise.all(
       res.data.users.map(async (user) => {
         try {
-          // Check if there's an existing connection
+          // Check if an existing connection
           const connectionRes = await axiosClient.get(`/user/user-profile/${user._id}`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
@@ -331,7 +331,6 @@ export default function Profile() {
   }
 };
 
-// Debounce search input  - Wait for the user to stop typing for some time before running a function.
 useEffect(() => {
   const delayDebounceFn = setTimeout(() => {
     if (searchQuery.trim()) {
@@ -406,7 +405,7 @@ const handleSaveProfile = async () => {
       avatarUpdatePromise = uploadAvatar(avatarFile);
     }
     
-    // Update profile data (excluding avatar)
+    // Update profile data
     const profileData = {
       name: editUserData.name,
       username: editUserData.username,

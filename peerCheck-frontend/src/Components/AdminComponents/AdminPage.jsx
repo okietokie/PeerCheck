@@ -147,7 +147,6 @@ function AdminPage() {
       console.error("Error fetching dashboard data:", err);
       setError("Failed to load dashboard data");
       
-      // Fallback mock data for development
       setDashboardData({
         security: {
           totalLogins: 1542,
@@ -189,7 +188,7 @@ function AdminPage() {
       });
     } catch (err) {
       console.error("Error fetching activity data:", err);
-      // Continue without activity data
+
     } finally {
       setActivityLoading(false);
     }
@@ -620,7 +619,7 @@ function AdminPage() {
               )}
             </Box>
 
-            {/* Stats Grid using Flex instead of Grid */}
+            {/* Stats Grid */}
             <Box sx={{ 
               display: 'flex', 
               flexWrap: 'wrap', 
@@ -686,7 +685,7 @@ function AdminPage() {
 
             {/* Main Content Area */}
             <Box sx={{ display: 'flex', flexDirection: { xs: 'column', lg: 'row' }, gap: 3, mb: 4 }}>
-              {/* Left Column - Charts */}
+              {/* Charts */}
               <Box sx={{ flex: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
                 {/* Weekly Activity Chart */}
                 <Card>

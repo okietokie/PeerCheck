@@ -13,13 +13,13 @@ const localURI = process.env.LOCAL_MONGO_URI;
 const connectDB = async () => {
   try {
     await mongoose.connect(atlasURI, {
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 5000, // 5 seconds timeout
     });
     console.log("MongoDB Atlas Connected");
   } catch (err) {
     console.log("Atlas failed. Switching to local MongoDB...");
     try {
-      await mongoose.connect(localURI);
+      await mongoose.connect(localURI); 
       console.log("Local MongoDB Connected");
     } catch (localErr) {
       console.error("Local DB connection failed:", localErr);

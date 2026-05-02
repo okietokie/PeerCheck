@@ -14,7 +14,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // Middleware
-app.use(cors());  //allows your frontend (React) to access your backend. Without it, browsers block requests for security.
+app.use(cors());  //allows frontend to access your backend. Without it, browsers block requests for security.
 app.use(express.json()); //allows Express to understand JSON data sent from the frontend (like { email: "...", password: "..." }).
 
 // Routes

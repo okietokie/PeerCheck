@@ -52,7 +52,7 @@ const calculateDaysUntilDeadline = (task) => {
 export const calculateTaskRisk = (task) => { 
   // Get basic task data
   const estimatedTime = task.estimatedTime || 1; 
-  const focusTime = task.totalFocusTime || 0; 
+  const focusTime = getEffectiveFocusTime(task); 
   const timeRatio = estimatedTime > 0 ? (focusTime / estimatedTime) : 0;
   
   // Calculate individual risk flags
@@ -162,14 +162,32 @@ export const calculateTaskRisk = (task) => {
   };
 };
 
+const getEffectiveFocusTime = (task) => {
+  const savedFocusTime = task?.totalFocusTime || 0;
+
+  if (task?.status !== 'active' || !task?.lastEventTime) {
+    return savedFocusTime;
+  }
+
+  const elapsedSeconds = Math.floor(
+    (Date.now() - new Date(task.lastEventTime).getTime()) / 1000
+  );
+
+  return savedFocusTime + Math.max(elapsedSeconds, 0);
+};
+
+const calculateRawTimeEfficiency = (task) => {
+  const estimatedTime = task?.estimatedTime || 1;
+  const focusTime = getEffectiveFocusTime(task);
+
+  return estimatedTime > 0 ? (focusTime / estimatedTime) * 100 : 0;
+};
+
 const calculateTimeEfficiency = (task) => {
-  const estimatedTime = task.estimatedTime || 1;
-  const focusTime = task.totalFocusTime || 0;
-  
   // Calculate efficiency percentage
-  const rawEfficiency = (focusTime / estimatedTime) * 100;
+  const rawEfficiency = calculateRawTimeEfficiency(task);
   
-  // Apply curve - optimal range is 80-120%
+  // Apply curve
   let timeScore;
   if (rawEfficiency >= 80 && rawEfficiency <= 120) {
     timeScore = 100; // Perfect efficiency
@@ -234,7 +252,7 @@ const calculateTimelinessScore = (task) => {
     const totalDuration = task.estimatedTime / (60 * 60 * 24); // Convert seconds to days
     
     if (task.status === 'not_started') {
-      // Not started yet - check if we're close to deadline
+      // Not started yet 
       if (daysRemaining > totalDuration * 0.5) {
         return 80; // Plenty of time left
       } else if (daysRemaining > totalDuration * 0.25) {
@@ -246,7 +264,7 @@ const calculateTimelinessScore = (task) => {
       }
     } else {
       // Task in progress
-      const progress = task.totalFocusTime / task.estimatedTime;
+      const progress = getEffectiveFocusTime(task) / task.estimatedTime;
       const timeRatio = progress / (1 - (daysRemaining / totalDuration));
       
       if (timeRatio > 1.2) {
@@ -349,6 +367,8 @@ const calculateEnhancedTaskEfficiency = (task) => {
 export const enrichTaskWithMetrics = (task) => {
   if (!task) return null;
 
+  const effectiveFocusTime = getEffectiveFocusTime(task);
+  const rawTimeEfficiency = calculateRawTimeEfficiency(task);
   const efficiency = calculateEnhancedTaskEfficiency(task);
   const riskScore = calculateTaskRisk(task);
   const statusWeight = getStatusWeight(task.status);
@@ -377,10 +397,13 @@ export const enrichTaskWithMetrics = (task) => {
   return {
     ...taskObj,
     _id: task._id,
+    totalFocusTime: effectiveFocusTime,
     metrics: {
       efficiency: Number(efficiency.toFixed(2)),
       efficiencyStatus: efficiencyStatus(efficiency),
       efficiencyLabel: getEfficiencyLabel(efficiency),
+      rawTimeEfficiency: Number(rawTimeEfficiency.toFixed(2)),
+      effectiveFocusTime,
       riskScore: riskScore.risk.riskScore,
       risk: riskScore,
       riskLevel: riskScore.risk.riskLevel,
@@ -444,7 +467,7 @@ const handleError = (res, err, context) => {
 };
 
 
-// Get all tasks for a project WITH METRICS
+// Get all tasks for a project with metrics
 export const getTasks = async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -1131,7 +1154,6 @@ export const assignTask = async (req, res) => {
       .populate('assignedTo', 'name email avatar')
       .populate('projectId', 'projectName');
 
-    // 🔥 CRITICAL: Emit real-time updates if using WebSockets
     if (process.env.ENABLE_WEBSOCKETS === 'true') {
       // Notify old assignee if exists
       if (oldAssigneeId) {
@@ -1572,10 +1594,7 @@ export const updateTaskStatus = async (req, res) => {
       'not_started': 'low'
     };
 
-    // Determine who should receive notifications
-    // Always notify the task assignee about their own action (confirmation)
     if (task.assignedTo && task.assignedTo._id.toString() === userId) {
-      // User is updating their own task - get confirmation notification
       await createNotification({
         userId: task.assignedTo._id,
         type: 'task_status_changed',
@@ -1646,6 +1665,7 @@ export const updateTaskStatus = async (req, res) => {
     const updatedTask = await Task.findById(taskId)
       .populate('assignedTo', 'name email avatar')
       .populate('projectId', 'projectName');
+    const enrichedTask = enrichTaskWithMetrics(updatedTask);
 
     if (status === 'completed') {
       await notifyTaskCompleted(taskId, userId);
@@ -1655,7 +1675,7 @@ export const updateTaskStatus = async (req, res) => {
 
     res.json({
       success: true,
-      task: updatedTask,
+      task: enrichedTask,
       message: "Task status updated successfully"
     });
   } catch (error) {

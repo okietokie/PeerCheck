@@ -189,19 +189,18 @@ const PerformanceAnalyticsPage = () => {
     } catch (error) {
       console.error('Error fetching analytics:', error);
       setError('Analytics service unavailable. Showing sample data.');
-      // Fallback to generated data based on real projects
+
       generateDataFromProjects();
     }
   };
 
-  // Fallback data generation based on actual projects
   const generateDataFromProjects = async () => {
     if (projects.length === 0) return;
 
     const token = getToken();
     
     try {
-      // Try to fetch tasks for calculations
+
       const tasksResponse = await axiosClient.get('/tasks', {
         headers: { Authorization: `Bearer ${token}` },
         params: { limit: 100 }
@@ -209,7 +208,7 @@ const PerformanceAnalyticsPage = () => {
       
       const tasks = tasksResponse.data?.tasks || [];
       
-      // Calculate metrics from real tasks
+
       let totalEfficiency = 0;
       let totalRisk = 0;
       let tasksWithProof = 0;
@@ -231,7 +230,6 @@ const PerformanceAnalyticsPage = () => {
       const avgRisk = tasks.length > 0 ? totalRisk / tasks.length : 0;
       const proofCompliance = tasks.length > 0 ? (tasksWithProof / tasks.length) * 100 : 0;
 
-      // Update metrics with calculated values
       setOverviewMetrics(prev => ({
         ...prev,
         avgEfficiency: parseFloat(avgEfficiency.toFixed(1)),
@@ -279,7 +277,6 @@ const PerformanceAnalyticsPage = () => {
     return `${hours}h ${minutes}m`;
   };
 
-  // Effect to fetch data
   useEffect(() => {
     fetchAllData();
   }, [timeRange, projectFilter]);
@@ -314,7 +311,6 @@ const PerformanceAnalyticsPage = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Dashboard Stat Cards Component
   const StatCard = ({ title, value, icon, color, subtitle, trend }) => (
     <Card>
       <CardContent>
@@ -348,7 +344,6 @@ const PerformanceAnalyticsPage = () => {
     </Card>
   );
 
-  // Main Dashboard Component
   const OverviewDashboard = () => (
     <Box>
       <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1090,7 +1085,6 @@ const PerformanceAnalyticsPage = () => {
         </Grid>
       </Grid>
 
-      {/* Bottleneck Tasks Table */}
       <Card sx={{ mb: 4 }}>
         <CardHeader
           title="Bottleneck Tasks"

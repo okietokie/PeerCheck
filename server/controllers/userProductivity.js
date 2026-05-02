@@ -11,25 +11,25 @@ export const updateUserProductivity = async (userId) => {
     const user = await User.findById(userId);
     if (!user) return null;
 
-    // Get user's tasks
+    // Get users tasks
     const tasks = await Task.find({ assignedTo: userId })
       .populate('projectId', 'projectName')
       .lean();
 
-    // Get all projects the user is part of
+    // Get all projects user is part of
     const userProjects = await Project.find({
       'teamId.members': userId
     }).select('_id projectName teamId');
 
     const projectIds = userProjects.map(p => p._id);
 
-    // Get peer reviews for this user across all projects
+    // Get peer reviews for user across all projects
     const peerReviews = await PeerReview.find({ 
       reviewee: userId,
       projectId: { $in: projectIds }
     }).populate('reviewer', 'name email avatar');
 
-    // Get project evaluations for projects this user is in
+    // Get project evaluations for projects user is in
     const projectEvaluations = await ProjectEvaluation.find({
       projectId: { $in: projectIds },
       'memberEvaluations.member': userId
@@ -80,7 +80,7 @@ export const updateUserProductivity = async (userId) => {
       ? (onTimeTasks.length / completedTasks.length) * 100 
       : 0;
 
-    // Calculate peer review metrics
+    // peer review metrics
     let peerReviewScore = 0;
     let collaborationScore = 0;
     let peerReviewBreakdown = {
@@ -91,20 +91,20 @@ export const updateUserProductivity = async (userId) => {
     };
 
     if (peerReviews.length > 0) {
-      // Calculate average peer review score (1-5 scale, convert to 0-100)
+      // average peer review score (1-5 scale, convert to 0-100)
       peerReviewScore = peerReviews.reduce((sum, review) => sum + (review.totalScore || 0), 0) / peerReviews.length;
       
-      // Calculate collaboration score (average of collaboration ratings)
+      // collaboration score (average of collaboration ratings)
       collaborationScore = peerReviews.reduce((sum, review) => sum + (review.scores?.collaboration || 0), 0) / peerReviews.length;
       
-      // Calculate breakdown
+      // breakdown
       peerReviewBreakdown.contribution = peerReviews.reduce((sum, r) => sum + (r.scores?.contribution || 0), 0) / peerReviews.length;
       peerReviewBreakdown.collaboration = collaborationScore;
       peerReviewBreakdown.quality = peerReviews.reduce((sum, r) => sum + (r.scores?.quality || 0), 0) / peerReviews.length;
       peerReviewBreakdown.punctuality = peerReviews.reduce((sum, r) => sum + (r.scores?.punctuality || 0), 0) / peerReviews.length;
     }
 
-    // Calculate project evaluation metrics
+    // project evaluation metrics
     let projectEvaluationScore = 0;
     let evaluationBreakdown = {
       technicalExecution: 0,
@@ -118,7 +118,7 @@ export const updateUserProductivity = async (userId) => {
       let totalEvaluations = 0;
       
       projectEvaluations.forEach(evaluation => {
-        // Find this user's evaluation in memberEvaluations
+
         const memberEval = evaluation.memberEvaluations?.find(me => 
           me.member?.toString() === userId || me.member?._id?.toString() === userId
         );
@@ -128,7 +128,7 @@ export const updateUserProductivity = async (userId) => {
           totalEvaluations++;
         }
 
-        // Also consider overall project grading that applies to all team members
+        // overall project grading that applies to all team members
         if (evaluation.grading) {
           const categoryScores = [
             evaluation.grading.technicalExecution?.score || 0,

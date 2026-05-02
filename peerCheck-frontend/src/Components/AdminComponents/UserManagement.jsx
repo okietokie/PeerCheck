@@ -133,7 +133,6 @@ const UserManagement = () => {
     const active = usersData.filter(u => u.status === "active").length;
     const banned = usersData.filter(u => u.status === "banned").length;
     
-    // FIXED: Using correct role values from your model
     const students = usersData.filter(u => u.role === "student").length;
     const teachers = usersData.filter(u => u.role === "teacher").length;
     const admins = usersData.filter(u => u.role === "admin").length;
@@ -185,7 +184,6 @@ const UserManagement = () => {
       );
     }
 
-    // Apply role filter - FIXED: using correct role values
     if (roleFilter !== "all") {
       result = result.filter(user => user.role === roleFilter);
     }
@@ -200,7 +198,6 @@ const UserManagement = () => {
       result = result.filter(user => (user.year || "Other") === yearFilter);
     }
 
-    // Apply tab filter - FIXED: using correct role values
     if (activeTab === "active") {
       result = result.filter(user => user.status === "active");
     } else if (activeTab === "banned") {

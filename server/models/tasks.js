@@ -107,7 +107,7 @@ const taskSchema = new mongoose.Schema(
       }
     ],
     
-    // Current assignee's efficiency only (not overall)
+    // Current assignee's efficiency only 
     currentAssigneeEfficiency: { type: Number, default: 0 },
     // Risk assessment object
     risk: {

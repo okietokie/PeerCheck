@@ -447,7 +447,6 @@ export const checkConnectionStatus = async (req, res) => {
   }
 };
 
-// notificationController.js - Add these notification helpers
 export const notifyConnectionActions = {
   request: async (fromUserId, toUserId, connectionId) => {
     const fromUser = await User.findById(fromUserId).select('name username avatar');

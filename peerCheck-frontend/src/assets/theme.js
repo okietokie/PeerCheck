@@ -1,5 +1,5 @@
 // //peerCheck-frontend/src/assets/theme.js
-import { createTheme, darken, lighten } from "@mui/material/styles";
+import { createTheme, darken, lighten, alpha } from "@mui/material/styles";
 
 import '@fontsource/inter/300.css';
 import '@fontsource/inter/400.css';
@@ -11,7 +11,7 @@ import '@fontsource/alkatra/500.css';
 import '@fontsource/alkatra/600.css';
 import '@fontsource/alkatra/700.css';
 
-// Shared Typography
+// Typography
 const typographyConfig = {
   fontFamily: '"Inter", "Adlam Display", "Alkatra", cursive, sans-serif',
   h1: { fontFamily: '"Adlam Display", serif', fontWeight: 400 },
@@ -25,17 +25,55 @@ const typographyConfig = {
   button: { fontFamily: '"Adlam Display", serif', fontWeight: 400, textTransform: 'none' },
 };
 
+const getScrollbarStyles = (theme, isDark) => {
+  const track = isDark
+    ? lighten(theme.palette.background.default, 0.08)
+    : darken(theme.palette.background.default, 0.03);
+  const thumb = isDark
+    ? alpha(theme.palette.primary.light, 0.42)
+    : alpha(theme.palette.primary.main, 0.32);
+  const thumbHover = isDark
+    ? alpha(theme.palette.secondary.light, 0.52)
+    : alpha(theme.palette.secondary.main, 0.4);
+
+  return {
+    scrollbarWidth: 'thin',
+    scrollbarColor: `${thumb} ${track}`,
+    '&::-webkit-scrollbar': {
+      width: '10px',
+      height: '10px',
+    },
+    '&::-webkit-scrollbar-track': {
+      background: `linear-gradient(180deg, ${alpha(track, 0.92)}, ${alpha(track, 0.72)})`,
+      borderRadius: '999px',
+      border: `1px solid ${alpha(theme.palette.divider, 0.08)}`,
+    },
+    '&::-webkit-scrollbar-thumb': {
+      background: `linear-gradient(180deg, ${thumb}, ${alpha(theme.palette.primary.main, isDark ? 0.32 : 0.24)})`,
+      borderRadius: '999px',
+      border: `2px solid ${alpha(track, 0.88)}`,
+      minHeight: '36px',
+    },
+    '&::-webkit-scrollbar-thumb:hover': {
+      background: `linear-gradient(180deg, ${thumbHover}, ${alpha(theme.palette.primary.main, isDark ? 0.42 : 0.34)})`,
+    },
+    '&::-webkit-scrollbar-corner': {
+      background: 'transparent',
+    },
+  };
+};
+
 function makeTheme(mode, primaryColor, secondaryColor, backgroundColor) {
   const isDark = mode === 'dark';
-  return createTheme({
+  const baseTheme = createTheme({
     typography: typographyConfig,
     palette: {
           mode,
           primary: {
             main: primaryColor,
-            // Automatically creates a lighter version for "Soft" chips
+
             light: isDark ? lighten(primaryColor, 0.2) : lighten(primaryColor, 0.4),
-            // Automatically creates a darker version for hover states
+
             dark: darken(primaryColor, 0.2),
             contrastText: isDark ? '#fff' : '#000',
           },
@@ -46,12 +84,58 @@ function makeTheme(mode, primaryColor, secondaryColor, backgroundColor) {
           },
           background: {
             default: backgroundColor,
-            // Make 'paper' slightly different so cards "pop"
+
             paper: isDark ? lighten(backgroundColor, 0.05) : darken(backgroundColor, 0.02),
           },
         },
 
     components:{
+      MuiCssBaseline: {
+        styleOverrides: (themeParam) => ({
+          html: {
+            ...getScrollbarStyles(themeParam, isDark),
+          },
+          body: {
+            ...getScrollbarStyles(themeParam, isDark),
+          },
+          '*': {
+            scrollbarWidth: 'thin',
+          },
+          '*::-webkit-scrollbar': {
+            width: '10px',
+            height: '10px',
+          },
+          '*::-webkit-scrollbar-track': {
+            background: `linear-gradient(180deg, ${alpha(
+              isDark ? lighten(themeParam.palette.background.default, 0.08) : darken(themeParam.palette.background.default, 0.03),
+              0.92
+            )}, ${alpha(
+              isDark ? lighten(themeParam.palette.background.default, 0.08) : darken(themeParam.palette.background.default, 0.03),
+              0.72
+            )})`,
+            borderRadius: '999px',
+          },
+          '*::-webkit-scrollbar-thumb': {
+            background: `linear-gradient(180deg, ${isDark
+              ? alpha(themeParam.palette.primary.light, 0.42)
+              : alpha(themeParam.palette.primary.main, 0.32)}, ${alpha(themeParam.palette.primary.main, isDark ? 0.32 : 0.24)})`,
+            borderRadius: '999px',
+            border: `2px solid ${alpha(
+              isDark ? lighten(themeParam.palette.background.default, 0.08) : darken(themeParam.palette.background.default, 0.03),
+              0.88
+            )}`,
+          },
+          '*::-webkit-scrollbar-thumb:hover': {
+            background: `linear-gradient(180deg, ${isDark
+              ? alpha(themeParam.palette.secondary.light, 0.52)
+              : alpha(themeParam.palette.secondary.main, 0.4)}, ${alpha(themeParam.palette.primary.main, isDark ? 0.42 : 0.34)})`,
+          },
+          '.app-horizontal-scroll': {
+            ...getScrollbarStyles(themeParam, isDark),
+            paddingBottom: '8px',
+          },
+        }),
+      },
       MuiTooltip:{
         defaultProps:{
           arrow: true,
@@ -78,6 +162,8 @@ function makeTheme(mode, primaryColor, secondaryColor, backgroundColor) {
       }
     }
   });
+
+  return baseTheme;
 }
 
 const themes = {

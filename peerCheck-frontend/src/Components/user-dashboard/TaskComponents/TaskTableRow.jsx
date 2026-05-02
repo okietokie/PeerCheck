@@ -98,7 +98,8 @@ export const TaskTableRow = ({
   onUploadProof,
   onViewDetails,
   onStatusChange,
-  onTaskUpdate
+  onTaskUpdate,
+  mobile = false
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
@@ -436,6 +437,230 @@ useEffect(() => {
   const isAssignedUser = task.assignedTo?._id === user?._id;
   const isProjectLead = task.assignedBy?._id === user?._id;
   const canEdit = isAssignedUser || isProjectLead;
+
+  if (mobile) {
+    return (
+      <>
+        <Box
+          onClick={handleRowClick}
+          sx={{
+            p: 1.75,
+            mb: 1.5,
+            borderRadius: 3,
+            border: `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
+            background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.98)} 0%, ${alpha(theme.palette.background.default, 0.55)} 100%)`,
+            cursor: 'pointer',
+            boxShadow: `0 6px 20px ${alpha(theme.palette.mode === 'dark' ? '#000' : theme.palette.primary.main, 0.08)}`,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25, mb: 1.25 }}>
+            <Checkbox
+              checked={isSelected}
+              onChange={(e) => onSelect(task._id, e.target.checked)}
+              onClick={(e) => e.stopPropagation()}
+              size="small"
+              sx={{ mt: -0.5 }}
+            />
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+                <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.3 }}>
+                  {task.taskTitle}
+                </Typography>
+                {task.metrics?.isOverdue && (
+                  <Chip label="Overdue" size="small" color="error" sx={{ height: 22, fontWeight: 700 }} />
+                )}
+              </Box>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', lineHeight: 1.5 }}>
+                {task.description || 'No description provided'}
+              </Typography>
+            </Box>
+            <IconButton
+              size="small"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded(!expanded);
+              }}
+              sx={{ color: theme.palette.text.secondary }}
+            >
+              {expanded ? <ExpandLess /> : <ExpandMore />}
+            </IconButton>
+          </Box>
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1, mb: 1.25 }}>
+            <Box>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.45 }}>Status</Typography>
+              <Chip
+                onClick={handleStatusClick}
+                icon={getStatusIcon(task.status)}
+                label={STATUS_OPTIONS.find(s => s.value === task.status)?.label}
+                color={getStatusColor(task.status)}
+                size="small"
+                sx={{ width: '100%', justifyContent: 'flex-start', height: 30, fontWeight: 600 }}
+              />
+            </Box>
+            <Box>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.45 }}>Priority</Typography>
+              <Chip
+                onClick={handlePriorityClick}
+                icon={getPriorityIcon(task.priority)}
+                label={PRIORITY_OPTIONS.find(p => p.value === task.priority)?.label}
+                color={getPriorityColor(task.priority)}
+                size="small"
+                sx={{ width: '100%', justifyContent: 'flex-start', height: 30, fontWeight: 600 }}
+              />
+            </Box>
+            <Box>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.45 }}>Assignee</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Avatar src={task.assignedTo?.avatar} sx={{ width: 28, height: 28, fontSize: 12 }}>
+                  {task.assignedTo?.name?.charAt(0)}
+                </Avatar>
+                <Typography variant="body2" fontWeight={500} noWrap>
+                  {task.assignedTo?.name || 'Unassigned'}
+                </Typography>
+              </Box>
+            </Box>
+            <Box onClick={handleDueDateClick}>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.45 }}>Due</Typography>
+              <Typography variant="body2" fontWeight={600} color={task.metrics?.isOverdue ? 'error.main' : 'text.primary'}>
+                {formatDate(task.deadline)}
+              </Typography>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                {calculateDaysText()}
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box sx={{ p: 1.2, borderRadius: 2, backgroundColor: alpha(theme.palette.primary.main, 0.04), border: `1px solid ${alpha(theme.palette.primary.main, 0.08)}` }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.65 }}>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>Efficiency</Typography>
+              <Typography variant="caption" fontWeight={700}>
+                {Math.round(task.metrics?.efficiency?.percentage || task.metrics?.efficiency || 0)}%
+              </Typography>
+            </Box>
+            <Box sx={{ height: 6, borderRadius: 999, overflow: 'hidden', backgroundColor: alpha(theme.palette.divider, 0.18) }}>
+              <Box
+                sx={{
+                  height: '100%',
+                  width: `${Math.min(100, Math.max(0, task.metrics?.efficiency?.percentage || task.metrics?.efficiency || 0))}%`,
+                  backgroundColor: getEfficiencyColor(task.metrics?.efficiency?.percentage || task.metrics?.efficiency) === 'error'
+                    ? theme.palette.error.main
+                    : getEfficiencyColor(task.metrics?.efficiency?.percentage || task.metrics?.efficiency) === 'warning'
+                    ? theme.palette.warning.main
+                    : theme.palette.success.main,
+                }}
+              />
+            </Box>
+          </Box>
+
+          <Stack direction="row" spacing={1} sx={{ mt: 1.4, flexWrap: 'wrap' }}>
+            {isAssignedUser && task.status !== 'completed' && (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (task.status === 'not_started' || task.status === 'paused') onStatusChange(task._id, 'active');
+                  else if (task.status === 'active') onStatusChange(task._id, 'paused');
+                }}
+              >
+                {task.status === 'active' ? 'Pause' : 'Start'}
+              </Button>
+            )}
+            {isAssignedUser && task.status !== 'completed' && (
+              <Button
+                size="small"
+                variant="outlined"
+                color="success"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStatusChange(task._id, 'completed');
+                }}
+              >
+                Complete
+              </Button>
+            )}
+            {isAssignedUser && (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUploadProof(task);
+                }}
+              >
+                Upload Proof
+              </Button>
+            )}
+          </Stack>
+
+          <Collapse in={expanded} timeout="auto" unmountOnExit>
+            <Box sx={{ mt: 1.5, pt: 1.5, borderTop: `1px solid ${alpha(theme.palette.divider, 0.16)}` }}>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>Timeline</Typography>
+              <Typography variant="body2" sx={{ mb: 0.4 }}>Started: {formatFullDate(task.startDate || task.createdAt)}</Typography>
+              <Typography variant="body2" sx={{ mb: 1.1 }}>Deadline: {formatFullDate(task.deadline)}</Typography>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.45 }}>Description</Typography>
+              <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                {task.description || 'No description provided.'}
+              </Typography>
+            </Box>
+          </Collapse>
+        </Box>
+
+        {canEdit && (
+          <>
+            <Menu
+              anchorEl={statusAnchorEl}
+              open={Boolean(statusAnchorEl)}
+              onClose={() => setStatusAnchorEl(null)}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {STATUS_OPTIONS.map((option) => (
+                <MenuItem key={option.value} onClick={() => handleStatusSelect(option.value)} selected={task.status === option.value}>
+                  <ListItemIcon>{option.icon}</ListItemIcon>
+                  <ListItemText primary={option.label} />
+                </MenuItem>
+              ))}
+            </Menu>
+            <Menu
+              anchorEl={priorityAnchorEl}
+              open={Boolean(priorityAnchorEl)}
+              onClose={() => setPriorityAnchorEl(null)}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {PRIORITY_OPTIONS.map((option) => (
+                <MenuItem key={option.value} onClick={() => handlePrioritySelect(option.value)} selected={task.priority === option.value}>
+                  <ListItemIcon sx={{ color: `${option.color}.main` }}>{option.icon}</ListItemIcon>
+                  <ListItemText primary={option.label} />
+                </MenuItem>
+              ))}
+            </Menu>
+            <Popover
+              open={Boolean(dueDatePickerAnchor)}
+              anchorEl={dueDatePickerAnchor}
+              onClose={() => setDueDatePickerAnchor(null)}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+            >
+              <ClickAwayListener onClickAway={() => setDueDatePickerAnchor(null)}>
+                <Box sx={{ p: 2 }}>
+                  <LocalizationProvider dateAdapter={AdapterDateFns}>
+                    <DatePicker
+                      value={datePickerValue || (task.deadline ? new Date(task.deadline) : null)}
+                      onChange={(date) => {
+                        setDatePickerValue(date);
+                        if (date) handleDateChange(date);
+                      }}
+                      slotProps={{ textField: { fullWidth: true, size: 'small' } }}
+                    />
+                  </LocalizationProvider>
+                </Box>
+              </ClickAwayListener>
+            </Popover>
+          </>
+        )}
+      </>
+    );
+  }
 
   return (
     <>
@@ -1162,7 +1387,7 @@ useEffect(() => {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Speed fontSize="small" />
         <Typography variant="body2" fontWeight={600}>
-          Efficiency
+          Efficiency Score
         </Typography>
       </Box>
 

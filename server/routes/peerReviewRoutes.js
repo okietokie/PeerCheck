@@ -15,7 +15,7 @@ import { authMiddleware } from '../middleware/authMiddleware.js';
 const router = express.Router();
 router.use(authMiddleware);
 
-// Student routes (authenticated)
+// Student routes
 router.post('/submit', submitPeerReview);
 router.get('/my-score/:projectId', getPeerScoreForUser);
 router.get('/can-submit/:projectId/:revieweeId', canSubmitReview);

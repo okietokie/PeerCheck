@@ -202,7 +202,6 @@ const SystemManagement = () => {
     }
   };
 
-  // Initial data fetch
   useEffect(() => {
     if (activeTab === 0) {
       fetchSecurityData();
@@ -277,8 +276,7 @@ const SystemManagement = () => {
   const exportData = async () => {
     try {
       setLoading(true);
-      // In a real app, you would generate a CSV/Excel file
-      // For now, we'll just show an alert
+
       alert('Export functionality would generate a report file in a real application.');
     } catch (error) {
       console.error('Error exporting data:', error);

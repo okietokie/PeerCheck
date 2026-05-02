@@ -7,7 +7,7 @@ import {
     deleteComment,
     getCommentCount
 } from '../controllers/commentsController.js';
-import { authMiddleware } from '../middleware/authMiddleware.js'; // Your authentication middleware
+import { authMiddleware } from '../middleware/authMiddleware.js'; 
 
 const router = express.Router();
 

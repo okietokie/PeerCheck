@@ -44,7 +44,6 @@ router.get("/me", userController.fetchUserDetails);
 
 
 
-// Get specific proof file with authentication and authorization
 router.get("/task/:taskId/proof/:proofId", taskController.getProofFile);
 
 // Get project tasks

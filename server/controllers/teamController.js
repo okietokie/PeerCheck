@@ -459,12 +459,9 @@ export const getTeamSuggestions = async (req, res) => {
   try {
     const userId = req.userId;
 
-    // Get user's peer connections first
+    // Get user's peer connections 
     const user = await User.findById(userId);
-    
-    // For now, return empty array - you can implement actual suggestions later
-    // This would typically find users with similar courses, skills, etc.
-    
+        
     res.status(200).json({ 
       success: true,
       suggestions: [],

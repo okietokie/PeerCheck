@@ -28,7 +28,7 @@ router.patch('/:id/toggle', todoController.toggleTodo);
 // Bulk update todos
 router.patch('/bulk-update', todoController.bulkUpdateTodos);
 
-// Quick add todo (minimal data)
+// Quick add todo
 router.post('/quick-add', todoController.quickAddTodo);
 
 export default router;

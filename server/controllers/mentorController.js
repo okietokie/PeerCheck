@@ -25,12 +25,20 @@ export const getMentorById = async (req, res) => {
             .select('mentor');
 
         if (!mentor) {
-            
-            return res.status(200).json({ mentor: 'Dummy Mentor name',message: "Mentor not found." });
+            const project = await Project.findById(projectId).populate('createdBy', '_id name email avatar');
+            if (!project) {
+                return res.status(404).json({ message: "Project not found." });
+            }
+
+            return res.status(200).json({
+                mentor: project.createdBy,
+                isDefaultLeaderMentor: true,
+                message: "No teacher assigned. Project creator is the default mentor."
+            });
         }
 
         
-        res.status(200).json({ mentor });
+        res.status(200).json({ mentor, isDefaultLeaderMentor: false });
     } catch (error) {
         console.error("Error fetching mentor:", error);
         res.status(500).json({ message: "Server error fetching mentor." });
@@ -40,8 +48,8 @@ export const getMentorById = async (req, res) => {
 export const assignMentorToProject = async (req, res) => {
     const { mentorId, projectId } = req.body;
     try {
-        // Check if assignment already exists
-        const existingAssignment = await MentorProjectAssignment.findOne({ mentor: mentorId, project: projectId });
+
+      const existingAssignment = await MentorProjectAssignment.findOne({ mentor: mentorId, project: projectId });
         if (existingAssignment) {
             return res.status(400).json({ message: "Mentor is already assigned to this project." });
         }

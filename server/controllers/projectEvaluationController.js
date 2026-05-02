@@ -303,7 +303,6 @@ export const getMemberEvaluationSummary = async (req, res) => {
       });
     });
 
-    // Process PEER REVIEWS (individual member reviews)
     peerReviews.forEach(review => {
       const revieweeId = review.reviewee?._id?.toString();
       

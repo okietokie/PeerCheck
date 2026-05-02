@@ -5,7 +5,7 @@ import Connection from "../models/connection.js";
 
 
 
-// Get suggested users (users who not connected with current user)
+// Get suggested users (users not connected with current user)
 export const getSuggestedUsers = async (req, res) => {
   try {
     const userId = req.userId;
@@ -41,7 +41,7 @@ export const getSuggestedUsers = async (req, res) => {
     .sort({ joinedOn: -1 }); // Shows newest users first
 
 
-    // If we very few suggestions, include some inactive users too
+    // If few suggestions, include some inactive users too
     if (suggestedUsers.length < 5) {
       
       const additionalUsers = await User.find(

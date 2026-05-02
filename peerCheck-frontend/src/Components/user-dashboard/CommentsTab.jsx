@@ -60,7 +60,6 @@ const CommentTab = ({ taskId, projectId, currentUser }) => {
   const commentsEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Fetch comments when component mounts or taskId changes
   useEffect(() => {
     if (taskId) {
       fetchComments();

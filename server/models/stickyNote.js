@@ -70,7 +70,6 @@ const stickyNoteSchema = new mongoose.Schema({
 stickyNoteSchema.index({ projectId: 1, createdAt: -1 });
 stickyNoteSchema.index({ projectId: 1, isPinned: -1, createdAt: -1 });
 
-// Virtual for author info
 stickyNoteSchema.virtual('author', {
   ref: 'User',
   localField: 'createdBy',

@@ -3,7 +3,6 @@ export const getThemeNames = (themes) => {
   return Object.keys(themes);
 };
 
-// Optional: Add theme categorization
 export const categorizeThemes = (themeNames) => {
   const categories = {
     dark: themeNames.filter(name => name.toLowerCase().includes('dark')),

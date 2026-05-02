@@ -38,7 +38,6 @@ export const NotificationProvider = ({ children }) => {
     }
   }, []);
 
-  // a local notification (for immediate UI feedback)
   const addNotification = useCallback((notification) => {
     setNotifications(prev => [notification, ...prev.slice(0, 19)]);
     if (!notification.read) {

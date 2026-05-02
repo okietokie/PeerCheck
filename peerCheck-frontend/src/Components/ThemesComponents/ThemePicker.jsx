@@ -11,7 +11,8 @@ import {
   Chip,
   alpha,
   Slide,
-  Divider
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { Palette, Shuffle, CheckCircle, ExpandMore, ExpandLess } from "@mui/icons-material";
 
@@ -32,6 +33,8 @@ const ThemePicker = ({
   onClose 
 }) => {
   const [expanded, setExpanded] = useState(false);
+  const muiTheme = useTheme();
+  const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const currentTheme = themes[currentThemeName];
 
   const handleRandomTheme = () => {
@@ -49,10 +52,12 @@ const ThemePicker = ({
       <Box
         sx={{
           position: 'fixed',
-          bottom: 90,
-          right: 20,
-          width: 380,
-          maxHeight: 'calc(100vh - 160px)',
+          bottom: { xs: 88, sm: 90 },
+          right: { xs: 12, sm: 20 },
+          left: { xs: 12, sm: 'auto' },
+          width: { xs: 'auto', sm: 380 },
+          maxWidth: { xs: 'calc(100vw - 24px)', sm: 'min(380px, calc(100vw - 40px))' },
+          maxHeight: { xs: 'calc(100vh - 112px)', sm: 'calc(100vh - 160px)' },
           zIndex: 1001,
           overflow: 'hidden',
         }}
@@ -107,7 +112,7 @@ const ThemePicker = ({
                 </Box>
               </Box>
               
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
                 <Chip 
                   label={formatThemeName(currentThemeName)}
                   size="small"
@@ -116,7 +121,13 @@ const ThemePicker = ({
                     color: currentTheme.palette.primary.contrastText,
                     fontWeight: '600',
                     fontSize: '0.7rem',
-                    height: 24
+                    height: 24,
+                    maxWidth: isMobile ? 136 : 180,
+                    '& .MuiChip-label': {
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }
                   }}
                 />
                 <Tooltip title="Random Theme">

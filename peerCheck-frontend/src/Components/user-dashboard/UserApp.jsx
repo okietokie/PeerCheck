@@ -15,11 +15,7 @@ import {
   Typography,
   useMediaQuery,
   useTheme,
-  BottomNavigation,
-  BottomNavigationAction,
-  Paper,
   Tooltip,
-  alpha
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -53,9 +49,7 @@ export default function UserApp() {
   const [user, setUser] = useState();
   const [selectedTab, setSelectedTab] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [bottomNavValue, setBottomNavValue] = useState(0);
 
-  // Map paths to tab values
   const pathToValue = {
     '/user-app': 0,
     '/user-app/dashboard': 0,
@@ -90,16 +84,13 @@ export default function UserApp() {
     const tabValue = pathToValue[currentPath];
     if (currentPath.startsWith('/user-app/my-project/')) {
       setSelectedTab(3);
-      setBottomNavValue(3);
     } else {
       setSelectedTab(tabValue);
-      setBottomNavValue(tabValue);
     }
   }, [location.pathname]);
 
   const handleTabChange = (event, newValue) => {
     setSelectedTab(newValue);
-    setBottomNavValue(newValue);
     
     // Navigate to corresponding routes
     if (navItems[newValue]) {
@@ -214,7 +205,6 @@ export default function UserApp() {
       display: 'flex', 
       flexDirection: 'column',
       minHeight: '100vh',
-      pb: isMobile ? 7 : 0
     }}>
       {/* Desktop Navigation */}
       {!isMobile ? (
@@ -350,56 +340,6 @@ export default function UserApp() {
           
           {/* Spacer for AppBar */}
           <Toolbar />
-          
-          {/* Mobile Bottom Navigation */}
-          <Paper 
-            sx={{ 
-              position: 'fixed', 
-              bottom: 0, 
-              left: 0, 
-              right: 0, 
-              zIndex: theme.zIndex.appBar,
-              display: { xs: 'block', md: 'none' }
-            }} 
-            elevation={3}
-          >
-            <BottomNavigation
-              showLabels
-              value={bottomNavValue}
-              onChange={(event, newValue) => {
-                setBottomNavValue(newValue);
-                handleTabChange(event, newValue);
-              }}
-              sx={{
-                height: 56,
-                '& .MuiBottomNavigationAction-root': {
-                  minWidth: isSmallMobile ? 50 : 70,
-                  px: isSmallMobile ? 0.5 : 1,
-                },
-                '& .Mui-selected': {
-                  color: 'primary.main',
-                  '& .MuiBottomNavigationAction-label': {
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                  }
-                }
-              }}
-            >
-              {navItems.map((item, index) => (
-                <BottomNavigationAction
-                  key={item.label}
-                  label={item.label}
-                  icon={item.icon}
-                  sx={{
-                    '& .MuiBottomNavigationAction-label': {
-                      fontSize: '0.7rem',
-                      fontWeight: index === bottomNavValue ? 600 : 400,
-                    }
-                  }}
-                />
-              ))}
-            </BottomNavigation>
-          </Paper>
         </>
       )}
 
@@ -410,6 +350,7 @@ export default function UserApp() {
         sx={{ 
           flex: 1,
           py: { xs: 2, sm: 3 },
+          pb: { xs: 14, sm: 3 },
           px: { xs: 1, sm: 2 },
           width: '100%',
           overflow: 'auto'

@@ -40,6 +40,10 @@ import {
   Slide,
   Fade,
   Grid,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  Stack,
 } from '@mui/material';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -47,6 +51,8 @@ import { motion } from 'framer-motion';
 import  useInView  from '../../hooks/useInView';
 import TourGuide from '../TourGuide';
 import TodoList from './HelperComp/ToDoList';
+
+const DASHBOARD_CARD_LIMIT = 10;
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -61,6 +67,7 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState([]);
   const [recentActivities, setRecentActivities] = useState([]);
   const [productivityInsights, setProductivityInsights] = useState({
+                                                            score: 0,
                                                             averageEfficiency: 0,
                                                             onTimeRate: 0,
                                                             taskDistribution: {
@@ -100,6 +107,7 @@ export default function Dashboard() {
     quickActionClick: false,
     performanceDemo: false
   });
+  const [insightDialog, setInsightDialog] = useState({ open: false, card: null });
 
   // Stats state
   const [stats, setStats] = useState({
@@ -111,7 +119,7 @@ export default function Dashboard() {
   const fetchProductivityData = async () => {
     try {
       const token = localStorage.getItem("token");
-      if (!token) return;
+      if (!token) return null;
 
       const response = await axiosClient.get(`user/productivity`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -125,6 +133,7 @@ export default function Dashboard() {
         console.log("Fetched Productivity Data: ", prodData, recentPerf);
         // all productivity insights at once updated
         setProductivityInsights({
+          score: prodData.score || 0,
           averageEfficiency: prodData.averageEfficiency || 0,
           onTimeRate: prodData.onTimeRate || 0,
           taskDistribution: prodData.taskDistribution || {
@@ -159,10 +168,14 @@ export default function Dashboard() {
           productivity: prodData.score || 0,
           highPriorityAlerts: prodData.highPriorityAlerts || 0,
         }));
+
+        return prodData;
       }
     } catch (error) {
       console.error('Error fetching productivity data:', error);
     }
+
+    return null;
   };
 
 
@@ -224,6 +237,8 @@ export default function Dashboard() {
         setProjects(userRes.data.userProjects || []);
       }
 
+      let localProductivity = null;
+
       // Fetch tasks
       try {
         const tasksRes = await axiosClient.get("user/tasks/all", {
@@ -241,12 +256,11 @@ export default function Dashboard() {
             t.status !== 'completed'
           ).length;
           
-          const productivity = calculateProductivity(userTasks);
+          localProductivity = calculateProductivity(userTasks);
 
           setStats(prev => ({
             ...prev,
             activeTasks,
-            productivity,
             highPriorityAlerts
           }));
 
@@ -258,7 +272,13 @@ export default function Dashboard() {
         setTasks([]);
       }
 
-      await fetchProductivityData();
+      const productivityData = await fetchProductivityData();
+      if (!productivityData && localProductivity !== null) {
+        setStats(prev => ({
+          ...prev,
+          productivity: localProductivity
+        }));
+      }
 
 
       // Show data loaded snackbar
@@ -277,12 +297,10 @@ export default function Dashboard() {
   };
 
   const calculateProductivity = (userTasks) => {
-    // If you have backend productivity data, use it
     if (productivityInsights?.score) {
       return productivityInsights.score;
     }
     
-    // Fallback to your existing calculation
     if (!userTasks || userTasks.length === 0) return 0;
 
     let totalWeightedScore = 0;
@@ -297,7 +315,7 @@ export default function Dashboard() {
       const timeScore = task.estimatedTime
         ? Math.min(1, task.totalFocusTime / task.estimatedTime)
         : 1;
-      const riskScore = (task.risk?.riskScore || 0) / 5;
+      const riskScore = (task.metrics?.riskScore || task.risk?.riskScore || 0) / 5;
 
       let flagPenalty = 0;
       if (task.flags?.rushedCompletion) flagPenalty += 0.2;
@@ -404,6 +422,14 @@ export default function Dashboard() {
     navigate('/user-app/projects');
   };
 
+  const openInsightDialog = (card) => {
+    setInsightDialog({ open: true, card });
+  };
+
+  const closeInsightDialog = () => {
+    setInsightDialog({ open: false, card: null });
+  };
+
   const handleStatsDemo = () => {
     setSnackbars(prev => ({ ...prev, statsDemo: true }));
   };
@@ -457,6 +483,31 @@ export default function Dashboard() {
       </Box>
     );
   }
+
+  const formatInsightDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch {
+      return 'Invalid date';
+    }
+  };
+
+  const activeProjectList = projects.filter(p => p.status === 'active' || p.status === 'ongoing');
+  const activeTaskList = tasks.filter(t => t.status === 'active' || t.status === 'paused');
+  const highAlertTaskList = tasks
+    .filter(t => (t.metrics?.riskScore >= 4 || t.flags?.manualReviewRequired) && t.status !== 'completed')
+    .sort((a, b) => (b.metrics?.riskScore || 0) - (a.metrics?.riskScore || 0));
+  const recentlyUpdatedProjects = [...projects]
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))
+    .slice(0, DASHBOARD_CARD_LIMIT);
+  const inProgressTasks = [...activeTaskList]
+    .sort((a, b) => new Date(a.deadline || 0) - new Date(b.deadline || 0))
+    .slice(0, DASHBOARD_CARD_LIMIT);
 
   return (
     <>
@@ -580,6 +631,7 @@ export default function Dashboard() {
           }}>
             {[
               {
+                id: 'projects',
                 title: 'Active Projects',
                 value: stats.activeProjects,
                 icon: <FolderIcon fontSize="small" />,
@@ -588,9 +640,10 @@ export default function Dashboard() {
                 hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.2)}, ${alpha(theme.palette.primary.main, 0.1)})`,
                 subtitle: `${projects.filter(p => p.status === 'completed').length} completed`,
                 progress: projects.length > 0 ? (stats.activeProjects / projects.length) * 100 : 0,
-                onClick: handleStatsDemo
+                onClick: () => openInsightDialog('projects')
               },
               {
+                id: 'tasks',
                 title: 'Tasks In Progress',
                 value: stats.activeTasks,
                 icon: <PlayCircleIcon fontSize="small" />,
@@ -599,12 +652,10 @@ export default function Dashboard() {
                 hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.18)}, ${alpha(theme.palette.info.main, 0.08)})`,
                 subtitle: `${tasks.filter(t => t.status === 'completed').length} completed`,
                 progress: tasks.length > 0 ? (stats.activeTasks / tasks.length) * 100 : 0,
-                onClick: () => {
-                  setSnackbars(prev => ({ ...prev, taskClick: true }));
-                  setTimeout(() => navigate('/user-app/tasks'), 300);
-                }
+                onClick: () => openInsightDialog('tasks')
               },
               {
+                id: 'productivity',
                 title: 'Productivity',
                 value: `${stats.productivity}%`,
                 icon: <TrendingUpIcon fontSize="small" />,
@@ -613,9 +664,10 @@ export default function Dashboard() {
                 hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.18)}, ${alpha(theme.palette.success.main, 0.08)})`,
                 subtitle: stats.productivity > 80 ? 'On track' : 'Needs boost',
                 progress: stats.productivity,
-                onClick: handlePerformanceDemo
+                onClick: () => openInsightDialog('productivity')
               },
               {
+                id: 'alerts',
                 title: 'Alerts',
                 value: stats.highPriorityAlerts,
                 icon: <WarningIcon fontSize="small" />,
@@ -624,12 +676,7 @@ export default function Dashboard() {
                 hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.18)}, ${alpha(theme.palette.error.main, 0.08)})`,
                 subtitle: 'Require attention',
                 progress: stats.highPriorityAlerts > 0 ? Math.min(100, stats.highPriorityAlerts * 20) : 0,
-                onClick: () => {
-                  if (stats.highPriorityAlerts > 0) {
-                    setSnackbars(prev => ({ ...prev, taskClick: true }));
-                    setTimeout(() => navigate('/user-app/tasks?filter=high-priority'), 300);
-                  }
-                }
+                onClick: () => openInsightDialog('alerts')
               }
             ].map((stat, index) => (
               <motion.div
@@ -809,6 +856,187 @@ export default function Dashboard() {
               </motion.div>
             ))}
           </Box>
+
+          <Dialog
+            open={insightDialog.open}
+            onClose={closeInsightDialog}
+            fullWidth
+            maxWidth="md"
+            PaperProps={{
+              sx: {
+                borderRadius: 4,
+                overflow: 'hidden',
+                background: `linear-gradient(180deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.background.default, 0.98)} 100%)`,
+                border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
+              }
+            }}
+          >
+            <DialogTitle sx={{ pb: 1.5 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'flex-start' }}>
+                <Box>
+                  <Typography variant="h5" fontWeight={700}>
+                    {insightDialog.card === 'projects' && 'Active Projects Overview'}
+                    {insightDialog.card === 'tasks' && 'Tasks In Progress Overview'}
+                    {insightDialog.card === 'productivity' && 'Productivity Overview'}
+                    {insightDialog.card === 'alerts' && 'Alerts Overview'}
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 0.75, color: theme.palette.text.secondary, maxWidth: 680 }}>
+                    {insightDialog.card === 'projects' && 'This shows the latest 10 project updates so your dashboard stays useful even when your project list grows.'}
+                    {insightDialog.card === 'tasks' && 'This shows the latest 10 in-progress tasks, sorted by what needs attention sooner.'}
+                    {insightDialog.card === 'productivity' && 'This summarizes your current momentum using completion, efficiency, peer review, and on-time performance signals.'}
+                    {insightDialog.card === 'alerts' && 'This focuses on the most urgent task alerts so you can triage issues quickly.'}
+                  </Typography>
+                </Box>
+                <IconButton onClick={closeInsightDialog} sx={{ mt: -0.5, mr: -1 }}>
+                  <CloseIcon />
+                </IconButton>
+              </Box>
+            </DialogTitle>
+            <DialogContent dividers sx={{ px: { xs: 2, sm: 3 }, py: 3 }}>
+              {insightDialog.card === 'projects' && (
+                <Stack spacing={2.5}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
+                    <Paper sx={{ p: 2.25, borderRadius: 3, backgroundColor: alpha(theme.palette.primary.main, 0.06), border: `1px solid ${alpha(theme.palette.primary.main, 0.12)}` }}>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>Active projects</Typography>
+                      <Typography variant="h4" sx={{ mt: 0.8, fontWeight: 700 }}>{stats.activeProjects}</Typography>
+                    </Paper>
+                    <Paper sx={{ p: 2.25, borderRadius: 3, backgroundColor: alpha(theme.palette.success.main, 0.06), border: `1px solid ${alpha(theme.palette.success.main, 0.12)}` }}>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>Completed projects</Typography>
+                      <Typography variant="h4" sx={{ mt: 0.8, fontWeight: 700 }}>{projects.filter(p => p.status === 'completed').length}</Typography>
+                    </Paper>
+                    <Paper sx={{ p: 2.25, borderRadius: 3, backgroundColor: alpha(theme.palette.info.main, 0.06), border: `1px solid ${alpha(theme.palette.info.main, 0.12)}` }}>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>Visible projects</Typography>
+                      <Typography variant="h4" sx={{ mt: 0.8, fontWeight: 700 }}>{projects.length}</Typography>
+                    </Paper>
+                  </Box>
+                  <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 0.12)}` }}>
+                    <Typography variant="subtitle1" fontWeight={700}>Latest 10 project updates</Typography>
+                    <Typography variant="body2" sx={{ mt: 0.5, mb: 2, color: theme.palette.text.secondary }}>
+                      Sorted by the most recently updated projects.
+                    </Typography>
+                    <Stack spacing={1.25}>
+                      {recentlyUpdatedProjects.map((project) => (
+                        <Paper
+                          key={project._id}
+                          onClick={() => handleViewProject(project._id)}
+                          sx={{ p: 1.6, borderRadius: 2.5, cursor: 'pointer', border: `1px solid ${alpha(theme.palette.divider, 0.12)}`, '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.04) } }}
+                        >
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'center' }}>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography fontWeight={700} noWrap>{project.projectName}</Typography>
+                              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                                Updated {formatInsightDate(project.updatedAt || project.createdAt)} • {project.teamName || 'No team'}
+                              </Typography>
+                            </Box>
+                            <Chip size="small" label={`${Math.round(project.progress || 0)}%`} sx={{ fontWeight: 700 }} />
+                          </Box>
+                        </Paper>
+                      ))}
+                    </Stack>
+                  </Paper>
+                </Stack>
+              )}
+
+              {insightDialog.card === 'tasks' && (
+                <Stack spacing={2.5}>
+                  <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 0.12)}` }}>
+                    <Typography variant="subtitle1" fontWeight={700}>Task flow snapshot</Typography>
+                    <Typography variant="body2" sx={{ mt: 0.5, mb: 1.75, color: theme.palette.text.secondary }}>
+                      This bar shows how many of your visible tasks are currently in progress or paused.
+                    </Typography>
+                    <LinearProgress variant="determinate" value={tasks.length > 0 ? (stats.activeTasks / tasks.length) * 100 : 0} sx={{ height: 10, borderRadius: 999 }} />
+                    <Typography variant="caption" sx={{ display: 'block', mt: 1, color: theme.palette.text.secondary }}>
+                      {stats.activeTasks} active tasks out of {tasks.length} total tasks
+                    </Typography>
+                  </Paper>
+                  <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 0.12)}` }}>
+                    <Typography variant="subtitle1" fontWeight={700}>Latest 10 in-progress tasks</Typography>
+                    <Typography variant="body2" sx={{ mt: 0.5, mb: 2, color: theme.palette.text.secondary }}>
+                      Sorted by deadline so nearer work surfaces first.
+                    </Typography>
+                    <Stack spacing={1.25}>
+                      {inProgressTasks.map((task) => (
+                        <Paper
+                          key={task._id}
+                          onClick={handleViewTasks}
+                          sx={{ p: 1.7, borderRadius: 2.5, cursor: 'pointer', border: `1px solid ${alpha(theme.palette.divider, 0.12)}`, '&:hover': { backgroundColor: alpha(theme.palette.info.main, 0.04) } }}
+                        >
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'flex-start' }}>
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Typography fontWeight={700} noWrap>{task.taskTitle}</Typography>
+                              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mt: 0.25 }}>
+                                {task.assignedTo?.name || 'Unassigned'} • Due {formatInsightDate(task.deadline)}
+                              </Typography>
+                            </Box>
+                            <Chip size="small" label={task.status?.replace('_', ' ') || 'task'} color="info" variant="outlined" />
+                          </Box>
+                        </Paper>
+                      ))}
+                    </Stack>
+                  </Paper>
+                </Stack>
+              )}
+
+              {insightDialog.card === 'productivity' && (
+                <Stack spacing={2.5}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 2 }}>
+                    <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 0.12)}` }}>
+                      <Typography variant="subtitle1" fontWeight={700}>Overall productivity</Typography>
+                      <Typography variant="h3" sx={{ mt: 1.2, mb: 1.2, fontWeight: 700 }}>{stats.productivity}%</Typography>
+                      <LinearProgress variant="determinate" value={stats.productivity} sx={{ height: 10, borderRadius: 999 }} />
+                    </Paper>
+                    <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 0.12)}` }}>
+                      <Typography variant="subtitle1" fontWeight={700}>Key signals</Typography>
+                      <Typography variant="body2" sx={{ mt: 1, color: theme.palette.text.secondary }}>
+                        Efficiency {Math.round(productivityInsights.averageEfficiency || 0)}% • On-time rate {Math.round(productivityInsights.onTimeRate || 0)}% • Collaboration {Math.round(productivityInsights.collaborationScore || 0)}%
+                      </Typography>
+                    </Paper>
+                  </Box>
+                  <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 0.12)}` }}>
+                    <Typography variant="subtitle1" fontWeight={700}>Recent performance</Typography>
+                    <Stack spacing={1}>
+                      <Typography variant="body2">Tasks completed recently: {productivityInsights.recentPerformance?.tasksCompleted || 0}</Typography>
+                      <Typography variant="body2">Average efficiency: {Math.round(productivityInsights.recentPerformance?.averageEfficiency || productivityInsights.averageEfficiency || 0)}%</Typography>
+                      <Typography variant="body2">Peer review score: {Math.round(productivityInsights.peerReviewScore || 0)}%</Typography>
+                    </Stack>
+                  </Paper>
+                </Stack>
+              )}
+
+              {insightDialog.card === 'alerts' && (
+                <Stack spacing={2.5}>
+                  <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 0.12)}` }}>
+                    <Typography variant="subtitle1" fontWeight={700}>High priority alerts</Typography>
+                    <Typography variant="body2" sx={{ mt: 0.5, mb: 2, color: theme.palette.text.secondary }}>
+                      Only the latest 10 urgent items are shown here.
+                    </Typography>
+                    <Stack spacing={1.25}>
+                      {highAlertTaskList.slice(0, DASHBOARD_CARD_LIMIT).map((task) => (
+                        <Paper
+                          key={task._id}
+                          onClick={handleViewTasks}
+                          sx={{ p: 1.7, borderRadius: 2.5, cursor: 'pointer', border: `1px solid ${alpha(theme.palette.error.main, 0.14)}`, backgroundColor: alpha(theme.palette.error.main, 0.04), '&:hover': { backgroundColor: alpha(theme.palette.error.main, 0.08) } }}
+                        >
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'flex-start' }}>
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Typography fontWeight={700} noWrap>{task.taskTitle}</Typography>
+                              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                                {task.flags?.manualReviewRequired ? 'Requires manual review.' : `Risk score is ${task.metrics?.riskScore || 0}, so this task needs attention.`}
+                              </Typography>
+                            </Box>
+                            <Chip size="small" color="error" label={`Risk ${task.metrics?.riskScore || 0}`} />
+                          </Box>
+                        </Paper>
+                      ))}
+                      {highAlertTaskList.length === 0 && (
+                        <Alert severity="success">No high priority alerts right now.</Alert>
+                      )}
+                    </Stack>
+                  </Paper>
+                </Stack>
+              )}
+            </DialogContent>
+          </Dialog>
 
           {/* Main Content Area */}
           <Box sx={{ 

@@ -1244,9 +1244,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                         {(updatedTask?.metrics?.efficiency?.toFixed(1) || '0.0')}%
                       </Typography>
                       <Chip
-                        label={updatedTask?.metrics?.efficiency > 120 ? 'High' : 
-                              updatedTask?.metrics?.efficiency < 50 ? 'Low' : 
-                              'Optimal'}
+                        label={updatedTask?.metrics?.efficiencyLabel || getEfficiencyLabel(updatedTask?.metrics?.efficiency)}
                         color={getEfficiencyColor(updatedTask?.metrics?.efficiency)}
                         size="small"
                         sx={{ fontWeight: 600 }}

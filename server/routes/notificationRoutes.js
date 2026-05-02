@@ -1,4 +1,4 @@
-// routes/userRoutes.js (add notification routes)
+// routes/userRoutes.js
 import express from 'express';
 import {
   getUserNotifications,

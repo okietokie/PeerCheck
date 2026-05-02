@@ -24,8 +24,13 @@ import {
   TableHead,
   TableRow,
   Snackbar,
+  Popover,
+  Divider,
+  Chip,
+  Stack,
   alpha,
-  useTheme
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Search,
@@ -46,7 +51,9 @@ import {
   EditCalendarTwoTone,
   Error,
   AttachFile,
-  PlayArrow} from '@mui/icons-material';
+  PlayArrow,
+  HelpOutline
+} from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -64,11 +71,12 @@ import TaskTableHeader from './TaskComponents/TableHeader.jsx';
 
 const Tasks = () => {
   const theme = useTheme();
+  const isMobileTable = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const { projectId } = useParams();
   const isProjectView = Boolean(projectId);
+  const [efficiencyHelpAnchor, setEfficiencyHelpAnchor] = useState(null);
 
-  // Use custom hook for task management logic
   const {
     // State
     tasks,
@@ -116,6 +124,14 @@ const Tasks = () => {
   } = useTasks();
 
   const allSelected = filteredTasks.length > 0 && selectedTasks.size === filteredTasks.length;
+  const efficiencyHelpOpen = Boolean(efficiencyHelpAnchor);
+
+  const efficiencyBands = [
+    { range: '80% - 120%', score: '100', meaning: 'Ideal time usage' },
+    { range: '60% - 79% or 121% - 160%', score: '80', meaning: 'Acceptable, but not ideal' },
+    { range: '40% - 59% or 161% - 200%', score: '60', meaning: 'Below average' },
+    { range: '< 40% or > 200%', score: '30', meaning: 'Very poor time fit' }
+  ];
 
   // Load data on mount
   useEffect(() => {
@@ -125,52 +141,205 @@ const Tasks = () => {
   return (
     <Box sx={{ 
       minHeight: '100vh', 
-      p: { xs: 2, sm: 3 },
+      p: { xs: 1.5, sm: 3 },
       backgroundColor: theme.palette.background.default,
     }}>
       {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Box>
+      <Box sx={{ mb: { xs: 3, sm: 4 } }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 3 }}>
+          <Box sx={{ minWidth: 0 }}>
             <Typography variant="h3" fontWeight="700" gutterBottom sx={{ 
               color: theme.palette.text.primary,
               background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
               backgroundClip: 'text',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
-              mb: 1}}
+              mb: 1,
+              fontSize: { xs: '2.35rem', sm: '3rem' },
+              lineHeight: 1.05,
+            }}
               >
               {isProjectView ? 'Project Tasks' : 'My Tasks'}
             </Typography>
-            <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+            <Typography variant="body1" sx={{ color: theme.palette.text.secondary, maxWidth: { sm: 560 } }}>
               {isProjectView ? 'Manage and track project tasks with accountability metrics' : 'Track your assigned tasks across all projects'}
             </Typography>
           </Box>
           
-          <Button 
-            variant="outlined"
-            onClick={() => navigate('/user-app/projects')}
-            startIcon={<ArrowBack />}
-            size="small"
-            sx={{ borderRadius: 1 }}
-          >
-            {isProjectView ? 'Back to Projects' : 'View Projects'}
-          </Button>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, alignSelf: { xs: 'stretch', sm: 'center' }, width: { xs: '100%', sm: 'auto' } }}>
+            <Tooltip title="How task efficiency is calculated">
+              <IconButton
+                onClick={(event) => setEfficiencyHelpAnchor(event.currentTarget)}
+                sx={{
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.25)}`,
+                  borderRadius: 2,
+                  width: 48,
+                  height: 48,
+                  color: theme.palette.primary.main,
+                  flexShrink: 0,
+                  alignSelf: { xs: 'flex-end', sm: 'center' }
+                }}
+              >
+                <HelpOutline />
+              </IconButton>
+            </Tooltip>
+            <Button 
+              variant="outlined"
+              onClick={() => navigate('/user-app/projects')}
+              startIcon={<ArrowBack />}
+              size="small"
+              sx={{
+                borderRadius: 2,
+                alignSelf: { xs: 'stretch', sm: 'center' },
+                width: { xs: '100%', sm: 'auto' },
+                minHeight: 48,
+                px: { xs: 2.5, sm: 2 },
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {isProjectView ? 'Back to Projects' : 'View Projects'}
+            </Button>
+          </Box>
         </Box>
+
+        <Popover
+          open={efficiencyHelpOpen}
+          anchorEl={efficiencyHelpAnchor}
+          onClose={() => setEfficiencyHelpAnchor(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          PaperProps={{
+            sx: {
+              mt: 1,
+              width: { xs: 'calc(100vw - 32px)', sm: 460 },
+              maxWidth: 460,
+              borderRadius: 3,
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
+              boxShadow: `0 18px 50px ${alpha(theme.palette.common.black, 0.16)}`,
+              overflow: 'hidden'
+            }
+          }}
+        >
+          <Box sx={{ p: 2.25 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25 }}>
+              <Box
+                sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 2,
+                  display: 'grid',
+                  placeItems: 'center',
+                  backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                  color: theme.palette.primary.main
+                }}
+              >
+                <HelpOutline fontSize="small" />
+              </Box>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="subtitle1" fontWeight={700}>
+                  How Your Task Efficiency Works
+                </Typography>
+                <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                  This score is calculated from your own work on a task, not from the whole team.
+                </Typography>
+              </Box>
+            </Box>
+
+            <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
+              Spending more time than estimated does not increase the efficiency score. It increases the raw time ratio, and going far over the estimate lowers the time-efficiency part of the score.
+            </Alert>
+
+            <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1 }}>
+              Example: if you worked for <strong>54 minutes</strong> on a task estimated at <strong>10 minutes</strong>, the raw time ratio is:
+            </Typography>
+            <Paper
+              elevation={0}
+              sx={{
+                p: 1.5,
+                borderRadius: 2,
+                mb: 2,
+                backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.12)}`
+              }}
+            >
+              <Typography variant="body2" fontWeight={700}>
+                54 / 10 × 100 = 540% of estimate
+              </Typography>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                That is a raw time ratio, not a 540% efficiency score.
+              </Typography>
+            </Paper>
+
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
+              Overall Efficiency Score Formula
+            </Typography>
+            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mb: 2 }}>
+              <Chip label="Time Efficiency 30%" size="small" />
+              <Chip label="Completion Quality 25%" size="small" />
+              <Chip label="Timeliness 20%" size="small" />
+              <Chip label="Proof Quality 15%" size="small" />
+              <Chip label="Risk Factor 10%" size="small" />
+            </Stack>
+
+            <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 2 }}>
+              Your final score is a weighted average from these five parts, then it is capped between 0 and 100.
+            </Typography>
+
+            <Divider sx={{ my: 2 }} />
+
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
+              Time Efficiency Band Rules
+            </Typography>
+            <Stack spacing={1.1} sx={{ mb: 2 }}>
+              {efficiencyBands.map((band) => (
+                <Box
+                  key={band.range}
+                  sx={{
+                    p: 1.25,
+                    borderRadius: 2,
+                    backgroundColor: alpha(theme.palette.background.default, 0.55),
+                    border: `1px solid ${alpha(theme.palette.divider, 0.14)}`
+                  }}
+                >
+                  <Typography variant="body2" fontWeight={700}>
+                    {band.range} of estimate {'->'} time score {band.score}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                    {band.meaning}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+
+            <Divider sx={{ my: 2 }} />
+
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
+              What Each Part Means For You
+            </Typography>
+            <Stack spacing={1}>
+              <Typography variant="body2"><strong>Time Efficiency:</strong> compares your logged focus time against the estimate.</Typography>
+              <Typography variant="body2"><strong>Completion Quality:</strong> depends on task status and any grading quality attached to the task.</Typography>
+              <Typography variant="body2"><strong>Timeliness:</strong> rewards finishing on time or staying on track before the deadline.</Typography>
+              <Typography variant="body2"><strong>Proof Quality:</strong> rewards having proof and better proof coverage.</Typography>
+              <Typography variant="body2"><strong>Risk Factor:</strong> lowers the score when the task looks rushed, padded, missing proof, or risky.</Typography>
+            </Stack>
+          </Box>
+        </Popover>
 
         {/* Search and Filter Bar */}
         {!authError && (
           <Paper
             sx={{
-              p: 2,
-              borderRadius: 1,
+              p: { xs: 1.5, sm: 2 },
+              borderRadius: { xs: 2, sm: 1 },
               backgroundColor: theme.palette.background.paper,
               border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-              mb: 3
+              mb: 3,
+              overflow: 'hidden',
             }}
           >
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={6}>
+            <Grid container spacing={1.5} alignItems="stretch">
+              <Grid item xs={12}>
                 <TextField
                   fullWidth
                   placeholder="Search tasks..."
@@ -184,12 +353,16 @@ const Tasks = () => {
                       </InputAdornment>
                     ),
                   }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      minHeight: { xs: 50, sm: 'auto' },
+                    }
+                  }}
                 />
               </Grid>
               
-              <Grid item xs={12} md={6}>
-                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', alignItems: 'center' }}>
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
+              <Grid item xs={6} sm={4} md={3}>
+                  <FormControl size="small" fullWidth>
                     <InputLabel>Status</InputLabel>
                     <Select
                       value={filters.status}
@@ -203,8 +376,10 @@ const Tasks = () => {
                       <MenuItem value="completed">Completed</MenuItem>
                     </Select>
                   </FormControl>
+              </Grid>
 
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
+              <Grid item xs={6} sm={4} md={3}>
+                  <FormControl size="small" fullWidth>
                     <InputLabel>Risk Level</InputLabel>
                     <Select
                       value={filters.riskLevel}
@@ -217,18 +392,28 @@ const Tasks = () => {
                       <MenuItem value="high">High Risk</MenuItem>
                     </Select>
                   </FormControl>
+              </Grid>
 
+              <Grid item xs={4} sm={4} md={2}>
                   <Tooltip title="Overdue Only">
                     <IconButton 
                       size="small"
                       color={filters.isOverdue ? "error" : "default"}
                       onClick={() => setFilters(prev => ({ ...prev, isOverdue: !prev.isOverdue }))}
+                      sx={{
+                        width: '100%',
+                        minHeight: 40,
+                        borderRadius: 2,
+                        border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                      }}
                     >
                       <Warning />
                     </IconButton>
                   </Tooltip>
+              </Grid>
 
-                  <FormControl size="small" sx={{ minWidth: 120 }}>
+              <Grid item xs={8} sm={12} md={4}>
+                  <FormControl size="small" fullWidth>
                     <InputLabel>Sort By</InputLabel>
                     <Select
                       value={sortBy}
@@ -241,7 +426,6 @@ const Tasks = () => {
                       <MenuItem value="status">Status</MenuItem>
                     </Select>
                   </FormControl>
-                </Box>
               </Grid>
             </Grid>
           </Paper>
@@ -253,8 +437,8 @@ const Tasks = () => {
         <Box className='stats-cards-section' sx={{ 
           mb: 4,
           display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
-          gap: 2.5,
+          gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, 1fr)' },
+          gap: { xs: 1.25, sm: 2.5 },
           position: 'relative',
           '&::before': {
             content: '""',
@@ -309,7 +493,7 @@ const Tasks = () => {
               key={stat.label}
               elevation={0}
               sx={{
-                p: 2.5,
+                p: { xs: 1.5, sm: 2.5 },
                 borderRadius: 3,
                 background: stat.gradient,
                 border: `1.5px solid ${alpha(stat.color, 0.15)}`,
@@ -362,8 +546,8 @@ const Tasks = () => {
                 <Box 
                   className="stat-icon-wrapper"
                   sx={{
-                    width: 48,
-                    height: 48,
+                    width: { xs: 40, sm: 48 },
+                    height: { xs: 40, sm: 48 },
                     borderRadius: 2,
                     display: 'flex',
                     alignItems: 'center',
@@ -391,7 +575,7 @@ const Tasks = () => {
                   sx={{
                     fontFamily: '"Alkatra", cursive',
                     fontWeight: 700,
-                    fontSize: { xs: '2rem', sm: '2.5rem' },
+                    fontSize: { xs: '1.7rem', sm: '2.5rem' },
                     color: stat.color,
                     lineHeight: 1,
                     transition: 'all 0.3s ease',
@@ -429,7 +613,7 @@ const Tasks = () => {
                     fontWeight: 500,
                     color: theme.palette.mode === 'dark' ? alpha('#fff', 0.9) : alpha('#000', 0.8),
                     letterSpacing: '0.5px',
-                    fontSize: { xs: '0.9rem', sm: '1rem' },
+                    fontSize: { xs: '0.82rem', sm: '1rem' },
                   }}
                 >
                   {stat.label}
@@ -441,11 +625,11 @@ const Tasks = () => {
                 sx={{
                   display: 'block',
                   mt: 0.5,
-                  ml: 2,
+                  ml: { xs: 0, sm: 2 },
                   color: theme.palette.mode === 'dark' ? alpha('#fff', 0.6) : alpha('#000', 0.6),
                   fontFamily: '"Inter", sans-serif',
                   fontWeight: 300,
-                  fontSize: '0.75rem',
+                  fontSize: { xs: '0.7rem', sm: '0.75rem' },
                   letterSpacing: '0.3px',
                 }}
               >
@@ -630,61 +814,84 @@ const Tasks = () => {
               }
             }}
           >
-            <TableContainer 
-              sx={{
-                borderRadius: 3,
-                backgroundColor: 'transparent',
-                maxHeight: 600,
-                '&::-webkit-scrollbar': {
-                  width: '8px',
-                  height: '8px',
-                },
-                '&::-webkit-scrollbar-track': {
-                  background: alpha(theme.palette.divider, 0.1),
-                  borderRadius: 4,
-                },
-                '&::-webkit-scrollbar-thumb': {
-                  background: alpha(theme.palette.primary.main, 0.3),
-                  borderRadius: 4,
-                  '&:hover': {
-                    background: alpha(theme.palette.primary.main, 0.5),
+            {isMobileTable ? (
+              <Box sx={{ p: { xs: 1.25, sm: 2 } }}>
+                {filteredTasks.map((task) => (
+                  <TaskTableRow
+                    key={task._id}
+                    task={task}
+                    isSelected={selectedTasks.has(task._id)}
+                    onSelect={handleSelectTask}
+                    theme={theme}
+                    userRole={userRole}
+                    onUploadProof={handleOpenUploadProof}
+                    onViewDetails={handleViewDetails}
+                    onStatusChange={handleStatusChange}
+                    onTaskUpdate={handleTaskFieldUpdate}
+                    userTeacher={userTeacher}
+                    mobile
+                  />
+                ))}
+              </Box>
+            ) : (
+              <TableContainer 
+                sx={{
+                  borderRadius: 3,
+                  backgroundColor: 'transparent',
+                  maxHeight: 600,
+                  overflowX: 'auto',
+                  overflowY: 'auto',
+                  '&::-webkit-scrollbar': {
+                    width: '8px',
+                    height: '8px',
+                  },
+                  '&::-webkit-scrollbar-track': {
+                    background: alpha(theme.palette.divider, 0.1),
+                    borderRadius: 4,
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    background: alpha(theme.palette.primary.main, 0.3),
+                    borderRadius: 4,
+                    '&:hover': {
+                      background: alpha(theme.palette.primary.main, 0.5),
+                    }
                   }
-                }
-              }}
-            >
-              <Table 
-                stickyHeader
-                sx={{ 
-                  minWidth: 800,
-                  borderCollapse: 'separate',
-                  borderSpacing: 0,
                 }}
               >
-                <TaskTableHeader
-                  allSelected= {allSelected}
-                  selectedTasks= {selectedTasks}
-                  handleSelectAll={handleSelectAll}
-                  theme={theme}
-                />
-                <TableBody>
-                  {filteredTasks.map((task) => (
-                    <TaskTableRow
-                      key={task._id}
-                      task={task}
-                      isSelected={selectedTasks.has(task._id)}
-                      onSelect={handleSelectTask}
-                      theme={theme}
-                      userRole={userRole}
-                      onUploadProof={handleOpenUploadProof}
-                      onViewDetails={handleViewDetails}
-                      onStatusChange={handleStatusChange}
-                      onTaskUpdate={handleTaskFieldUpdate}
-                      userTeacher={userTeacher}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                <Table 
+                  stickyHeader
+                  sx={{ 
+                    minWidth: { xs: 760, md: 800 },
+                    borderCollapse: 'separate',
+                    borderSpacing: 0,
+                  }}
+                >
+                  <TaskTableHeader
+                    allSelected= {allSelected}
+                    selectedTasks= {selectedTasks}
+                    handleSelectAll={handleSelectAll}
+                    theme={theme}
+                  />
+                  <TableBody>
+                    {filteredTasks.map((task) => (
+                      <TaskTableRow
+                        key={task._id}
+                        task={task}
+                        isSelected={selectedTasks.has(task._id)}
+                        onSelect={handleSelectTask}
+                        theme={theme}
+                        userRole={userRole}
+                        onUploadProof={handleOpenUploadProof}
+                        onViewDetails={handleViewDetails}
+                        onStatusChange={handleStatusChange}
+                        onTaskUpdate={handleTaskFieldUpdate}
+                        userTeacher={userTeacher}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
             
             {/* Empty State */}
             {filteredTasks.length === 0 && (
@@ -731,10 +938,12 @@ const Tasks = () => {
             {selectedTasks.size > 0 && (
               <Paper
                 sx={{
-                  p: 3,
+                  p: { xs: 2, sm: 3 },
                   display: 'flex',
                   justifyContent: 'space-between',
-                  alignItems: 'center',
+                  alignItems: { xs: 'stretch', sm: 'center' },
+                  flexDirection: { xs: 'column', sm: 'row' },
+                  gap: { xs: 1.5, sm: 2 },
                   borderRadius: '0 0 12px 12px',
                   background: `linear-gradient(135deg, 
                     ${alpha(theme.palette.primary.main, 0.08)} 0%, 
@@ -758,7 +967,7 @@ const Tasks = () => {
                   }
                 }}
               >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: { xs: '100%', sm: 'auto' } }}>
                   <Box
                     sx={{
                       width: 36,
@@ -795,6 +1004,8 @@ const Tasks = () => {
                     borderRadius: 2,
                     px: 3,
                     py: 1,
+                    width: { xs: '100%', sm: 'auto' },
+                    minHeight: 44,
                     fontWeight: 600,
                     textTransform: 'none',
                     background: `linear-gradient(135deg, 

@@ -169,7 +169,6 @@
                 });
             }
             
-            // Check if user is the owner of the comment - FIXED
             if (existingComment.commentedby.toString() !== userId) {
                 return res.status(403).json({
                     success: false,
@@ -225,10 +224,8 @@
                 });
             }
             
-            // Check if user is the owner of the comment - FIXED
             if (comment.commentedby.toString() !== userId) {
-                // If not the owner, check if user is admin (you need to implement admin check)
-                // For now, assuming no admin role
+
                 return res.status(403).json({
                     success: false,
                     error: 'You are not authorized to delete this comment'

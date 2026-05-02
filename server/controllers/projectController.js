@@ -579,13 +579,15 @@ export const createProject = async (req, res) => {
   try {
     const { projectName, description, startDate, deadline, teamId, teamName, tags, gradingCriteria, mentorId} = req.body;
     const userId = req.user.id;
+    const normalizedTeamId = Array.isArray(teamId) ? teamId[0] : teamId;
+    const normalizedMentorId = mentorId && mentorId !== 'none' ? mentorId : null;
     // Basic validation
-    if (!projectName || !description || !startDate || !deadline || !teamId) {
+    if (!projectName || !description || !startDate || !deadline || !normalizedTeamId) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
     // Make sure the team exists
-    const team = await Team.findById(teamId).populate("members", "name username email");
+    const team = await Team.findById(normalizedTeamId).populate("members", "name username email");
     if (!team) return res.status(404).json({ error: "Team not found" });
 
     // Create project with creator ID from authenticated user
@@ -656,10 +658,10 @@ const projectData = {
     await newProject.save();
     team.projects.push(newProject._id);
     await team.save();
-   if (mentorId) {
+   if (normalizedMentorId) {
       
       await MentorProjectAssignment.create({
-        mentor:   mentorId,  
+        mentor: normalizedMentorId,
         project: newProject._id
       });
     }

@@ -84,7 +84,6 @@ export const fetchBasicData = async (req, res) => {
 };
 
 
-// Additional endpoint for dashboard stats
 export const getDashboardStats = async (req, res) => {
   try {
     // Total users by status

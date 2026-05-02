@@ -49,7 +49,6 @@ export default function ResetPassword() {
   const [tokenError, setTokenError] = useState("");
   const [redirectCountdown, setRedirectCountdown] = useState(5);
 
-  // Verify token on component mount
   useEffect(() => {
     const verifyToken = async () => {
       try {
@@ -68,7 +67,6 @@ export default function ResetPassword() {
     verifyToken();
   }, [token]);
 
-  // Handle redirect countdown
   useEffect(() => {
     let interval;
     if (success && redirectCountdown > 0) {
@@ -85,14 +83,12 @@ export default function ResetPassword() {
     setError("");
     setMessage("");
 
-    // Validate passwords match
     if (password !== confirmPassword) {
       setError("Passwords do not match!");
       setLoading(false);
       return;
     }
 
-    // Validate password strength
     if (password.length < 8) {
       setError("Password must be at least 8 characters long");
       setLoading(false);
@@ -105,7 +101,6 @@ export default function ResetPassword() {
       setMessage(res.data.message);
       setSuccess(true);
       
-      // Start countdown for redirect
       const interval = setInterval(() => {
         setRedirectCountdown(prev => {
           if (prev <= 1) {

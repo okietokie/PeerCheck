@@ -1,1 +1,66 @@
-.env
+# Root dependencies
+/node_modules/
+
+# Root environment files
+/.env
+/.env.local
+/.env.development.local
+/.env.test.local
+/.env.production.local
+
+# Root local logs and temp files
+/frontend-dev.log
+/frontend-dev.out.log
+/frontend-dev.err.log
+/server-dev.log
+/server-dev.out.log
+/server-dev.err.log
+/tempCodeRunnerFile.js
+
+# Frontend dependencies and build output
+/peerCheck-frontend/node_modules/
+/peerCheck-frontend/dist/
+/peerCheck-frontend/dist-ssr/
+
+# Frontend local environment files
+/peerCheck-frontend/.env
+/peerCheck-frontend/.env.local
+/peerCheck-frontend/.env.development.local
+/peerCheck-frontend/.env.test.local
+/peerCheck-frontend/.env.production.local
+
+# Frontend local logs
+/peerCheck-frontend/npm-debug.log*
+/peerCheck-frontend/yarn-debug.log*
+/peerCheck-frontend/yarn-error.log*
+/peerCheck-frontend/pnpm-debug.log*
+/peerCheck-frontend/lerna-debug.log*
+/peerCheck-frontend/*.log
+
+# Server dependencies
+/server/node_modules/
+
+# Server local environment files
+/server/.env
+/server/.env.local
+/server/.env.development.local
+/server/.env.test.local
+/server/.env.production.local
+
+# Server local logs
+/server/npm-debug.log*
+/server/yarn-debug.log*
+/server/yarn-error.log*
+/server/pnpm-debug.log*
+/server/lerna-debug.log*
+/server/*.log
+
+# Editor and OS files in this repo
+/.vscode/
+/.idea/
+/.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

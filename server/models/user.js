@@ -8,7 +8,7 @@ const userSchema = new mongoose.Schema({
   },
   username: {
     type: String, 
-    unique: true, // This automatically creates an index
+    unique: true, 
     required: true,
     trim: true,
     lowercase: true
@@ -16,7 +16,7 @@ const userSchema = new mongoose.Schema({
   email: { 
     type: String, 
     required: true, 
-    unique: true, // This automatically creates an index
+    unique: true, 
     trim: true,
     lowercase: true
   },
@@ -39,7 +39,6 @@ const userSchema = new mongoose.Schema({
     default: "active"
   },
   
-  // NEW FIELDS FOR PEERTEAMS
   bio: {
     type: String,
     trim: true,

@@ -297,7 +297,6 @@ const SecNAuth = () => {
 
       {/* Main Content */}
       {!activeSection ? (
-        // Overview Section
         <>
           {/* Stats Cards */}
           <Box sx={{ 
@@ -340,7 +339,6 @@ const SecNAuth = () => {
             ].map(renderStatsCard)}
           </Box>
 
-          {/* Additional Metrics */}
           <Card sx={{ mb: 4 }}>
             <CardContent sx={{ p: 4 }}>
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>

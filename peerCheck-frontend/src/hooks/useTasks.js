@@ -131,11 +131,8 @@ const useTasks = () => {
       const tasksData = response.data?.tasks || [];
       setUserId(response.data?.user?._id);
 
-      // Backend already calculates metrics - just use them directly!
-      // No need to recalculate in frontend
       const enrichedTasks = tasksData.map(task => ({
         ...task,
-        // Ensure metrics exist (they should from backend)
         metrics: task.metrics || useBackendMetrics(task)
       }));
       
@@ -204,7 +201,6 @@ const useTasks = () => {
     }
   };
 
-  // Status change handler - UPDATED to handle backend metrics
   const handleStatusChange = async (taskId, newStatus) => {
     try {
       const token = getAuthToken();
@@ -353,7 +349,6 @@ const useTasks = () => {
     return () => clearInterval(interval);
   }, [tasks]);
 
-  // Filter and sort tasks - UPDATED to use backend metrics
   useEffect(() => {
     let result = [...tasks];
     
@@ -414,7 +409,6 @@ const useTasks = () => {
     setFilteredTasks(result);
   }, [tasks, searchQuery, sortBy, filters]);
 
-  // Update userTeacher state
   useEffect(() => {
     if (userRole?.role === 'teacher') {
       setUserTeacher(true);

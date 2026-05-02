@@ -1,20 +1,23 @@
 // Components/ThemesComponents/ThemeToggleButton.jsx
-import { Box, IconButton, Tooltip, Fade, alpha } from "@mui/material";
+import { Box, IconButton, Tooltip, Fade, alpha, useMediaQuery, useTheme } from "@mui/material";
 import { Palette, Close } from "@mui/icons-material";
 
 const ThemeToggleButton = ({ theme, onClick, isPickerOpen = false }) => {
+  const muiTheme = useTheme();
+  const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+
   return (
     <Fade in timeout={300}>
       <Box
         sx={{
           position: 'fixed',
-          bottom: 24,
-          right: 24,
+          bottom: { xs: 16, sm: 24 },
+          right: { xs: 12, sm: 24 },
           zIndex: 1000,
           '&:hover': {
             '& .theme-toggle-tooltip': {
-              opacity: 1,
-              transform: 'translateX(0)',
+              opacity: isMobile ? 0 : 1,
+              transform: isMobile ? 'translateY(-50%) translateX(-10px)' : 'translateX(0)',
             }
           }
         }}
@@ -27,7 +30,8 @@ const ThemeToggleButton = ({ theme, onClick, isPickerOpen = false }) => {
             right: 'calc(100% + 10px)',
             top: '50%',
             transform: 'translateY(-50%) translateX(-10px)',
-            opacity: 0,
+            opacity: isMobile ? 0 : 0,
+            display: { xs: 'none', sm: 'block' },
             transition: 'all 0.3s ease',
             pointerEvents: 'none',
           }}
@@ -54,8 +58,8 @@ const ThemeToggleButton = ({ theme, onClick, isPickerOpen = false }) => {
               ? theme.palette.error.main 
               : theme.palette.primary.main,
             color: theme.palette.primary.contrastText,
-            width: 56,
-            height: 56,
+            width: { xs: 48, sm: 56 },
+            height: { xs: 48, sm: 56 },
             borderRadius: '50%',
             boxShadow: isPickerOpen
               ? `0 4px 20px ${alpha(theme.palette.error.main, 0.3)}`
@@ -73,9 +77,9 @@ const ThemeToggleButton = ({ theme, onClick, isPickerOpen = false }) => {
           }}
         >
           {isPickerOpen ? (
-            <Close sx={{ fontSize: 24 }} />
+            <Close sx={{ fontSize: { xs: 20, sm: 24 } }} />
           ) : (
-            <Palette sx={{ fontSize: 24 }} />
+            <Palette sx={{ fontSize: { xs: 20, sm: 24 } }} />
           )}
         </IconButton>
       </Box>

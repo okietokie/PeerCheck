@@ -83,16 +83,6 @@ export default function Home() {
     satisfaction: 0
   });
 
-  // Helper functions for consistent styling
-  const getGlassEffect = () => ({
-    backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.15 : 0.95),
-    backdropFilter: 'blur(10px)',
-    border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-    boxShadow: theme.palette.mode === 'dark' 
-      ? '0 4px 24px rgba(0, 0, 0, 0.2)'
-      : '0 4px 20px rgba(0, 0, 0, 0.08)',
-  });
-
   const getCardBackground = () => ({
     backgroundColor: theme.palette.background.paper,
     border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
@@ -1310,7 +1300,7 @@ export default function Home() {
         theme={theme}
       />
 
-      {/* Update Review Dialog (if needed) */}
+      {/* Update Review Dialog */}
       {updateDialogOpen && selectedReview && (
         <ReviewDialog
           open={updateDialogOpen}

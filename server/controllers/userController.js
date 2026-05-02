@@ -157,13 +157,13 @@ export const existingPeerGroup = async ({ name, members }) => {
     }
 }
 
-// GET PROJECT BY ID 
+// get prj by id
 export const getProjectById = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.userId;
 
-    // Check if user is a member of the project
+    // check if user is a member of the project
     const project = await Project.findOne({
       _id: id,
       'members.user': userId
@@ -194,7 +194,7 @@ export const getProjectById = async (req, res) => {
   }
 }
 
-// Get dashboard stats
+// get dashboard stats
 export const getDashboardStats = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -220,14 +220,14 @@ export const getDashboardStats = async (req, res) => {
       ]
     });
     
-    // Calculate pending reviews (tasks assigned to user for review)
+    // pending reviews (tasks assigned to user for review)
     const pendingReviews = await Task.countDocuments({
       assignedTo: userId,
       'flags.manualReviewRequired': true,
       status: { $ne: 'completed' }
     });
     
-    // Calculate upcoming deadlines (within 7 days)
+    // upcoming deadlines (within 7 days)
     const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const upcomingDeadlines = await Task.countDocuments({
       assignedTo: userId,
@@ -235,7 +235,7 @@ export const getDashboardStats = async (req, res) => {
       status: { $ne: 'completed' }
     });
     
-    // Calculate average efficiency
+    // average efficiency
     const userTasks = await Task.find({ assignedTo: userId });
     const avgEfficiency = userTasks.length > 0
       ? userTasks.reduce((sum, task) => {
@@ -261,17 +261,17 @@ export const getDashboardStats = async (req, res) => {
   }
 };
 
-// Get recent activities
+// recent activities
 export const getRecentActivities = async (req, res) => {
   try {
     const userId = req.user.id;
     const limit = parseInt(req.query.limit) || 10;
     
-    // Get user's projects
+    // user's projects
     const projects = await Project.find({ createdBy: userId }).select('_id');
     const projectIds = projects.map(p => p._id);
     
-    // Get activities from user's projects and tasks
+    // activities from user's projects and tasks
     const activities = await TaskActivityEvent.find({
       $or: [
         { userId: userId },
@@ -283,7 +283,7 @@ export const getRecentActivities = async (req, res) => {
     .limit(limit);
     
     const formattedActivities = activities.map(activity => {
-      // Format activity message based on event type
+      // activity message based on event type
       let action = '';
       let details = '';
       
@@ -335,7 +335,7 @@ export const checkTourguideComplete = async (req, res) => {
     const { page } = req.params;
     let tourGuide = await TourGuideInfo.findOne({ user: userId });
 
-        // If user has no tour record → create it
+        // If user has no tour record -create
         if (!tourGuide) {
           tourGuide = await TourGuideInfo.create({
             user: userId,
@@ -343,7 +343,7 @@ export const checkTourguideComplete = async (req, res) => {
           });
         }
 
-        // If page key does NOT exist → create it
+        // If page key does NOT exist -create
         if (!tourGuide.status.has(page)) {
           tourGuide.status.set(page, false);
           await tourGuide.save();

@@ -73,7 +73,7 @@ const taskActivityEventSchema = new mongoose.Schema(
       required: true 
     },
 
-    // Additional data for different event types
+
     metadata: {
       // For status_changed
       oldStatus: String,

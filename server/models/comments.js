@@ -27,7 +27,7 @@ const commentsSchema = new mongoose.Schema({
             default: null
         }
 }, {
-    timestamps: true // This will add createdAt and updatedAt automatically
+    timestamps: true
 });
 
 const Comment = mongoose.model("Comment", commentsSchema);

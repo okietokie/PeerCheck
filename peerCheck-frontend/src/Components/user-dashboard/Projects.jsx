@@ -1,6 +1,6 @@
 // peerCheck-frontend/src/Components/user-dashboard/Projects.jsx
 import React, { useState, useEffect, useCallback, use } from 'react';
-import { Box, Typography, Button, TextField, InputAdornment, IconButton, Tooltip, Alert, Skeleton, Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, Select, FormControl, InputLabel, Avatar, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Checkbox, LinearProgress, Chip, alpha, useTheme, CircularProgress, Popover, Divider, FormControlLabel, Checkbox as MuiCheckbox, Card, Snackbar } from '@mui/material';
+import { Box, Typography, Button, TextField, InputAdornment, IconButton, Tooltip, Alert, Skeleton, Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, Select, FormControl, InputLabel, Avatar, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Checkbox, LinearProgress, Chip, alpha, useTheme, CircularProgress, Popover, Divider, FormControlLabel, Checkbox as MuiCheckbox, Card, Snackbar, Stack, useMediaQuery } from '@mui/material';
 
 import { Search, Add, Group, FilterList, Close, AddTask, CalendarToday, Grade, Delete, Tag, People, Assessment, AccessTime, CheckCircle, PauseCircle, PlayCircle, FlagOutlined, Flag, ViewModule, ArrowDropDown, TrendingUp, ViewList, RocketLaunch, Edit, School, Info, Handshake, Warning, Description, Person, PersonOff, WarningAmber, Email, Save, PlayCircleOutline, ArrowForward, ErrorOutline, ConfirmationNumber } from '@mui/icons-material';
 
@@ -14,6 +14,8 @@ import TourGuide from '../TourGuide';
 import { useEditor } from '@tiptap/react';
 import MemberEvaluationSummary from './ProjectComponents/MemberEvaluationSummary';
 import ReviewProjectModal from './ProjectComponents/ReviewProjectModel';
+
+const DASHBOARD_CARD_LIMIT = 10;
 
 // Helper to get auth token properly
 const getAuthToken = () => {
@@ -41,6 +43,7 @@ const getUserData = () => {
 // Create Project Modal Component
 const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
   const [formData, setFormData] = useState({
+    creationMode: 'peer',
     projectName: '',
     description: '',
     startDate: new Date().toISOString().split('T')[0],
@@ -109,6 +112,11 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
     };
 
     if (open) {
+      setFormData(prev => ({
+        ...prev,
+        creationMode: 'peer',
+        mentorId: ''
+      }));
       fetchUserTeams();
       setTags([]);
       setError('');
@@ -140,6 +148,12 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
         ...prev,
         [field]: weight,
         peerReviewWeight: 100 - (prev.taskCompletionWeight + weight)
+      }));
+    } else if (field === 'creationMode') {
+      setFormData(prev => ({
+        ...prev,
+        creationMode: value,
+        mentorId: value === 'peer' ? '' : prev.mentorId
       }));
     } else {
       setFormData(prev => ({ ...prev, [field]: value }));
@@ -197,6 +211,11 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
       setError('Please select a team for the project');
       return false;
     }
+
+    if (formData.creationMode === 'mentor' && !formData.mentorId) {
+      setError('Please choose a mentor for a mentor-guided project');
+      return false;
+    }
     
     // Validate weights sum to 100
     const totalWeight = formData.taskCompletionWeight + formData.peerReviewWeight + formData.teacherReviewWeight;
@@ -237,8 +256,8 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
         startDate: formData.startDate,
         deadline: formData.deadline,
         tags: tags,
-        mentorId: formData.mentorId || formData.mentorId === '' || 'none' ,
-        teamId: formData.teamId ? [formData.teamId] : [],
+        mentorId: formData.creationMode === 'mentor' ? formData.mentorId : null,
+        teamId: formData.teamId || '',
         teamName: selectedTeam?.teamName || selectedTeam?.name || 'Unnamed Team', 
         gradingCriteria: {
           taskCompletionWeight: formData.taskCompletionWeight,
@@ -393,6 +412,44 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
       <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
         {/* Form Fields using Flexbox */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <Box>
+            <FormControl fullWidth size="medium">
+              <InputLabel sx={{ fontFamily: '"Inter", sans-serif' }}>Project Type</InputLabel>
+              <Select
+                value={formData.creationMode}
+                onChange={handleChange('creationMode')}
+                label="Project Type"
+                disabled={loading}
+                sx={{
+                  borderRadius: 2,
+                  backgroundColor: theme.palette.background.paper,
+                  fontFamily: '"Inter", sans-serif',
+                }}
+              >
+                <MenuItem value="peer">
+                  <Box>
+                    <Typography variant="body2" fontWeight="600" sx={{ fontFamily: '"Inter", sans-serif' }}>
+                      Peer-led project
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontFamily: '"Inter", sans-serif' }}>
+                      No teacher required. The project creator becomes the default mentor and group leader.
+                    </Typography>
+                  </Box>
+                </MenuItem>
+                <MenuItem value="mentor">
+                  <Box>
+                    <Typography variant="body2" fontWeight="600" sx={{ fontFamily: '"Inter", sans-serif' }}>
+                      Mentor-guided project
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontFamily: '"Inter", sans-serif' }}>
+                      Choose a teacher or tutor to supervise the project.
+                    </Typography>
+                  </Box>
+                </MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+
           {/* Project Name */}
           <Box sx={{ position: 'relative' }}>
             <TextField
@@ -624,12 +681,14 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
           {/* Choose Your Mentor */}
           <Box sx={{ position: 'relative' }}>
             <FormControl fullWidth size="medium">
-              <InputLabel sx={{ fontFamily: '"Inter", sans-serif' }}>Choose Your Mentor</InputLabel>
+              <InputLabel sx={{ fontFamily: '"Inter", sans-serif' }}>
+                {formData.creationMode === 'mentor' ? 'Choose Your Mentor' : 'Project Leadership'}
+              </InputLabel>
               <Select
                 value={formData.mentorId || ''}
                 onChange={handleChange('mentorId')}
-                label="Choose Your Mentor"
-                disabled={loading || !mentors?.length}
+                label={formData.creationMode === 'mentor' ? 'Choose Your Mentor' : 'Project Leadership'}
+                disabled={loading || formData.creationMode === 'peer' || !mentors?.length}
                 sx={{ 
                   borderRadius: 2,
                   backgroundColor: theme.palette.background.paper,
@@ -652,13 +711,15 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
                   }
                 }}
               >
-                <MenuItem value="">
+                <MenuItem value="" disabled={formData.creationMode === 'mentor'}>
                   <Typography variant="body2" sx={{ 
                     fontStyle: 'italic',
                     color: theme.palette.text.secondary,
                     fontFamily: '"Inter", sans-serif',
                   }}>
-                    No mentor selected (optional)
+                    {formData.creationMode === 'peer'
+                      ? 'Peer-led project: creator will supervise by default'
+                      : 'Select a mentor'}
                   </Typography>
                 </MenuItem>
                 {mentors?.map(mentor => (
@@ -705,7 +766,20 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
             }}>
               <School fontSize="small" />
             </Box>
-            {!mentors?.length && (
+            {formData.creationMode === 'peer' && (
+              <Typography variant="caption" sx={{ 
+                color: theme.palette.info.main,
+                fontFamily: '"Inter", sans-serif',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.5,
+                mt: 1,
+                ml: 1
+              }}>
+                <Info fontSize="inherit" /> The teammate who creates this project will be shown as the mentor by default.
+              </Typography>
+            )}
+            {formData.creationMode === 'mentor' && !mentors?.length && (
               <Typography variant="caption" sx={{ 
                 color: theme.palette.warning.main,
                 fontFamily: '"Inter", sans-serif',
@@ -1179,23 +1253,20 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
   const [teamMembers, setTeamMembers] = useState([]);
   const [fetchingMembers, setFetchingMembers] = useState(false);
   const { addNotification } = useNotifications();
-  
-  // Set initial form data when editing
+
   useEffect(() => {
     if (mode === 'edit' && taskToEdit && open) {
-      // Convert estimatedTime from seconds to hours for display
       const estimatedHours = taskToEdit.estimatedTime / 3600;
-      
+
       setFormData({
         taskTitle: taskToEdit.taskTitle || '',
         description: taskToEdit.description || '',
         assignedTo: taskToEdit.assignedTo?._id || taskToEdit.assignedTo || '',
         deadline: taskToEdit.deadline ? new Date(taskToEdit.deadline).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         estimatedTime: estimatedHours.toFixed(1) || '',
-        estimatedTimeUnit: 'hours' // Default unit
+        estimatedTimeUnit: 'hours'
       });
     } else if (mode === 'create') {
-      // Reset form for create mode
       setFormData({
         taskTitle: '',
         description: '',
@@ -1207,7 +1278,33 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
     }
   }, [open, mode, taskToEdit]);
 
+  useEffect(() => {
+    const fetchTeamMembers = async () => {
+      if (!open || !project) return;
+      setFetchingMembers(true);
+      try {
+        teams.map(team => {
+          if (project.teamId._id === team._id) {
+            const members = team.members?.map(member => ({
+              id: member.user?._id,
+              username: member.user?.username
+            })) || [];
 
+            setTeamMembers(members);
+          }
+        });
+      } catch (err) {
+        console.error('Error fetching team members:', err);
+      } finally {
+        setFetchingMembers(false);
+      }
+    };
+
+    if (open && project) {
+      setError('');
+      fetchTeamMembers();
+    }
+  }, [open, project]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1253,6 +1350,7 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
         default:
           estimatedSeconds = timeValue * 60 * 60;
       }
+
       const taskData = {
         taskTitle: formData.taskTitle.trim(),
         description: formData.description.trim(),
@@ -1263,30 +1361,28 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
       };
 
       let response;
-      
       if (mode === 'edit' && taskToEdit) {
-        // Update existing task
         response = await axiosClient.put(`/user/task/update/${taskToEdit._id}`, taskData, {
-          headers: { 
+          headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
       } else {
-        // Create new task
         response = await axiosClient.post('/user/task/create', taskData, {
-          headers: { 
+          headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
       }
+
       if (response.data) {
         addNotification({
           _id: `temp_${Date.now()}`,
           type: 'task_created',
           title: mode === 'edit' ? 'Task Updated' : 'Task Created',
-          message: mode === 'edit' 
+          message: mode === 'edit'
             ? `Task "${formData.taskTitle}" updated successfully`
             : `Task "${formData.taskTitle}" created successfully`,
           read: false,
@@ -1300,7 +1396,6 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
       }
 
       onClose();
-      
     } catch (err) {
       console.error(`Error ${mode === 'edit' ? 'updating' : 'creating'} task:`, err);
       setError(err.response?.data?.error || err.message || `Failed to ${mode === 'edit' ? 'update' : 'create'} task`);
@@ -1309,42 +1404,11 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
     }
   };
 
-    useEffect(() => {
-    const fetchTeamMembers = async () => {
-      if (!open || !project) return;
-      setFetchingMembers(true);
-      try {
-
-        teams.map(team => {
-          if (project.teamId._id === team._id) {
-            const members = team.members?.map(member => ({
-              id: member.user?._id,
-              username: member.user?.username
-            })) || [];
-        
-        
-            setTeamMembers(members);
-          }
-        });
-        
-      } catch (err) {
-        console.error('Error fetching team members:', err);
-      } finally {
-        setFetchingMembers(false);
-      }
-    };
-
-    if (open && project) {
-      setError('');
-      fetchTeamMembers();
-    }
-  }, [open, project]);
-
   const getMemberDisplay = (member) => {
     if (!member || typeof member !== 'object') {
       return { id: '', name: 'Unknown Member', email: '' };
     }
-    
+
     return {
       id: member._id || member.id || '',
       name: member.username || member.fullName || member.name || 'Unknown Member',
@@ -1353,24 +1417,49 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
     };
   };
 
-  // Update the modal title based on mode
-  const getModalTitle = () => {
-    if (mode === 'edit') {
-      return 'Edit Task';
+  const isEditMode = mode === 'edit';
+  const accentColor = isEditMode ? theme.palette.info.main : theme.palette.primary.main;
+  const accentAltColor = theme.palette.secondary.main;
+  const sectionBorder = alpha(accentColor, 0.16);
+  const fieldBorder = alpha(accentColor, theme.palette.mode === 'dark' ? 0.34 : 0.22);
+  const panelBackground = alpha(theme.palette.background.default, theme.palette.mode === 'dark' ? 0.45 : 0.72);
+  const inputBackground = alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.86 : 0.96);
+
+  const fieldSx = {
+    '& .MuiOutlinedInput-root': {
+      borderRadius: 2,
+      backgroundColor: inputBackground,
+      fontFamily: '"Inter", sans-serif',
+      transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+      '& fieldset': {
+        borderColor: fieldBorder,
+      },
+      '&:hover fieldset': {
+        borderColor: alpha(accentColor, 0.4),
+      },
+      '&.Mui-focused fieldset': {
+        borderColor: accentColor,
+        borderWidth: 1.5,
+      },
+      '&.Mui-focused': {
+        boxShadow: `0 0 0 3px ${alpha(accentColor, 0.12)}`,
+      }
+    },
+    '& .MuiInputLabel-root': {
+      fontFamily: '"Inter", sans-serif',
+      fontWeight: 600,
     }
-    return 'Craft New Task';
   };
 
   const getButtonText = () => {
     if (loading) {
-      return mode === 'edit' ? 'Updating...' : 'Creating Magic...';
+      return mode === 'edit' ? 'Updating...' : 'Creating...';
     }
     if (fetchingMembers) return 'Loading...';
     if (teamMembers.length === 0) return 'Add Team First';
     return mode === 'edit' ? 'Update Task' : 'Create Task';
   };
 
-  // Update the JSX to show different icons based on mode
   const getHeaderIcon = () => {
     if (mode === 'edit') {
       return <Edit fontSize="medium" />;
@@ -1378,1018 +1467,617 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
     return <AddTask fontSize="medium" />;
   };
 
-  // Update the header gradient text
-  const getHeaderGradient = () => {
-    if (mode === 'edit') {
-      return `linear-gradient(45deg, ${theme.palette.info.main}, ${theme.palette.secondary.main})`;
-    }
-    return `linear-gradient(45deg, #FF6B8B, #8A2BE2, #4169E1)`;
-  };
-
-
-
-return (
-  <Dialog 
-    open={open} 
-    onClose={!loading ? onClose : undefined} 
-    maxWidth="sm" 
-    fullWidth
-    PaperProps={{ 
-      sx: {
-        borderRadius: 4,
-        backgroundColor: theme.palette.background.paper,
-        border: `2px solid ${alpha(theme.palette.mode === 'dark' ? '#444' : '#E6E6FA', 0.5)}`,
-        overflow: 'hidden',
-        backgroundImage: theme.palette.mode === 'dark' 
-          ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.98)} 0%, ${alpha('#8A2BE2', 0.08)} 50%, ${alpha('#FF6B8B', 0.05)} 100%)`
-          : `linear-gradient(135deg, ${alpha('#FFFFFF', 0.98)} 0%, ${alpha('#E6E6FA', 0.1)} 50%, ${alpha('#FFE4E1', 0.05)} 100%)`,
-        boxShadow: `0 25px 50px ${alpha(theme.palette.mode === 'dark' ? '#000' : '#8A2BE2', 0.15)}`,
-        position: 'relative',
-        '&::before': {
-          content: '""',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 5,
-          background: mode === 'edit' 
-            ? `linear-gradient(90deg, ${theme.palette.info.main}, ${theme.palette.secondary.main})`
-            : `linear-gradient(90deg, #FF6B8B, #8A2BE2, #4169E1)`,
-        }
-      }
-    }}
-  >
-    {/* Dialog Header */}
-    <DialogTitle sx={{ 
-      pb: 2,
-      pt: 3.5,
-      px: 4,
-      background: theme.palette.mode === 'dark' 
-        ? mode === 'edit'
-          ? `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.2)} 0%, ${alpha(theme.palette.secondary.main, 0.15)} 100%)`
-          : `linear-gradient(135deg, ${alpha('#8A2BE2', 0.2)} 0%, ${alpha('#4169E1', 0.15)} 100%)`
-        : mode === 'edit'
-          ? `linear-gradient(135deg, ${alpha(theme.palette.info.light, 0.3)} 0%, ${alpha(theme.palette.secondary.light, 0.2)} 100%)`
-          : `linear-gradient(135deg, ${alpha('#FFE4E1', 0.3)} 0%, ${alpha('#E6E6FA', 0.2)} 100%)`,
-      borderBottom: `1px solid ${alpha(theme.palette.mode === 'dark' ? '#8A2BE2' : '#E6E6FA', 0.3)}`,
-    }}>
-      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
-          <Box sx={{
-            width: 48,
-            height: 48,
-            borderRadius: 3,
-            background: mode === 'edit'
-              ? `linear-gradient(45deg, ${theme.palette.info.main}, ${theme.palette.secondary.main})`
-              : `linear-gradient(45deg, #FF6B8B, #8A2BE2)`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontSize: 22,
-            fontWeight: 'bold',
-            boxShadow: mode === 'edit'
-              ? `0 8px 20px ${alpha(theme.palette.info.main, 0.3)}`
-              : `0 8px 20px ${alpha('#FF6B8B', 0.3)}`,
-            position: 'relative',
-            overflow: 'hidden',
-            '&::after': {
-              content: '""',
-              position: 'absolute',
-              top: -50,
-              left: -50,
-              width: 80,
-              height: 80,
-              background: `linear-gradient(45deg, transparent, ${alpha('#FFF', 0.3)}, transparent)`,
-              transform: 'rotate(45deg)',
-              animation: 'shimmer 2s infinite',
-            },
-            '@keyframes shimmer': {
-              '0%': { transform: 'translateX(-100%) rotate(45deg)' },
-              '100%': { transform: 'translateX(200%) rotate(45deg)' },
-            }
-          }}>
-            {getHeaderIcon()}
-          </Box>
-          <Box>
-            <Typography variant="h5" fontWeight="800" sx={{ 
-              color: theme.palette.text.primary,
-              fontFamily: '"Pacifico", cursive',
-              background: getHeaderGradient(),
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              letterSpacing: '-0.5px',
-            }}>
-              {getModalTitle()}
-            </Typography>
-            <Typography variant="caption" sx={{ 
-              color: theme.palette.text.secondary,
-              fontFamily: '"Quicksand", sans-serif',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 0.5,
-              mt: 0.5,
-              fontSize: '0.85rem',
-              fontWeight: 500,
-            }}>
-              <Box component="span" sx={{ 
-                color: mode === 'edit' ? theme.palette.info.main : '#FF6B8B',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0.5
-              }}>
-                <RocketLaunch fontSize="inherit" />
-              </Box>
-              {mode === 'edit' ? 'Edit task in' : 'Add to'} <Box component="span" sx={{ fontWeight: 700, color: '#8A2BE2', ml: 0.5 }}>{project?.projectName || 'Untitled Project'}</Box>
-            </Typography>
-          </Box>
-        </Box>
-        <IconButton 
-          onClick={onClose} 
-          disabled={loading} 
-          size="medium"
-          sx={{
-            color: theme.palette.mode === 'dark' ? '#E6E6FA' : '#8A2BE2',
-            backgroundColor: alpha(theme.palette.mode === 'dark' ? '#8A2BE2' : '#E6E6FA', 0.15),
-            border: `1px solid ${alpha(theme.palette.mode === 'dark' ? '#8A2BE2' : '#E6E6FA', 0.3)}`,
-            borderRadius: 3,
-            '&:hover': {
-              backgroundColor: alpha('#FF6B8B', 0.2),
-              color: '#FF6B8B',
-              transform: 'rotate(90deg) scale(1.1)',
-              borderColor: alpha('#FF6B8B', 0.4),
-            },
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            width: 44,
-            height: 44,
-          }}
-        >
-          <Close />
-        </IconButton>
-      </Box>
-    </DialogTitle>
-    
-    {/* Dialog Content */}
-    <DialogContent dividers sx={{ 
-      pt: 4, 
-      px: 4,
-      background: theme.palette.mode === 'dark' 
-        ? `linear-gradient(135deg, ${alpha('#0F0F23', 0.4)} 0%, ${alpha('#1A1A2E', 0.5)} 100%)`
-        : `linear-gradient(135deg, ${alpha('#FAF9F6', 0.6)} 0%, ${alpha('#F5F5FF', 0.4)} 100%)`,
-    }}>
-      <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3.5 }}>
-          
-          {/* Task Title */}
-          <Box sx={{ position: 'relative' }}>
-            <TextField
-              fullWidth
-              label={
-                <Typography variant="body2" fontWeight="700" sx={{ 
-                  fontFamily: '"Quicksand", sans-serif',
-                  color: theme.palette.mode === 'dark' ? '#E6E6FA' : '#8A2BE2',
-                }}>
-                  Task Title
-                </Typography>
-              }
-              value={formData.taskTitle}
-              onChange={(e) => setFormData(prev => ({ ...prev, taskTitle: e.target.value }))}
-              disabled={loading}
-              required
-              size="medium"
-              placeholder="What needs to be done? Make it catchy!"
-              InputProps={{
-                sx: { 
-                  borderRadius: 3,
-                  backgroundColor: alpha(theme.palette.mode === 'dark' ? '#1A1A2E' : '#FFFFFF', 0.8),
-                  fontFamily: '"Quicksand", sans-serif',
-                  fontSize: '1rem',
-                  paddingLeft: 3,
-                  border: `2px solid ${alpha(theme.palette.mode === 'dark' ? '#8A2BE2' : '#E6E6FA', 0.3)}`,
-                  '&:hover': {
-                    borderColor: '#FF6B8B',
-                    backgroundColor: alpha(theme.palette.mode === 'dark' ? '#1A1A2E' : '#FFFFFF', 0.9),
-                  },
-                  '&.Mui-focused': {
-                    borderColor: '#8A2BE2',
-                    boxShadow: `0 0 0 3px ${alpha('#8A2BE2', 0.2)}`,
-                  }
-                }
-              }}
-            />
-            <Box sx={{
-              position: 'absolute',
-              right: 16,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: '#FF6B8B',
-              animation: 'pulse 2s infinite',
-              '@keyframes pulse': {
-                '0%, 100%': { transform: 'translateY(-50%) scale(1)' },
-                '50%': { transform: 'translateY(-50%) scale(1.1)' },
-              }
-            }}>
-              <Edit fontSize="small" />
-            </Box>
-          </Box>
-          
-          {/* Description */}
-          <Box sx={{ position: 'relative' }}>
-            <TextField
-              fullWidth
-              label={
-                <Typography variant="body2" fontWeight="700" sx={{ 
-                  fontFamily: '"Quicksand", sans-serif',
-                  color: theme.palette.mode === 'dark' ? '#E6E6FA' : '#4169E1',
-                }}>
-                  Description
-                </Typography>
-              }
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              multiline
-              rows={3}
-              disabled={loading}
-              placeholder="Describe it with details!"
-              InputProps={{
-                sx: { 
-                  borderRadius: 3,
-                  backgroundColor: alpha(theme.palette.mode === 'dark' ? '#1A1A2E' : '#FFFFFF', 0.8),
-                  fontFamily: '"Quicksand", sans-serif',
-                  fontSize: '0.95rem',
-                  paddingLeft: 3,
-                  border: `2px solid ${alpha(theme.palette.mode === 'dark' ? '#4169E1' : '#ADD8E6', 0.3)}`,
-                  '&:hover': {
-                    borderColor: '#4169E1',
-                  },
-                  '&.Mui-focused': {
-                    borderColor: '#4169E1',
-                    boxShadow: `0 0 0 3px ${alpha('#4169E1', 0.2)}`,
-                  }
-                }
-              }}
-            />
-            <Box sx={{
-              position: 'absolute',
-              right: 16,
-              top: 16,
-              color: '#4169E1',
-              opacity: 0.7,
-            }}>
-              <Description fontSize="small" />
-            </Box>
-          </Box>
-          
-          {/* Assign To */}
-          <Paper 
-            variant="outlined" 
-            sx={{ 
-              p: 3, 
-              borderRadius: 3,
-              backgroundColor: alpha(theme.palette.mode === 'dark' ? '#8A2BE2' : '#E6E6FA', 0.08),
-              border: `2px dashed ${alpha(theme.palette.mode === 'dark' ? '#8A2BE2' : '#8A2BE2', 0.3)}`,
-              backgroundImage: `radial-gradient(circle at 30% 50%, ${alpha('#FF6B8B', 0.05)} 0%, transparent 50%)`,
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-              <Box sx={{
-                width: 40,
-                height: 40,
-                borderRadius: '50%',
-                background: `linear-gradient(45deg, #8A2BE2, #4169E1)`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                fontSize: 18,
-                boxShadow: `0 4px 12px ${alpha('#8A2BE2', 0.4)}`,
-              }}>
-                <Person fontSize="small" />
-              </Box>
-              <Box>
-                <Typography variant="body1" fontWeight="700" sx={{ 
-                  color: theme.palette.mode === 'dark' ? '#E6E6FA' : '#8A2BE2',
-                  fontFamily: '"Quicksand", sans-serif',
-                }}>
-                  Assign To
-                </Typography>
-                <Typography variant="caption" sx={{ 
-                  color: theme.palette.text.secondary,
-                  fontFamily: '"Quicksand", sans-serif',
-                }}>
-                  Who's taking this on?
-                </Typography>
-              </Box>
-            </Box>
-            
-            <FormControl fullWidth required size="medium">
-              <Select
-                value={formData.assignedTo}
-                onChange={(e) => setFormData(prev => ({ ...prev, assignedTo: e.target.value }))}
-                disabled={loading || fetchingMembers || teamMembers.length === 0}
-                displayEmpty
-                sx={{ 
-                  borderRadius: 3,
-                  backgroundColor: alpha(theme.palette.mode === 'dark' ? '#1A1A2E' : '#FFFFFF', 0.9),
-                  fontFamily: '"Quicksand", sans-serif',
-                  border: `2px solid ${alpha('#8A2BE2', 0.2)}`,
-                  '&:hover': {
-                    borderColor: '#8A2BE2',
-                  },
-                  '& .MuiSelect-select': {
-                    paddingLeft: 3,
-                    paddingRight: 6,
-                  }
-                }}
-                MenuProps={{
-                  PaperProps: {
-                    sx: {
-                      borderRadius: 3,
-                      mt: 1,
-                      backgroundColor: theme.palette.background.paper,
-                      border: `2px solid ${alpha('#8A2BE2', 0.2)}`,
-                      boxShadow: `0 15px 30px ${alpha('#8A2BE2', 0.15)}`,
-                    }
-                  }
-                }}
-                renderValue={(selected) => {
-                  if (!selected) {
-                    return (
-                      <Typography sx={{ 
-                        color: theme.palette.text.secondary,
-                        fontFamily: '"Quicksand", sans-serif',
-                        fontStyle: 'italic',
-                      }}>
-                        Select a teammate
-                      </Typography>
-                    );
-                  }
-                  const member = teamMembers.find(m => getMemberDisplay(m).id === selected);
-                  if (member) {
-                    const memberInfo = getMemberDisplay(member);
-                    return (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Avatar 
-                          sx={{ 
-                            width: 32, 
-                            height: 32, 
-                            fontSize: 14,
-                            background: `linear-gradient(45deg, #FF6B8B, #8A2BE2)`,
-                            boxShadow: `0 3px 8px ${alpha('#FF6B8B', 0.3)}`,
-                          }}
-                        >
-                          {memberInfo.initial}
-                        </Avatar>
-                        <Typography sx={{ 
-                          fontFamily: '"Quicksand", sans-serif',
-                          fontWeight: 600,
-                        }}>
-                          {memberInfo.name}
-                        </Typography>
-                      </Box>
-                    );
-                  }
-                  return selected;
-                }}
-              >
-                {fetchingMembers ? (
-                  <MenuItem disabled value="">
-                    <Box sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      gap: 2,
-                      py: 3,
-                      width: '100%'
-                    }}>
-                      <CircularProgress size={24} sx={{ color: '#8A2BE2' }} />
-                      <Typography variant="body2" sx={{ 
-                        color: theme.palette.text.secondary,
-                        fontFamily: '"Quicksand", sans-serif',
-                      }}>
-                        Loading your squad...
-                      </Typography>
-                    </Box>
-                  </MenuItem>
-                ) : teamMembers.length === 0 ? (
-                  <MenuItem disabled value="">
-                    <Box sx={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 2,
-                      py: 2,
-                    }}>
-                      <Box sx={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: '50%',
-                        background: `linear-gradient(45deg, ${alpha('#FF6B8B', 0.1)}, ${alpha('#8A2BE2', 0.1)})`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: theme.palette.text.secondary,
-                      }}>
-                        <PersonOff fontSize="small" />
-                      </Box>
-                      <Box>
-                        <Typography variant="body2" sx={{ 
-                          fontFamily: '"Quicksand", sans-serif',
-                          fontWeight: 600,
-                        }}>
-                          No teammates yet!
-                        </Typography>
-                        <Typography variant="caption" sx={{ 
-                          color: theme.palette.text.secondary,
-                          fontFamily: '"Quicksand", sans-serif',
-                        }}>
-                          Add members to the project first
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </MenuItem>
-                ) : (
-                  teamMembers.map((member, index) => {
-                    const memberInfo = getMemberDisplay(member);
-                    return (
-                      <MenuItem 
-                        key={memberInfo.id || index} 
-                        value={memberInfo.id}
-                        sx={{
-                          py: 2,
-                          borderRadius: 2,
-                          margin: 1,
-                          '&:hover': {
-                            backgroundColor: alpha('#8A2BE2', 0.08),
-                            transform: 'translateX(5px)',
-                            transition: 'all 0.2s ease',
-                          },
-                          '&.Mui-selected': {
-                            backgroundColor: alpha('#8A2BE2', 0.12),
-                            '&:hover': {
-                              backgroundColor: alpha('#8A2BE2', 0.16),
-                            }
-                          }
-                        }}
-                      >
-                        <Box sx={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: 2.5,
-                          width: '100%'
-                        }}>
-                          <Avatar 
-                            sx={{ 
-                              width: 44, 
-                              height: 44, 
-                              fontSize: 16,
-                              fontWeight: 'bold',
-                              background: `linear-gradient(45deg, #FF6B8B, #8A2BE2)`,
-                              boxShadow: `0 4px 10px ${alpha('#FF6B8B', 0.3)}`,
-                              border: `2px solid ${alpha('#FFF', 0.3)}`,
-                            }}
-                          >
-                            {memberInfo.initial}
-                          </Avatar>
-                          <Box sx={{ flex: 1 }}>
-                            <Typography variant="body1" fontWeight="700" sx={{ 
-                              fontFamily: '"Quicksand", sans-serif',
-                              color: theme.palette.text.primary,
-                            }}>
-                              {memberInfo.name}
-                            </Typography>
-                            {memberInfo.email && (
-                              <Typography variant="caption" sx={{ 
-                                color: theme.palette.text.secondary,
-                                fontFamily: '"Quicksand", sans-serif',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 0.5
-                              }}>
-                                <Email fontSize="inherit" /> {memberInfo.email}
-                              </Typography>
-                            )}
-                          </Box>
-                          <Box sx={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: '50%',
-                            background: `linear-gradient(45deg, #FF6B8B, #8A2BE2)`,
-                            opacity: formData.assignedTo === memberInfo.id ? 1 : 0,
-                            transition: 'opacity 0.3s ease',
-                          }} />
-                        </Box>
-                      </MenuItem>
-                    );
-                  })
-                )}
-              </Select>
-            </FormControl>
-            
-            {teamMembers.length === 0 && !fetchingMembers && (
-              <Box sx={{ 
-                mt: 2, 
-                p: 2, 
-                borderRadius: 2,
-                backgroundColor: alpha('#FF6B8B', 0.08),
-                border: `1px solid ${alpha('#FF6B8B', 0.2)}`,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-              }}>
-                <WarningAmber fontSize="small" sx={{ color: '#FF6B8B' }} />
-                <Typography variant="caption" sx={{ 
-                  color: theme.palette.text.secondary,
-                  fontFamily: '"Quicksand", sans-serif',
-                  fontWeight: 500,
-                }}>
-                  Add team members to the project first to assign tasks
-                </Typography>
-              </Box>
-            )}
-          </Paper>
-          
-          {/* Deadline & Time Estimate */}
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: { xs: 'column', sm: 'row' },
-            gap: 3,
-          }}>
-            {/* Deadline Card */}
-            <Paper 
-              sx={{ 
-                flex: 1, 
-                p: 3, 
-                borderRadius: 3,
-                backgroundColor: alpha(theme.palette.mode === 'dark' ? '#4169E1' : '#ADD8E6', 0.1),
-                border: `2px solid ${alpha('#4169E1', 0.2)}`,
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5 }}>
-                <Box sx={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: '50%',
-                  background: `linear-gradient(45deg, #4169E1, #87CEEB)`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'white',
-                  fontSize: 18,
-                  boxShadow: `0 4px 12px ${alpha('#4169E1', 0.4)}`,
-                }}>
-                  <CalendarToday fontSize="small" />
-                </Box>
-                <Box>
-                  <Typography variant="body1" fontWeight="700" sx={{ 
-                    color: theme.palette.mode === 'dark' ? '#ADD8E6' : '#4169E1',
-                    fontFamily: '"Quicksand", sans-serif',
-                  }}>
-                    Deadline 
-                  </Typography>
-                  <Typography variant="caption" sx={{ 
-                    color: theme.palette.text.secondary,
-                    fontFamily: '"Quicksand", sans-serif',
-                  }}>
-                    When should it be done?
-                  </Typography>
-                </Box>
-              </Box>
-              
-              <TextField
-                fullWidth
-                type="date"
-                value={formData.deadline}
-                onChange={(e) => setFormData(prev => ({ ...prev, deadline: e.target.value }))}
-                disabled={loading}
-                required
-                size="medium"
-                InputProps={{
-                  sx: { 
-                    borderRadius: 3,
-                    backgroundColor: alpha(theme.palette.mode === 'dark' ? '#1A1A2E' : '#FFFFFF', 0.9),
-                    fontFamily: '"Quicksand", sans-serif',
-                    border: `2px solid ${alpha('#4169E1', 0.3)}`,
-                    '&:hover': {
-                      borderColor: '#4169E1',
-                    },
-                    '&.Mui-focused': {
-                      borderColor: '#4169E1',
-                      boxShadow: `0 0 0 3px ${alpha('#4169E1', 0.2)}`,
-                    }
-                  }
-                }}
-              />
-            </Paper>
-            
-            {/* Time Estimate Card */}
-            <Paper 
-              sx={{ 
-                flex: 1, 
-                p: 3, 
-                borderRadius: 3,
-                backgroundColor: alpha(theme.palette.mode === 'dark' ? '#FF6B8B' : '#FFB6C1', 0.1),
-                border: `2px solid ${alpha('#FF6B8B', 0.2)}`,
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5 }}>
-                <Box sx={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: '50%',
-                  background: `linear-gradient(45deg, #FF6B8B, #FFB6C1)`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'white',
-                  fontSize: 18,
-                  boxShadow: `0 4px 12px ${alpha('#FF6B8B', 0.4)}`,
-                }}>
-                  <AccessTime fontSize="small" />
-                </Box>
-                <Box>
-                  <Typography variant="body1" fontWeight="700" sx={{ 
-                    color: theme.palette.mode === 'dark' ? '#FFB6C1' : '#FF6B8B',
-                    fontFamily: '"Quicksand", sans-serif',
-                  }}>
-                    Time Estimate 
-                  </Typography>
-                  <Typography variant="caption" sx={{ 
-                    color: theme.palette.text.secondary,
-                    fontFamily: '"Quicksand", sans-serif',
-                  }}>
-                    How long will it take?
-                  </Typography>
-                </Box>
-              </Box>
-              
-              <Box sx={{ 
-                display: 'flex', 
-                gap: 2,
-                alignItems: 'center',
-                flexWrap: { xs: 'wrap', sm: 'nowrap' }  //wraps in mobile view
-              }}>                
-              <TextField
-                  fullWidth
-                  type="number"
-                  value={formData.estimatedTime}
-                  onChange={(e) => setFormData(prev => ({ ...prev, estimatedTime: e.target.value }))}
-                  disabled={loading}
-                  required
-                  size="medium"
-                  placeholder="e.g., 2.5"
-                  inputProps={{ 
-                    min: 0.1, 
-                    step: 0.1,
-                  }}
-                  InputProps={{
-                    sx: { 
-                      borderRadius: 3,
-                      backgroundColor: alpha(theme.palette.mode === 'dark' ? '#1A1A2E' : '#FFFFFF', 0.9),
-                      fontFamily: '"Quicksand", sans-serif',
-                      border: `2px solid ${alpha('#FF6B8B', 0.3)}`,
-                      '&:hover': {
-                        borderColor: '#FF6B8B',
-                      },
-                      '&.Mui-focused': {
-                        borderColor: '#FF6B8B',
-                        boxShadow: `0 0 0 3px ${alpha('#FF6B8B', 0.2)}`,
-                      },
-                      minHeight:'56px',
-                    }
-                  }}
-                  sx={{
-                    flex:2,
-                    minWidth: {xs: '100%', sm: '120px'}
-                  }}
-                />
-                
-                <FormControl sx={{ minWidth: {xs: '100%', sm: '140px'}, flex: 1 }} size="medium">
-                  <Select
-                    value={formData.estimatedTimeUnit}
-                    onChange={(e) => setFormData(prev => ({ ...prev, estimatedTimeUnit: e.target.value }))}
-                    disabled={loading}
-                    sx={{ 
-                      borderRadius: 3,
-                      backgroundColor: alpha(theme.palette.mode === 'dark' ? '#1A1A2E' : '#FFFFFF', 0.9),
-                      fontFamily: '"Quicksand", sans-serif',
-                      border: `2px solid ${alpha('#FF6B8B', 0.3)}`,
-                      '&:hover': {
-                        borderColor: '#FF6B8B',
-                      },
-                      height: '56px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      maxWidth:'4em',
-                    }}
-                    MenuProps={{
-                      PaperProps: {
-                        sx: {
-                          borderRadius: 3,
-                          backgroundColor: theme.palette.background.paper,
-                          border: `2px solid ${alpha('#FF6B8B', 0.2)}`,
-                        }
-                      }
-                    }}
-                  >
-                    <MenuItem value="minutes" sx={{ fontFamily: '"Quicksand", sans-serif' }}>Minutes</MenuItem>
-                    <MenuItem value="hours" sx={{ fontFamily: '"Quicksand", sans-serif' }}>Hours</MenuItem>
-                    <MenuItem value="days" sx={{ fontFamily: '"Quicksand", sans-serif' }}>Days</MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
-            </Paper>
-          </Box>
-          
-          {/* Error Message */}
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <Paper 
-                sx={{ 
-                  p: 3, 
-                  borderRadius: 3,
-                  backgroundColor: alpha('#FF6B8B', 0.08),
-                  border: `2px solid ${alpha('#FF6B8B', 0.3)}`,
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 2,
-                }}
-              >
-                <Box sx={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: '50%',
-                  background: `linear-gradient(45deg, #FF6B8B, #FF4500)`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'white',
-                  flexShrink: 0,
-                }}>
-                  <Warning fontSize="small" />
-                </Box>
-                <Box sx={{ flex: 1 }}>
-                  <Typography variant="body2" fontWeight="700" sx={{ 
-                    color: theme.palette.mode === 'dark' ? '#FFB6C1' : '#FF6B8B',
-                    fontFamily: '"Quicksand", sans-serif',
-                    mb: 0.5,
-                  }}>
-                    Oops! Something needs attention
-                  </Typography>
-                  <Typography variant="body2" sx={{ 
-                    color: theme.palette.text.secondary,
-                    fontFamily: '"Quicksand", sans-serif',
-                  }}>
-                    {error}
-                  </Typography>
-                </Box>
-                <IconButton 
-                  size="small" 
-                  onClick={() => setError('')}
-                  sx={{
-                    color: '#FF6B8B',
-                    '&:hover': {
-                      backgroundColor: alpha('#FF6B8B', 0.1),
-                    }
-                  }}
-                >
-                  <Close fontSize="small" />
-                </IconButton>
-              </Paper>
-            </motion.div>
-          )}
-        </Box>
-      </Box>
-    </DialogContent>
-    
-    {/* Dialog Actions */}
-    <DialogActions sx={{ 
-      px: 4, 
-      py: 3.5,
-      borderTop: `1px solid ${alpha(theme.palette.mode === 'dark' ? '#8A2BE2' : '#E6E6FA', 0.3)}`,
-      background: theme.palette.mode === 'dark' 
-        ? `linear-gradient(135deg, ${alpha('#0F0F23', 0.6)} 0%, ${alpha('#1A1A2E', 0.7)} 100%)`
-        : `linear-gradient(135deg, ${alpha('#FAF9F6', 0.8)} 0%, ${alpha('#F5F5FF', 0.6)} 100%)`,
-    }}>
-      <Button 
-        onClick={onClose} 
-        disabled={loading}
-        variant="outlined"
-        startIcon={<Close />}
-        sx={{
-          borderRadius: 3,
-          px: 4,
-          py: 1.5,
-          borderWidth: 2,
-          borderColor: alpha(theme.palette.mode === 'dark' ? '#8A2BE2' : '#8A2BE2', 0.4),
-          color: theme.palette.mode === 'dark' ? '#E6E6FA' : '#8A2BE2',
-          fontWeight: 700,
-          fontFamily: '"Quicksand", sans-serif',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
-          '&:hover': {
-            borderWidth: 2,
-            borderColor: '#FF6B8B',
-            color: '#FF6B8B',
-            backgroundColor: alpha('#FF6B8B', 0.04),
-            transform: 'translateY(-2px)',
-            boxShadow: `0 8px 20px ${alpha('#FF6B8B', 0.2)}`,
-          },
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          minWidth: 140,
-        }}
-      >
-        Cancel
-      </Button>
-      <Button
-        onClick={handleSubmit}
-        variant="contained"
-        disabled={loading || teamMembers.length === 0 || fetchingMembers}
-        startIcon={loading ? <CircularProgress size={22} color="inherit" /> : (mode === 'edit' ? <Save /> : <AddTask />)}
-        sx={{
-          borderRadius: 3,
-          px: 5,
-          py: 1.5,
-          fontWeight: 800,
-          fontSize: '1rem',
-          background: teamMembers.length === 0 || fetchingMembers
-            ? alpha(theme.palette.text.disabled, 0.3)
-            : mode === 'edit'
-              ? `linear-gradient(45deg, ${theme.palette.info.main}, ${theme.palette.secondary.main})`
-              : `linear-gradient(45deg, #FF6B8B, #8A2BE2, #4169E1)`,
-          color: 'white',
-          boxShadow: teamMembers.length === 0 || fetchingMembers
-            ? 'none'
-            : mode === 'edit'
-              ? `0 8px 25px ${alpha(theme.palette.info.main, 0.4)}`
-              : `0 8px 25px ${alpha('#8A2BE2', 0.4)}`,
-          fontFamily: '"Quicksand", sans-serif',
-          textTransform: 'uppercase',
-          letterSpacing: '1px',
-          position: 'relative',
+  return (
+    <Dialog
+      open={open}
+      onClose={!loading ? onClose : undefined}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 2,
+          backgroundColor: theme.palette.background.paper,
+          border: `1px solid ${sectionBorder}`,
           overflow: 'hidden',
-          '&:hover': {
-            boxShadow: teamMembers.length === 0 || fetchingMembers
-              ? 'none'
-              : mode === 'edit'
-                ? `0 12px 35px ${alpha(theme.palette.info.main, 0.6)}`
-                : `0 12px 35px ${alpha('#8A2BE2', 0.6)}`,
-            transform: teamMembers.length === 0 || fetchingMembers
-              ? 'none'
-              : 'translateY(-3px) scale(1.02)',
-            background: teamMembers.length === 0 || fetchingMembers
-              ? alpha(theme.palette.text.disabled, 0.3)
-              : mode === 'edit'
-                ? `linear-gradient(45deg, ${theme.palette.info.main}, ${theme.palette.secondary.main})`
-                : `linear-gradient(45deg, #FF6B8B, #8A2BE2, #4169E1)`,
-            '&::before': {
-              transform: 'translateX(100%)',
-            }
-          },
+          boxShadow: `0 18px 40px ${alpha(theme.palette.mode === 'dark' ? '#000' : accentColor, 0.18)}`,
+          position: 'relative',
           '&::before': {
             content: '""',
             position: 'absolute',
             top: 0,
-            left: -100,
-            width: '100%',
-            height: '100%',
-            background: `linear-gradient(90deg, transparent, ${alpha('#FFF', 0.2)}, transparent)`,
-            transition: 'transform 0.6s ease',
-          },
-          '&.Mui-disabled': {
-            background: alpha(theme.palette.text.disabled, 0.3),
-            color: alpha(theme.palette.text.disabled, 0.5),
-          },
-          transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-          minWidth: 180,
-        }}
-      >
-        {getButtonText()}
-      </Button>
-    </DialogActions>
-    {error && (
-  <motion.div
-    initial={{ opacity: 0, y: -20 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: -20 }}
-    transition={{ duration: 0.3 }}
-  >
-    <Snackbar
-      open={!!error}
-      autoHideDuration={6000}
-      onClose={() => setError('')}
-      anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      sx={{
-        top: { xs: 16, sm: 24 },
-        '& .MuiSnackbarContent-root': {
-          borderRadius: 3,
-          boxShadow: `0 8px 32px ${alpha(theme.palette.error.main, 0.25)}`,
+            left: 0,
+            right: 0,
+            height: 4,
+            background: `linear-gradient(90deg, ${accentColor}, ${accentAltColor})`,
+          }
         }
       }}
     >
-      <Alert
-        onClose={() => setError('')}
-        severity="error"
-        variant="filled"
-        icon={
-          <Box sx={{
-            width: 32,
-            height: 32,
-            borderRadius: '50%',
-            background: `linear-gradient(135deg, ${theme.palette.error.main}, ${theme.palette.error.dark})`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            mr: 1,
-            animation: 'pulse 2s infinite',
-            '@keyframes pulse': {
-              '0%, 100%': { transform: 'scale(1)' },
-              '50%': { transform: 'scale(1.1)' },
-            }
-          }}>
-            <WarningAmber sx={{ color: 'white', fontSize: 18 }} />
-          </Box>
-        }
+      <DialogTitle
         sx={{
-          width: '100%',
-          borderRadius: 3,
-          border: `1px solid ${alpha(theme.palette.error.main, 0.3)}`,
-          background: `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.95)} 0%, ${alpha(theme.palette.error.dark, 0.95)} 100%)`,
-          backdropFilter: 'blur(10px)',
-          color: 'white',
-          fontWeight: 600,
-          fontSize: '0.95rem',
-          fontFamily: '"Quicksand", sans-serif',
-          alignItems: 'center',
-          py: 2,
-          px: 3,
-          '& .MuiAlert-message': {
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-          },
-          '& .MuiAlert-action': {
-            padding: 0,
-            marginRight: 0,
-            alignItems: 'center',
-          }
+          pb: 2.5,
+          pt: 3,
+          px: 4,
+          backgroundColor: alpha(accentColor, theme.palette.mode === 'dark' ? 0.12 : 0.06),
+          borderBottom: `1px solid ${alpha(accentColor, 0.12)}`,
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
-          <Box sx={{
-            flexShrink: 0,
-            width: 40,
-            height: 40,
-            borderRadius: 2,
-            background: `linear-gradient(135deg, ${alpha('#fff', 0.15)} 0%, transparent 100%)`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: `1px solid ${alpha('#fff', 0.2)}`,
-          }}>
-            <ErrorOutline sx={{ fontSize: 20 }} />
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+            <Box
+              sx={{
+                width: 42,
+                height: 42,
+                borderRadius: 1.5,
+                background: `linear-gradient(135deg, ${accentColor}, ${accentAltColor})`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                boxShadow: `0 8px 20px ${alpha(accentColor, 0.24)}`,
+              }}
+            >
+              {getHeaderIcon()}
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="h6" fontWeight="700" sx={{ fontFamily: '"Inter", sans-serif', lineHeight: 1.2 }}>
+                {isEditMode ? 'Edit Task' : 'Create Task'}
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: theme.palette.text.secondary,
+                  fontFamily: '"Inter", sans-serif',
+                  display: 'flex',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 0.5,
+                  mt: 0.75,
+                }}
+              >
+                <RocketLaunch sx={{ fontSize: 16, color: accentColor }} />
+                {isEditMode ? 'Update task details for' : 'Create a new task for'}
+                <Box component="span" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+                  {project?.projectName || 'Untitled Project'}
+                </Box>
+              </Typography>
+            </Box>
           </Box>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="subtitle2" fontWeight="700" sx={{ mb: 0.5 }}>
-              Oops! Something went wrong
-            </Typography>
-            <Typography variant="body2" sx={{ opacity: 0.9 }}>
-              {error}
-            </Typography>
+          <IconButton
+            onClick={onClose}
+            disabled={loading}
+            size="medium"
+            sx={{
+              color: theme.palette.text.secondary,
+              backgroundColor: alpha(theme.palette.text.primary, 0.04),
+              border: `1px solid ${alpha(theme.palette.text.primary, 0.08)}`,
+              borderRadius: 1.5,
+              width: 40,
+              height: 40,
+              '&:hover': {
+                backgroundColor: alpha(accentColor, 0.1),
+                color: accentColor,
+                borderColor: alpha(accentColor, 0.2),
+              },
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <Close />
+          </IconButton>
+        </Box>
+      </DialogTitle>
+
+      <DialogContent dividers sx={{ pt: 3.5, px: 4, backgroundColor: theme.palette.background.paper }}>
+        <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <Box sx={{ position: 'relative' }}>
+              <TextField
+                fullWidth
+                label="Task Title"
+                value={formData.taskTitle}
+                onChange={(e) => setFormData(prev => ({ ...prev, taskTitle: e.target.value }))}
+                disabled={loading}
+                required
+                size="medium"
+                placeholder="Enter a concise task title"
+                sx={fieldSx}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  right: 16,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: alpha(accentColor, 0.8),
+                }}
+              >
+                <Edit fontSize="small" />
+              </Box>
+            </Box>
+
+            <Box sx={{ position: 'relative' }}>
+              <TextField
+                fullWidth
+                label="Description"
+                value={formData.description}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                multiline
+                rows={3}
+                disabled={loading}
+                placeholder="Add any context, expectations, or notes"
+                sx={fieldSx}
+              />
+              <Box sx={{ position: 'absolute', right: 16, top: 16, color: alpha(theme.palette.text.secondary, 0.9), opacity: 0.7 }}>
+                <Description fontSize="small" />
+              </Box>
+            </Box>
+
+            <Paper
+              variant="outlined"
+              sx={{
+                p: 3,
+                borderRadius: 2,
+                backgroundColor: panelBackground,
+                border: `1px solid ${sectionBorder}`,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                <Box
+                  sx={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 1.5,
+                    backgroundColor: alpha(accentColor, 0.12),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: accentColor,
+                  }}
+                >
+                  <Person fontSize="small" />
+                </Box>
+                <Box>
+                  <Typography variant="body1" fontWeight="700" sx={{ fontFamily: '"Inter", sans-serif' }}>
+                    Assign To
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontFamily: '"Inter", sans-serif' }}>
+                    Select the team member responsible for this task
+                  </Typography>
+                </Box>
+              </Box>
+
+              <FormControl fullWidth required size="medium">
+                <Select
+                  value={formData.assignedTo}
+                  onChange={(e) => setFormData(prev => ({ ...prev, assignedTo: e.target.value }))}
+                  disabled={loading || fetchingMembers || teamMembers.length === 0}
+                  displayEmpty
+                  sx={{
+                    borderRadius: 2,
+                    backgroundColor: inputBackground,
+                    fontFamily: '"Inter", sans-serif',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      borderColor: fieldBorder,
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      borderColor: alpha(accentColor, 0.4),
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      borderColor: accentColor,
+                    },
+                    '& .MuiSelect-select': {
+                      paddingLeft: 2,
+                      paddingRight: 6,
+                    }
+                  }}
+                  MenuProps={{
+                    PaperProps: {
+                      sx: {
+                        borderRadius: 2,
+                        mt: 1,
+                        backgroundColor: theme.palette.background.paper,
+                        border: `1px solid ${sectionBorder}`,
+                        boxShadow: `0 10px 24px ${alpha(accentColor, 0.12)}`,
+                      }
+                    }
+                  }}
+                  renderValue={(selected) => {
+                    if (!selected) {
+                      return (
+                        <Typography sx={{ color: theme.palette.text.secondary, fontFamily: '"Inter", sans-serif' }}>
+                          Select a teammate
+                        </Typography>
+                      );
+                    }
+                    const member = teamMembers.find(m => getMemberDisplay(m).id === selected);
+                    if (member) {
+                      const memberInfo = getMemberDisplay(member);
+                      return (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Avatar
+                            sx={{
+                              width: 32,
+                              height: 32,
+                              fontSize: 14,
+                              background: `linear-gradient(135deg, ${accentColor}, ${accentAltColor})`,
+                            }}
+                          >
+                            {memberInfo.initial}
+                          </Avatar>
+                          <Typography sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 600 }}>
+                            {memberInfo.name}
+                          </Typography>
+                        </Box>
+                      );
+                    }
+                    return selected;
+                  }}
+                >
+                  {fetchingMembers ? (
+                    <MenuItem disabled value="">
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, py: 3, width: '100%' }}>
+                        <CircularProgress size={24} sx={{ color: accentColor }} />
+                        <Typography variant="body2" sx={{ color: theme.palette.text.secondary, fontFamily: '"Inter", sans-serif' }}>
+                          Loading team members...
+                        </Typography>
+                      </Box>
+                    </MenuItem>
+                  ) : teamMembers.length === 0 ? (
+                    <MenuItem disabled value="">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 2 }}>
+                        <Box
+                          sx={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 1.5,
+                            backgroundColor: alpha(theme.palette.text.secondary, 0.08),
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: theme.palette.text.secondary,
+                          }}
+                        >
+                          <PersonOff fontSize="small" />
+                        </Box>
+                        <Box>
+                          <Typography variant="body2" sx={{ fontFamily: '"Inter", sans-serif', fontWeight: 600 }}>
+                            No team members available
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontFamily: '"Inter", sans-serif' }}>
+                            Add members to the project before assigning tasks
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </MenuItem>
+                  ) : (
+                    teamMembers.map((member, index) => {
+                      const memberInfo = getMemberDisplay(member);
+                      return (
+                        <MenuItem
+                          key={memberInfo.id || index}
+                          value={memberInfo.id}
+                          sx={{
+                            py: 1.75,
+                            borderRadius: 2,
+                            margin: 0.5,
+                            '&:hover': {
+                              backgroundColor: alpha(accentColor, 0.08),
+                            },
+                            '&.Mui-selected': {
+                              backgroundColor: alpha(accentColor, 0.12),
+                              '&:hover': {
+                                backgroundColor: alpha(accentColor, 0.16),
+                              }
+                            }
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, width: '100%' }}>
+                            <Avatar
+                              sx={{
+                                width: 44,
+                                height: 44,
+                                fontSize: 16,
+                                fontWeight: 'bold',
+                                background: `linear-gradient(135deg, ${accentColor}, ${accentAltColor})`,
+                              }}
+                            >
+                              {memberInfo.initial}
+                            </Avatar>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="body1" fontWeight="700" sx={{ fontFamily: '"Inter", sans-serif', color: theme.palette.text.primary }}>
+                                {memberInfo.name}
+                              </Typography>
+                              {memberInfo.email && (
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: theme.palette.text.secondary,
+                                    fontFamily: '"Inter", sans-serif',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 0.5
+                                  }}
+                                >
+                                  <Email fontSize="inherit" /> {memberInfo.email}
+                                </Typography>
+                              )}
+                            </Box>
+                            <Box
+                              sx={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: '50%',
+                                backgroundColor: accentColor,
+                                opacity: formData.assignedTo === memberInfo.id ? 1 : 0,
+                                transition: 'opacity 0.3s ease',
+                              }}
+                            />
+                          </Box>
+                        </MenuItem>
+                      );
+                    })
+                  )}
+                </Select>
+              </FormControl>
+
+              {teamMembers.length === 0 && !fetchingMembers && (
+                <Box
+                  sx={{
+                    mt: 2,
+                    p: 2,
+                    borderRadius: 2,
+                    backgroundColor: alpha(theme.palette.warning.main, 0.08),
+                    border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2,
+                  }}
+                >
+                  <WarningAmber fontSize="small" sx={{ color: theme.palette.warning.main }} />
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontFamily: '"Inter", sans-serif', fontWeight: 500 }}>
+                    Add team members to the project first to assign tasks
+                  </Typography>
+                </Box>
+              )}
+            </Paper>
+
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 3 }}>
+              <Paper
+                sx={{
+                  flex: 1,
+                  p: 3,
+                  borderRadius: 2,
+                  backgroundColor: panelBackground,
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5 }}>
+                  <Box
+                    sx={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 1.5,
+                      backgroundColor: alpha(theme.palette.primary.main, 0.12),
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: theme.palette.primary.main,
+                    }}
+                  >
+                    <CalendarToday fontSize="small" />
+                  </Box>
+                  <Box>
+                    <Typography variant="body1" fontWeight="700" sx={{ fontFamily: '"Inter", sans-serif' }}>
+                      Deadline
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontFamily: '"Inter", sans-serif' }}>
+                      Set the expected completion date
+                    </Typography>
+                  </Box>
+                </Box>
+
+                <TextField
+                  fullWidth
+                  type="date"
+                  label="Due Date"
+                  value={formData.deadline}
+                  onChange={(e) => setFormData(prev => ({ ...prev, deadline: e.target.value }))}
+                  disabled={loading}
+                  required
+                  size="medium"
+                  InputLabelProps={{ shrink: true }}
+                  sx={fieldSx}
+                />
+              </Paper>
+
+              <Paper
+                sx={{
+                  flex: 1,
+                  p: 3,
+                  borderRadius: 2,
+                  backgroundColor: panelBackground,
+                  border: `1px solid ${alpha(theme.palette.secondary.main, 0.14)}`,
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2.5 }}>
+                  <Box
+                    sx={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 1.5,
+                      backgroundColor: alpha(theme.palette.secondary.main, 0.12),
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: theme.palette.secondary.main,
+                    }}
+                  >
+                    <AccessTime fontSize="small" />
+                  </Box>
+                  <Box>
+                    <Typography variant="body1" fontWeight="700" sx={{ fontFamily: '"Inter", sans-serif' }}>
+                      Time Estimate
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontFamily: '"Inter", sans-serif' }}>
+                      Add the expected amount of work
+                    </Typography>
+                  </Box>
+                </Box>
+
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: { xs: 'wrap', sm: 'nowrap' } }}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Duration"
+                    value={formData.estimatedTime}
+                    onChange={(e) => setFormData(prev => ({ ...prev, estimatedTime: e.target.value }))}
+                    disabled={loading}
+                    required
+                    size="medium"
+                    placeholder="e.g. 2.5"
+                    inputProps={{
+                      min: 0.1,
+                      step: 0.1,
+                    }}
+                    sx={{
+                      ...fieldSx,
+                      flex: 2,
+                      minWidth: { xs: '100%', sm: '120px' }
+                    }}
+                  />
+
+                  <FormControl sx={{ minWidth: { xs: '100%', sm: '140px' }, flex: 1 }} size="medium">
+                    <Select
+                      value={formData.estimatedTimeUnit}
+                      onChange={(e) => setFormData(prev => ({ ...prev, estimatedTimeUnit: e.target.value }))}
+                      disabled={loading}
+                      sx={{
+                        borderRadius: 2,
+                        backgroundColor: inputBackground,
+                        fontFamily: '"Inter", sans-serif',
+                        minHeight: '56px',
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: alpha(theme.palette.secondary.main, 0.22),
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                          borderColor: alpha(theme.palette.secondary.main, 0.4),
+                        },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                          borderColor: theme.palette.secondary.main,
+                        },
+                      }}
+                      MenuProps={{
+                        PaperProps: {
+                          sx: {
+                            borderRadius: 2,
+                            backgroundColor: theme.palette.background.paper,
+                            border: `1px solid ${alpha(theme.palette.secondary.main, 0.14)}`,
+                          }
+                        }
+                      }}
+                    >
+                      <MenuItem value="minutes" sx={{ fontFamily: '"Inter", sans-serif' }}>Minutes</MenuItem>
+                      <MenuItem value="hours" sx={{ fontFamily: '"Inter", sans-serif' }}>Hours</MenuItem>
+                      <MenuItem value="days" sx={{ fontFamily: '"Inter", sans-serif' }}>Days</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+              </Paper>
+            </Box>
+
+            {error && (
+              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+                <Alert
+                  severity="error"
+                  onClose={() => setError('')}
+                  sx={{
+                    borderRadius: 2,
+                    border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`,
+                    backgroundColor: alpha(theme.palette.error.main, 0.08),
+                    '& .MuiAlert-message': {
+                      fontFamily: '"Inter", sans-serif',
+                    }
+                  }}
+                >
+                  {error}
+                </Alert>
+              </motion.div>
+            )}
           </Box>
         </Box>
-        <IconButton
-          size="small"
-          onClick={() => setError('')}
+      </DialogContent>
+
+      <DialogActions
+        sx={{
+          px: 4,
+          py: 3,
+          borderTop: `1px solid ${alpha(accentColor, 0.12)}`,
+          backgroundColor: alpha(theme.palette.background.default, theme.palette.mode === 'dark' ? 0.3 : 0.6),
+        }}
+      >
+        <Button
+          onClick={onClose}
+          disabled={loading}
+          variant="outlined"
+          startIcon={<Close />}
           sx={{
-            color: 'white',
-            backgroundColor: alpha('#fff', 0.15),
-            ml: 2,
+            borderRadius: 1.5,
+            px: 3.5,
+            py: 1.2,
+            borderColor: alpha(accentColor, 0.24),
+            color: theme.palette.text.primary,
+            fontWeight: 600,
+            fontFamily: '"Inter", sans-serif',
             '&:hover': {
-              backgroundColor: alpha('#fff', 0.25),
-              transform: 'rotate(90deg)',
+              borderColor: alpha(accentColor, 0.38),
+              backgroundColor: alpha(accentColor, 0.05),
             },
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            transition: 'all 0.2s ease',
+            minWidth: 140,
           }}
         >
-          <Close fontSize="small" />
-        </IconButton>
-      </Alert>
-    </Snackbar>
-  </motion.div>
-)}
-  </Dialog>
-);
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSubmit}
+          variant="contained"
+          disabled={loading || teamMembers.length === 0 || fetchingMembers}
+          startIcon={loading ? <CircularProgress size={22} color="inherit" /> : (mode === 'edit' ? <Save /> : <AddTask />)}
+          sx={{
+            borderRadius: 1.5,
+            px: 4,
+            py: 1.2,
+            fontWeight: 700,
+            fontSize: '0.95rem',
+            background: teamMembers.length === 0 || fetchingMembers
+              ? alpha(theme.palette.text.disabled, 0.3)
+              : isEditMode
+                ? `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.secondary.main})`
+                : `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+            color: theme.palette.primary.contrastText,
+            boxShadow: teamMembers.length === 0 || fetchingMembers ? 'none' : `0 10px 24px ${alpha(accentColor, 0.28)}`,
+            fontFamily: '"Inter", sans-serif',
+            '&:hover': {
+              boxShadow: teamMembers.length === 0 || fetchingMembers ? 'none' : `0 12px 28px ${alpha(accentColor, 0.34)}`,
+              background: teamMembers.length === 0 || fetchingMembers
+                ? alpha(theme.palette.text.disabled, 0.3)
+                : isEditMode
+                  ? `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.secondary.main})`
+                  : `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+            },
+            '&.Mui-disabled': {
+              background: alpha(theme.palette.text.disabled, 0.3),
+              color: alpha(theme.palette.text.disabled, 0.5),
+            },
+            transition: 'all 0.2s ease',
+            minWidth: 160,
+          }}
+        >
+          {getButtonText()}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
 };
 
 
@@ -2620,6 +2308,7 @@ const ProjectTableRow = ({
   onCreateTask,
   onReviewProject,
   userId,
+  mobile = false,
 }) => {
   const [teamAnchorEl, setTeamAnchorEl] = useState(null);
   const [tagsAnchorEl, setTagsAnchorEl] = useState(null);
@@ -2720,6 +2409,146 @@ const ProjectTableRow = ({
 
       fetchTeamMembers();
   }, [project]);
+
+  if (mobile) {
+    return (
+      <>
+        <Paper
+          onClick={() => navigate(`/user-app/my-project/${project._id}`)}
+          sx={{
+            p: 1.8,
+            mb: 1.5,
+            borderRadius: 3,
+            cursor: 'pointer',
+            border: `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
+            background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.98)} 0%, ${alpha(theme.palette.background.default, 0.55)} 100%)`,
+            boxShadow: `0 6px 20px ${alpha(theme.palette.mode === 'dark' ? '#000' : theme.palette.primary.main, 0.08)}`,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>
+            {project?.createdBy?._id === userId && (
+              <Checkbox
+                checked={isSelected}
+                onChange={(e) => onSelect(project._id, e.target.checked)}
+                onClick={(e) => e.stopPropagation()}
+                size="small"
+                sx={{ mt: -0.5 }}
+              />
+            )}
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 0.75 }}>
+                <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.3 }}>
+                  {project.projectName || 'Untitled Project'}
+                </Typography>
+                <Chip
+                  size="small"
+                  label={`${Math.round(healthScore)}% health`}
+                  sx={{
+                    height: 24,
+                    fontWeight: 700,
+                    backgroundColor: alpha(getHealthColor(healthScore), 0.12),
+                    color: getHealthColor(healthScore),
+                  }}
+                />
+              </Box>
+
+              {project.description && (
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', lineHeight: 1.5, mb: 1.1 }}>
+                  {project.description}
+                </Typography>
+              )}
+
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1, mb: 1.2 }}>
+                <Box>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.35 }}>Status</Typography>
+                  <Chip
+                    size="small"
+                    icon={getStatusIcon(project.status)}
+                    label={project.status ? project.status.replace('_', ' ').toUpperCase() : 'NOT STARTED'}
+                    sx={{
+                      width: '100%',
+                      justifyContent: 'flex-start',
+                      color: getStatusColor(project.status),
+                      borderColor: alpha(getStatusColor(project.status), 0.2),
+                      backgroundColor: alpha(getStatusColor(project.status), 0.08),
+                    }}
+                  />
+                </Box>
+                <Box>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.35 }}>Team</Typography>
+                  <Typography variant="body2" fontWeight={600} noWrap>{project.teamName || 'No team'}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.35 }}>Due</Typography>
+                  <Typography variant="body2" fontWeight={600}>{daysRemaining()}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.35 }}>Tags</Typography>
+                  <Typography variant="body2" fontWeight={600} noWrap>
+                    {project.tags?.slice(0, 2).join(', ') || 'No tags'}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <Box sx={{ p: 1.2, borderRadius: 2, backgroundColor: alpha(theme.palette.primary.main, 0.04), border: `1px solid ${alpha(theme.palette.primary.main, 0.08)}` }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.65 }}>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>Progress</Typography>
+                  <Typography variant="caption" fontWeight={700}>{project.progress || 0}%</Typography>
+                </Box>
+                <LinearProgress
+                  variant="determinate"
+                  value={project.progress || 0}
+                  sx={{
+                    height: 7,
+                    borderRadius: 999,
+                    backgroundColor: alpha(theme.palette.divider, 0.15),
+                    '& .MuiLinearProgress-bar': {
+                      background: `linear-gradient(90deg, ${getHealthColor(healthScore)} 0%, ${alpha(getHealthColor(healthScore), 0.8)} 100%)`,
+                    }
+                  }}
+                />
+              </Box>
+
+              <Stack direction="row" spacing={1} sx={{ mt: 1.4, flexWrap: 'wrap' }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/user-app/my-project/${project._id}`);
+                  }}
+                >
+                  Open
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCreateTask(project);
+                  }}
+                  disabled={project.status === 'COMPLETED' || project.createdBy?._id !== userId}
+                >
+                  Add Task
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="warning"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReviewProject(project);
+                  }}
+                >
+                  Review
+                </Button>
+              </Stack>
+            </Box>
+          </Box>
+        </Paper>
+      </>
+    );
+  }
   return (
 <>
   <Snackbar>
@@ -3347,6 +3176,7 @@ const ProjectTableRow = ({
 
 const Projects = () => {
   const theme = useTheme();
+  const isMobileTable = useMediaQuery(theme.breakpoints.down('md'));
   const navigate = useNavigate();
   const [user, setUser] = useState(getUserData() || null);
   const { addNotification } = useNotifications();
@@ -3365,6 +3195,8 @@ const Projects = () => {
   const [teams, setTeams] = useState([]);
   const [authError, setAuthError] = useState(false);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
+  const [insightDialog, setInsightDialog] = useState({ open: false, card: null });
+  const [activeProjectsView, setActiveProjectsView] = useState('recentlyStarted');
 
   // Check authentication
   const checkAuth = useCallback(() => {
@@ -3600,6 +3432,27 @@ const Projects = () => {
     setSelectedProjects(new Set());
   };
 
+  const openInsightDialog = (card) => {
+    setInsightDialog({ open: true, card });
+  };
+
+  const closeInsightDialog = () => {
+    setInsightDialog({ open: false, card: null });
+  };
+
+  const formatInsightDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch {
+      return 'Invalid date';
+    }
+  };
+
   const navigateToTeams = () => {
     navigate('/user-app/peerteams');
   };
@@ -3608,45 +3461,99 @@ const Projects = () => {
   const allSelected = filteredProjects.length > 0 && selectedProjects.size === filteredProjects.length;
 
   // Stats calculation
-  const activeProjects = projects.filter(p => p.status === 'ongoing' || p.status === 'active').length;
-  const atRiskProjects = projects.filter(p => {
-    const healthScore = p.metrics?.healthScore || p.metrics?.health?.healthScore || 100;
-    return healthScore < 40;
-  }).length;
+  const activeProjectList = projects.filter(p => p.status === 'ongoing' || p.status === 'active');
+  const activeProjects = activeProjectList.length;
+  const atRiskProjectList = projects
+    .map((project) => {
+      const healthScore = project.metrics?.healthScore || project.metrics?.health?.healthScore || 100;
+      const overdueTasks = project.metrics?.deadlineHealth?.overdueTasks || 0;
+      const riskyTasks = project.metrics?.projectRisk?.riskyTasks || 0;
+      const proofRate = project.metrics?.proofCompliance?.complianceRate ?? 100;
+      const progress = project.progress || project.metrics?.progress?.progress || 0;
+      const daysToDeadline = project.deadline
+        ? Math.ceil((new Date(project.deadline) - new Date()) / (1000 * 60 * 60 * 24))
+        : null;
+
+      const reasons = [];
+      if (healthScore < 40) reasons.push(`Health score is ${Math.round(healthScore)}%, which is below the safe zone.`);
+      if (overdueTasks > 0) reasons.push(`${overdueTasks} task${overdueTasks > 1 ? 's are' : ' is'} overdue.`);
+      if (riskyTasks > 0) reasons.push(`${riskyTasks} task${riskyTasks > 1 ? 's are' : ' is'} flagged as risky.`);
+      if (proofRate < 60) reasons.push(`Proof compliance is only ${Math.round(proofRate)}%.`);
+      if (daysToDeadline !== null && daysToDeadline >= 0 && daysToDeadline <= 7) reasons.push(`Deadline is coming up in ${daysToDeadline} day${daysToDeadline === 1 ? '' : 's'}.`);
+      if (progress < 35) reasons.push(`Progress is still at ${Math.round(progress)}%.`);
+
+      if (!reasons.length) return null;
+
+      return {
+        ...project,
+        riskSummary: reasons[0],
+        riskReasons: reasons,
+        healthScore
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      const scoreA = a.healthScore || 100;
+      const scoreB = b.healthScore || 100;
+      if (scoreA !== scoreB) return scoreA - scoreB;
+      return new Date(a.deadline || 0) - new Date(b.deadline || 0);
+    });
+  const atRiskProjects = atRiskProjectList.length;
   const totalProgress = projects.reduce((acc, p) => acc + (p.progress || 0), 0) / (projects.length || 1);
+
+  const recentlyStartedProjects = [...activeProjectList]
+    .sort((a, b) => new Date(b.startDate || b.createdAt || 0) - new Date(a.startDate || a.createdAt || 0))
+    .slice(0, DASHBOARD_CARD_LIMIT);
+
+  const dueSoonProjects = [...activeProjectList]
+    .filter(project => project.deadline)
+    .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
+    .slice(0, DASHBOARD_CARD_LIMIT);
+
+  const visibleActiveProjects = activeProjectsView === 'dueSoon' ? dueSoonProjects : recentlyStartedProjects;
+  const activeProjectsViewLabel = activeProjectsView === 'dueSoon'
+    ? 'Due Soon shows the 10 active projects with the nearest deadlines first.'
+    : 'Recently Started shows the 10 active projects that began most recently.';
+
+  const averageHealth = projects.length > 0
+    ? Math.round(projects.reduce((sum, project) => sum + (project.metrics?.healthScore || project.metrics?.health?.healthScore || 0), 0) / projects.length)
+    : 0;
 
   return (
     <Box sx={{ 
       minHeight: '100vh', 
-      p: { xs: 3, sm: 4, md: 5 },
+      p: { xs: 1.5, sm: 4, md: 5 },
       backgroundColor: theme.palette.background.default,
       background: `linear-gradient(135deg, ${alpha(theme.palette.background.default, 1)} 0%, ${alpha(theme.palette.primary.light, 0.03)} 100%)`,
     }}>
       {/* Header Section */}
-      <Box sx={{ mb: 6 }}>
+      <Box sx={{ mb: { xs: 4, sm: 6 } }}>
         <Box sx={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
-          alignItems: { xs: 'flex-start', sm: 'center' },
+          alignItems: { xs: 'stretch', sm: 'center' },
           mb: 4,
           flexDirection: { xs: 'column', sm: 'row' },
           gap: 3
         }}>
-          <Box>
+          <Box sx={{ minWidth: 0 }}>
             <Typography variant="h3" fontWeight="700" gutterBottom sx={{ 
               color: theme.palette.text.primary,
               background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
               backgroundClip: 'text',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
-              mb: 1
+              mb: 1,
+              fontSize: { xs: '2.3rem', sm: '3rem' },
+              lineHeight: 1.05,
             }}>
               Projects Dashboard
             </Typography>
             <Typography variant="h6" sx={{ 
               color: theme.palette.text.secondary,
               fontWeight: 400,
-              maxWidth: 600
+              maxWidth: 600,
+              fontSize: { xs: '1rem', sm: '1.25rem' },
             }}>
               Manage, track, and collaborate on all your team projects in one place
             </Typography>
@@ -3654,9 +3561,10 @@ const Projects = () => {
           
           <Box sx={{ 
             display: 'flex', 
-            gap: 2,
+            gap: 1.5,
             alignItems: 'center',
-            flexWrap: 'wrap'
+            flexWrap: 'wrap',
+            width: { xs: '100%', sm: 'auto' }
           }}>
             <Button
               variant="outlined"
@@ -3665,6 +3573,8 @@ const Projects = () => {
               sx={{
                 borderRadius: 2,
                 px: 3,
+                minHeight: 46,
+                width: { xs: '100%', sm: 'auto' },
                 borderColor: alpha(theme.palette.primary.main, 0.3),
                 '&:hover': {
                   borderColor: theme.palette.primary.main,
@@ -3685,6 +3595,8 @@ const Projects = () => {
                 borderRadius: 2,
                 px: 4,
                 py: 1.2,
+                minHeight: 46,
+                width: { xs: '100%', sm: 'auto' },
                 fontWeight: 600,
                 background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
                 boxShadow: `0 4px 20px ${alpha(theme.palette.primary.main, 0.3)}`,
@@ -3705,8 +3617,8 @@ const Projects = () => {
   <Box sx={{ 
     mb: 5,
     display: 'grid',
-    gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' },
-    gap: 2.5,
+    gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(4, 1fr)' },
+    gap: { xs: 1.5, sm: 2.5 },
     position: 'relative',
     '&::before': {
       content: '""',
@@ -3725,16 +3637,19 @@ const Projects = () => {
   }}>
     {[
       { 
+        id: 'total',
         label: 'Total Projects', 
         value: projects.length, 
         icon: <Group fontSize="small" />,
         color: theme.palette.primary.main,
         gradient: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.15)}, ${alpha(theme.palette.primary.main, 0.05)})`,
         hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.2)}, ${alpha(theme.palette.primary.main, 0.1)})`,
-        subtitle: 'All active projects',
-        progress: 100
+        subtitle: 'All projects you can access',
+        progress: 100,
+        helperText: 'Open for a quick portfolio snapshot and the 10 most recently updated projects.'
       },
       { 
+        id: 'active',
         label: 'Active Projects', 
         value: activeProjects, 
         icon: <PlayCircle fontSize="small" />,
@@ -3742,9 +3657,11 @@ const Projects = () => {
         gradient: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.12)}, ${alpha(theme.palette.success.main, 0.04)})`,
         hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.18)}, ${alpha(theme.palette.success.main, 0.08)})`,
         subtitle: 'Currently in progress',
-        progress: projects.length > 0 ? (activeProjects / projects.length) * 100 : 0
+        progress: projects.length > 0 ? (activeProjects / projects.length) * 100 : 0,
+        helperText: 'Open to compare the latest 10 active projects by recently started or due soon.'
       },
       { 
+        id: 'risk',
         label: 'At Risk', 
         value: atRiskProjects, 
         icon: <Assessment fontSize="small" />,
@@ -3752,9 +3669,11 @@ const Projects = () => {
         gradient: `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.12)}, ${alpha(theme.palette.warning.main, 0.04)})`,
         hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.18)}, ${alpha(theme.palette.warning.main, 0.08)})`,
         subtitle: atRiskProjects > 0 ? 'Needs attention' : 'All good',
-        progress: projects.length > 0 ? (atRiskProjects / projects.length) * 100 : 0
+        progress: projects.length > 0 ? (atRiskProjects / projects.length) * 100 : 0,
+        helperText: 'Open to see the riskiest 10 projects and why they need attention.'
       },
       { 
+        id: 'progress',
         label: 'Avg Progress', 
         value: `${Math.round(totalProgress)}%`, 
         icon: <TrendingUp fontSize="small" />,
@@ -3762,20 +3681,22 @@ const Projects = () => {
         gradient: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.12)}, ${alpha(theme.palette.info.main, 0.04)})`,
         hoverGradient: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.18)}, ${alpha(theme.palette.info.main, 0.08)})`,
         subtitle: 'Overall completion',
-        progress: totalProgress
+        progress: totalProgress,
+        helperText: 'Open to see the strongest movers and the slowest projects in the current portfolio.'
       }
-    ].map((stat, index) => (
+    ].map((stat) => (
       <Paper
         key={stat.label}
         elevation={0}
+        onClick={() => openInsightDialog(stat.id)}
         sx={{
-          p: 2.5,
+          p: { xs: 2, sm: 2.5 },
           borderRadius: 3,
           background: stat.gradient,
           border: `1.5px solid ${alpha(stat.color, 0.15)}`,
           position: 'relative',
           overflow: 'hidden',
-          cursor: 'default',
+          cursor: 'pointer',
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           '&:hover': {
             transform: 'translateY(-4px)',
@@ -3822,8 +3743,8 @@ const Projects = () => {
           <Box 
             className="stat-icon-wrapper"
             sx={{
-              width: 48,
-              height: 48,
+              width: { xs: 42, sm: 48 },
+              height: { xs: 42, sm: 48 },
               borderRadius: 2,
               display: 'flex',
               alignItems: 'center',
@@ -3889,7 +3810,7 @@ const Projects = () => {
               fontWeight: 500,
               color: theme.palette.mode === 'dark' ? alpha('#fff', 0.9) : alpha('#000', 0.8),
               letterSpacing: '0.5px',
-              fontSize: { xs: '0.9rem', sm: '1rem' },
+              fontSize: { xs: '0.92rem', sm: '1rem' },
             }}
           >
             {stat.label}
@@ -3910,6 +3831,22 @@ const Projects = () => {
           }}
         >
           {stat.subtitle}
+        </Typography>
+
+        <Typography
+          variant="caption"
+          sx={{
+            display: 'block',
+            mt: 1.5,
+            color: theme.palette.mode === 'dark' ? alpha('#fff', 0.72) : alpha('#000', 0.7),
+            fontFamily: '"Inter", sans-serif',
+            fontWeight: 500,
+            fontSize: '0.72rem',
+            lineHeight: 1.5,
+            minHeight: 32,
+          }}
+        >
+          {stat.helperText}
         </Typography>
         
         {/* Progress indicator */}
@@ -3937,11 +3874,335 @@ const Projects = () => {
   </Box>
 )}
 
+        <Dialog
+          open={insightDialog.open}
+          onClose={closeInsightDialog}
+          fullWidth
+          maxWidth="md"
+          PaperProps={{
+            sx: {
+              borderRadius: 4,
+              overflow: 'hidden',
+              background: `linear-gradient(180deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.background.default, 0.98)} 100%)`,
+              border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
+            }
+          }}
+        >
+          <DialogTitle sx={{ pb: 1.5 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'flex-start' }}>
+              <Box>
+                <Typography variant="h5" fontWeight={700}>
+                  {insightDialog.card === 'total' && 'Project Portfolio Overview'}
+                  {insightDialog.card === 'active' && 'Active Projects Overview'}
+                  {insightDialog.card === 'risk' && 'At Risk Projects'}
+                  {insightDialog.card === 'progress' && 'Progress Overview'}
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.75, color: theme.palette.text.secondary, maxWidth: 680 }}>
+                  {insightDialog.card === 'total' && 'This panel keeps the portfolio lightweight by surfacing just the latest 10 recently updated projects and a few headline metrics.'}
+                  {insightDialog.card === 'active' && activeProjectsViewLabel}
+                  {insightDialog.card === 'risk' && 'This view highlights the 10 projects that need attention most, along with the clearest reason each one was flagged.'}
+                  {insightDialog.card === 'progress' && 'This view summarizes how your portfolio is moving overall and calls out both strong momentum and slower-moving work.'}
+                </Typography>
+              </Box>
+              <IconButton onClick={closeInsightDialog} sx={{ mt: -0.5, mr: -1 }}>
+                <Close />
+              </IconButton>
+            </Box>
+          </DialogTitle>
+
+          <DialogContent dividers sx={{ px: { xs: 2, sm: 3 }, py: 3 }}>
+            {insightDialog.card === 'total' && (
+              <Stack spacing={2.5}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
+                  <Paper sx={{ p: 2.25, borderRadius: 3, backgroundColor: alpha(theme.palette.primary.main, 0.06), border: `1px solid ${alpha(theme.palette.primary.main, 0.12)}` }}>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>Projects visible to you</Typography>
+                    <Typography variant="h4" sx={{ mt: 0.8, fontWeight: 700 }}>{projects.length}</Typography>
+                  </Paper>
+                  <Paper sx={{ p: 2.25, borderRadius: 3, backgroundColor: alpha(theme.palette.success.main, 0.06), border: `1px solid ${alpha(theme.palette.success.main, 0.12)}` }}>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>Active right now</Typography>
+                    <Typography variant="h4" sx={{ mt: 0.8, fontWeight: 700 }}>{activeProjects}</Typography>
+                  </Paper>
+                  <Paper sx={{ p: 2.25, borderRadius: 3, backgroundColor: alpha(theme.palette.info.main, 0.06), border: `1px solid ${alpha(theme.palette.info.main, 0.12)}` }}>
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>Average health score</Typography>
+                    <Typography variant="h4" sx={{ mt: 0.8, fontWeight: 700 }}>{averageHealth}%</Typography>
+                  </Paper>
+                </Box>
+
+                <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 0.12)}` }}>
+                  <Typography variant="subtitle1" fontWeight={700}>Latest 10 projects updated</Typography>
+                  <Typography variant="body2" sx={{ mt: 0.5, mb: 2, color: theme.palette.text.secondary }}>
+                    This is the most recent slice of your portfolio, sorted by last update so the list stays useful even when the project count grows.
+                  </Typography>
+                  <Stack spacing={1.25}>
+                    {projects
+                      .slice()
+                      .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0))
+                      .slice(0, DASHBOARD_CARD_LIMIT)
+                      .map((project) => (
+                        <Paper
+                          key={project._id}
+                          onClick={() => navigate(`/user-app/my-project/${project._id}`)}
+                          sx={{
+                            p: 1.6,
+                            borderRadius: 2.5,
+                            cursor: 'pointer',
+                            border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
+                            '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.04) }
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'center' }}>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography fontWeight={700} noWrap>{project.projectName}</Typography>
+                              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                                Updated {formatInsightDate(project.updatedAt || project.createdAt)} • {project.teamName || project.teamId?.name || 'No team'}
+                              </Typography>
+                            </Box>
+                            <Chip size="small" label={`${Math.round(project.progress || 0)}%`} sx={{ fontWeight: 700 }} />
+                          </Box>
+                        </Paper>
+                      ))}
+                  </Stack>
+                </Paper>
+              </Stack>
+            )}
+
+            {insightDialog.card === 'active' && (
+              <Stack spacing={2.5}>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  <Button
+                    variant={activeProjectsView === 'recentlyStarted' ? 'contained' : 'outlined'}
+                    onClick={() => setActiveProjectsView('recentlyStarted')}
+                  >
+                    Recently Started
+                  </Button>
+                  <Button
+                    variant={activeProjectsView === 'dueSoon' ? 'contained' : 'outlined'}
+                    onClick={() => setActiveProjectsView('dueSoon')}
+                  >
+                    Due Soon
+                  </Button>
+                </Box>
+
+                <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 0.12)}` }}>
+                  <Typography variant="subtitle1" fontWeight={700}>Active completion rate</Typography>
+                  <Typography variant="body2" sx={{ mt: 0.5, mb: 1.75, color: theme.palette.text.secondary }}>
+                    This bar averages progress across all active projects, so you can tell whether work is moving overall instead of looking at one project in isolation.
+                  </Typography>
+                  <LinearProgress
+                    variant="determinate"
+                    value={activeProjects > 0 ? activeProjectList.reduce((sum, project) => sum + (project.progress || 0), 0) / activeProjects : 0}
+                    sx={{ height: 10, borderRadius: 999 }}
+                  />
+                  <Typography variant="caption" sx={{ display: 'block', mt: 1, color: theme.palette.text.secondary }}>
+                    {activeProjects > 0
+                      ? `${Math.round(activeProjectList.reduce((sum, project) => sum + (project.progress || 0), 0) / activeProjects)}% average progress across ${activeProjects} active projects`
+                      : 'No active projects at the moment'}
+                  </Typography>
+                </Paper>
+
+                <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 0.12)}` }}>
+                  <Typography variant="subtitle1" fontWeight={700}>Latest 10 active projects</Typography>
+                  <Typography variant="body2" sx={{ mt: 0.5, mb: 2, color: theme.palette.text.secondary }}>
+                    {activeProjectsViewLabel}
+                  </Typography>
+                  <Stack spacing={1.25}>
+                    {visibleActiveProjects.length > 0 ? visibleActiveProjects.map((project) => {
+                      const daysToDeadline = project.deadline ? Math.ceil((new Date(project.deadline) - new Date()) / (1000 * 60 * 60 * 24)) : null;
+                      return (
+                        <Paper
+                          key={project._id}
+                          onClick={() => navigate(`/user-app/my-project/${project._id}`)}
+                          sx={{
+                            p: 1.75,
+                            borderRadius: 2.5,
+                            cursor: 'pointer',
+                            border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
+                            '&:hover': { backgroundColor: alpha(theme.palette.success.main, 0.04) }
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'flex-start' }}>
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Typography fontWeight={700} noWrap>{project.projectName}</Typography>
+                              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mt: 0.25 }}>
+                                Started {formatInsightDate(project.startDate)} • Due {formatInsightDate(project.deadline)}
+                              </Typography>
+                              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mt: 0.4 }}>
+                                {daysToDeadline === null ? 'No deadline set' : daysToDeadline < 0 ? `${Math.abs(daysToDeadline)} days overdue` : daysToDeadline === 0 ? 'Due today' : `${daysToDeadline} days remaining`}
+                              </Typography>
+                            </Box>
+                            <Chip size="small" label={`${Math.round(project.progress || 0)}%`} color="success" variant="outlined" />
+                          </Box>
+                        </Paper>
+                      );
+                    }) : (
+                      <Alert severity="info">No active projects are available for this view right now.</Alert>
+                    )}
+                  </Stack>
+                </Paper>
+              </Stack>
+            )}
+
+            {insightDialog.card === 'risk' && (
+              <Stack spacing={2.5}>
+                <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 0.12)}` }}>
+                  <Typography variant="subtitle1" fontWeight={700}>Projects that need attention</Typography>
+                  <Typography variant="body2" sx={{ mt: 0.5, mb: 2, color: theme.palette.text.secondary }}>
+                    Only the latest 10 highest-priority risk items are shown here to keep the signal clear when the portfolio gets large.
+                  </Typography>
+                  <Stack spacing={1.5}>
+                    {atRiskProjectList.slice(0, DASHBOARD_CARD_LIMIT).map((project) => {
+                      const overdueTasks = project.metrics?.deadlineHealth?.overdueTasks || 0;
+                      const riskyTasks = project.metrics?.projectRisk?.riskyTasks || 0;
+                      const proofRate = Math.round(project.metrics?.proofCompliance?.complianceRate ?? 0);
+                      const progressValue = Math.round(project.progress || 0);
+                      const deadlineLabel = project.deadline ? formatInsightDate(project.deadline) : 'No deadline';
+
+                      return (
+                        <Paper
+                          key={project._id}
+                          onClick={() => navigate(`/user-app/my-project/${project._id}`)}
+                          sx={{
+                            p: 2.2,
+                            borderRadius: 3,
+                            cursor: 'pointer',
+                            border: `1px solid ${alpha(theme.palette.warning.main, 0.14)}`,
+                            background: `linear-gradient(135deg, ${alpha(theme.palette.warning.main, 0.05)} 0%, ${alpha(theme.palette.background.paper, 0.95)} 100%)`,
+                            transition: 'all 0.2s ease',
+                            '&:hover': {
+                              backgroundColor: alpha(theme.palette.warning.main, 0.08),
+                              borderColor: alpha(theme.palette.warning.main, 0.24),
+                              transform: 'translateY(-1px)',
+                            }
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, justifyContent: 'space-between' }}>
+                            <Box sx={{ minWidth: 0, flex: 1 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.9, flexWrap: 'wrap' }}>
+                                <Typography fontWeight={700} sx={{ fontSize: '1.02rem' }} noWrap>
+                                  {project.projectName}
+                                </Typography>
+                                <Chip
+                                  size="small"
+                                  label={`${Math.round(project.healthScore)}% health`}
+                                  sx={{
+                                    height: 24,
+                                    fontWeight: 700,
+                                    backgroundColor: alpha(theme.palette.warning.main, 0.16),
+                                    color: theme.palette.warning.dark,
+                                  }}
+                                />
+                              </Box>
+
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  color: theme.palette.text.primary,
+                                  fontWeight: 600,
+                                  lineHeight: 1.5,
+                                  mb: 1.25,
+                                }}
+                              >
+                                {project.riskSummary}
+                              </Typography>
+
+                              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.9, mb: 1.35 }}>
+                                <Chip size="small" variant="outlined" label={`Progress ${progressValue}%`} />
+                                <Chip size="small" variant="outlined" label={`Due ${deadlineLabel}`} />
+                                {overdueTasks > 0 && <Chip size="small" variant="outlined" label={`${overdueTasks} overdue`} />}
+                                {riskyTasks > 0 && <Chip size="small" variant="outlined" label={`${riskyTasks} risky tasks`} />}
+                                <Chip size="small" variant="outlined" label={`Proof ${proofRate}%`} />
+                              </Box>
+
+                              <Box
+                                sx={{
+                                  px: 1.25,
+                                  py: 1,
+                                  borderRadius: 2,
+                                  backgroundColor: alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.14 : 0.03),
+                                  border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
+                                }}
+                              >
+                                <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, color: theme.palette.text.secondary, mb: 0.5 }}>
+                                  Risk signals
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: theme.palette.text.primary, lineHeight: 1.65 }}>
+                                  {project.riskReasons.slice(0, 3).join(' • ')}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </Box>
+                        </Paper>
+                      );
+                    })}
+                    {atRiskProjectList.length === 0 && (
+                      <Alert severity="success">No projects are currently marked at risk.</Alert>
+                    )}
+                  </Stack>
+                </Paper>
+              </Stack>
+            )}
+
+            {insightDialog.card === 'progress' && (
+              <Stack spacing={2.5}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 2 }}>
+                  <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 0.12)}` }}>
+                    <Typography variant="subtitle1" fontWeight={700}>Portfolio completion</Typography>
+                    <Typography variant="h3" sx={{ mt: 1.2, mb: 1.2, fontWeight: 700 }}>{Math.round(totalProgress)}%</Typography>
+                    <LinearProgress variant="determinate" value={totalProgress} sx={{ height: 10, borderRadius: 999 }} />
+                  </Paper>
+                  <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 0.12)}` }}>
+                    <Typography variant="subtitle1" fontWeight={700}>Active vs at-risk</Typography>
+                    <Typography variant="body2" sx={{ mt: 1, color: theme.palette.text.secondary }}>
+                      {activeProjects} active projects are in motion, and {atRiskProjects} of all visible projects need attention right now.
+                    </Typography>
+                  </Paper>
+                </Box>
+
+                <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.divider, 0.12)}` }}>
+                  <Typography variant="subtitle1" fontWeight={700}>Top progress movers</Typography>
+                  <Typography variant="body2" sx={{ mt: 0.5, mb: 2, color: theme.palette.text.secondary }}>
+                    The list below shows the 10 highest-progress projects first so you can quickly spot momentum.
+                  </Typography>
+                  <Stack spacing={1.25}>
+                    {projects
+                      .slice()
+                      .sort((a, b) => (b.progress || 0) - (a.progress || 0))
+                      .slice(0, DASHBOARD_CARD_LIMIT)
+                      .map((project) => (
+                        <Paper
+                          key={project._id}
+                          onClick={() => navigate(`/user-app/my-project/${project._id}`)}
+                          sx={{
+                            p: 1.6,
+                            borderRadius: 2.5,
+                            cursor: 'pointer',
+                            border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
+                            '&:hover': { backgroundColor: alpha(theme.palette.info.main, 0.04) }
+                          }}
+                        >
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'center' }}>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography fontWeight={700} noWrap>{project.projectName}</Typography>
+                              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                                Health {Math.round(project.metrics?.healthScore || project.metrics?.health?.healthScore || 0)}% • Due {formatInsightDate(project.deadline)}
+                              </Typography>
+                            </Box>
+                            <Chip size="small" color="info" variant="outlined" label={`${Math.round(project.progress || 0)}%`} />
+                          </Box>
+                        </Paper>
+                      ))}
+                  </Stack>
+                </Paper>
+              </Stack>
+            )}
+          </DialogContent>
+        </Dialog>
+
         {/* Search and Filter Bar */}
         {!authError && (
           <Paper
             sx={{
-              p: 3,
+              p: { xs: 1.5, sm: 3 },
               borderRadius: 3,
               backgroundColor: theme.palette.background.paper,
               border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
@@ -3952,7 +4213,7 @@ const Projects = () => {
             <Box sx={{ 
               display: 'flex', 
               flexDirection: { xs: 'column', md: 'row' },
-              gap: 3,
+              gap: { xs: 1.5, md: 3 },
               alignItems: { md: 'center' }
             }}>
               <Box sx={{ flex: 1 }}>
@@ -3974,6 +4235,7 @@ const Projects = () => {
                     sx: {
                       borderRadius: 2,
                       backgroundColor: alpha(theme.palette.background.default, 0.8),
+                      minHeight: { xs: 50, sm: 'auto' },
                       '&:hover': {
                         backgroundColor: alpha(theme.palette.background.default, 0.9),
                       }
@@ -3992,9 +4254,10 @@ const Projects = () => {
               
               <Box sx={{ 
                 display: 'flex', 
-                gap: 2,
+                gap: 1.25,
                 alignItems: 'center',
-                flexWrap: 'wrap'
+                flexWrap: 'wrap',
+                width: { xs: '100%', md: 'auto' }
               }}>
                 {selectedProjects.size > 0 && (
                   <Chip
@@ -4018,7 +4281,7 @@ const Projects = () => {
                   />
                 )}
                 
-                <FormControl size="medium" sx={{ minWidth: 160 }}>
+                <FormControl size="medium" sx={{ minWidth: { xs: '100%', sm: 160 }, flex: { xs: '1 1 100%', sm: '0 0 auto' } }}>
                   <Select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
@@ -4047,6 +4310,7 @@ const Projects = () => {
                     size="large"
                     sx={{
                       borderRadius: 2,
+                      width: { xs: '100%', sm: 'auto' },
                       backgroundColor: alpha(theme.palette.primary.main, 0.1),
                       color: theme.palette.primary.main,
                       '&:hover': {
@@ -4284,101 +4548,86 @@ const Projects = () => {
               )}
             </Box>
 
-            <TableContainer sx={{ maxHeight: 'calc(100vh - 400px)' }}>
-              <Table sx={{ minWidth: 900 }}>
-                <TableHead>
-                  <TableRow sx={{ 
-                    backgroundColor: alpha(theme.palette.primary.main, 0.03),
-                    '& th': {
-                      borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                      py: 2.5,
-                    }
-                  }}>
-                    <TableCell padding="checkbox">
-                      <Checkbox
-                        checked={allSelected}
-                        indeterminate={selectedProjects.size > 0 && !allSelected}
-                        onChange={(e) => handleSelectAll(e.target.checked)}
-                        sx={{
-                          '&.Mui-checked': {
-                            color: theme.palette.primary.main,
-                          }
-                        }}
+            {isMobileTable ? (
+              <Box sx={{ p: { xs: 1.25, sm: 2 } }}>
+                {filteredProjects.map((project) => (
+                  <ProjectTableRow
+                    key={project._id}
+                    project={project}
+                    isSelected={selectedProjects.has(project._id)}
+                    onSelect={handleSelectProject}
+                    theme={theme}
+                    teams={teams}
+                    onCreateTask={() => handleCreateTask(project)}
+                    onReviewProject={handleReviewProject}
+                    userId={user?._id}
+                    mobile
+                  />
+                ))}
+              </Box>
+            ) : (
+              <TableContainer
+                className="app-horizontal-scroll"
+                sx={{
+                  maxHeight: 'calc(100vh - 400px)',
+                  overflowX: 'auto',
+                  overflowY: 'auto',
+                  borderRadius: 2,
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.12)}`,
+                  backgroundColor: alpha(theme.palette.background.paper, 0.82),
+                  boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, theme.palette.mode === 'dark' ? 0.04 : 0.3)}`,
+                  '& .MuiTable-root': {
+                    minWidth: 900,
+                  }
+                }}
+              >
+                <Table sx={{ minWidth: 900 }}>
+                  <TableHead>
+                    <TableRow sx={{ 
+                      backgroundColor: alpha(theme.palette.primary.main, 0.03),
+                      '& th': {
+                        borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                        py: 2.5,
+                      }
+                    }}>
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          checked={allSelected}
+                          indeterminate={selectedProjects.size > 0 && !allSelected}
+                          onChange={(e) => handleSelectAll(e.target.checked)}
+                          sx={{
+                            '&.Mui-checked': {
+                              color: theme.palette.primary.main,
+                            }
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell><Typography variant="subtitle2" fontWeight="700" sx={{ color: theme.palette.text.primary, textTransform: 'uppercase', letterSpacing: 0.5 }}>Project Name</Typography></TableCell>
+                      <TableCell><Typography variant="subtitle2" fontWeight="700" sx={{ color: theme.palette.text.primary, textTransform: 'uppercase', letterSpacing: 0.5 }}>Actions</Typography></TableCell>
+                      <TableCell><Typography variant="subtitle2" fontWeight="700" sx={{ color: theme.palette.text.primary, textTransform: 'uppercase', letterSpacing: 0.5 }}>Team</Typography></TableCell>
+                      <TableCell><Typography variant="subtitle2" fontWeight="700" sx={{ color: theme.palette.text.primary, textTransform: 'uppercase', letterSpacing: 0.5 }}>Status</Typography></TableCell>
+                      <TableCell><Typography variant="subtitle2" fontWeight="700" sx={{ color: theme.palette.text.primary, textTransform: 'uppercase', letterSpacing: 0.5 }}>Tags</Typography></TableCell>
+                      <TableCell><Typography variant="subtitle2" fontWeight="700" sx={{ color: theme.palette.text.primary, textTransform: 'uppercase', letterSpacing: 0.5 }}>Progress & Health</Typography></TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredProjects.map((project) => (
+                      <ProjectTableRow
+                        key={project._id}
+                        project={project}
+                        isSelected={selectedProjects.has(project._id)}
+                        onSelect={handleSelectProject}
+                        theme={theme}
+                        teams={teams}
+                        onCreateTask={() => handleCreateTask(project)}
+                        onReviewProject={handleReviewProject}
+                        userId = {user?._id}
                       />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="subtitle2" fontWeight="700" sx={{ 
-                        color: theme.palette.text.primary,
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.5
-                      }}>
-                        Project Name
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="subtitle2" fontWeight="700" sx={{ 
-                        color: theme.palette.text.primary,
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.5
-                      }}>
-                        Actions
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="subtitle2" fontWeight="700" sx={{ 
-                        color: theme.palette.text.primary,
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.5
-                      }}>
-                        Team
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="subtitle2" fontWeight="700" sx={{ 
-                        color: theme.palette.text.primary,
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.5
-                      }}>
-                        Status
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="subtitle2" fontWeight="700" sx={{ 
-                        color: theme.palette.text.primary,
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.5
-                      }}>
-                        Tags
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="subtitle2" fontWeight="700" sx={{ 
-                        color: theme.palette.text.primary,
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.5
-                      }}>
-                        Progress & Health
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredProjects.map((project) => (
-                    <ProjectTableRow
-                      key={project._id}
-                      project={project}
-                      isSelected={selectedProjects.has(project._id)}
-                      onSelect={handleSelectProject}
-                      theme={theme}
-                      teams={teams}
-                      onCreateTask={() => handleCreateTask(project)}
-                      onReviewProject={handleReviewProject}
-                      userId = {user?._id}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
 
             {/* Table Footer */}
             {filteredProjects.length > 5 && (

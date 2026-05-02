@@ -346,8 +346,8 @@ const TodoButtonDialog = () => {
       <Box
         sx={{
           position: 'fixed',
-          left: 20,
-          bottom: 20,
+          left: { xs: 16, sm: 20 },
+          bottom: { xs: 16, sm: 20 },
           zIndex: 9999,
         }}
       >
@@ -379,10 +379,8 @@ const TodoButtonDialog = () => {
               onClick={handleOpen}
               sx={{
                 minWidth: 'auto',
-                width: 56,
-                height: 56,
-                bottom: 70,
-                right: -1,
+                width: { xs: 52, sm: 56 },
+                height: { xs: 52, sm: 56 },
                 borderRadius: '50%',
                 background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                 color: 'white',

@@ -18,6 +18,7 @@ import {
   Card,
   CardContent,
   Divider,
+  Button,
   IconButton,
   Collapse,
   List,
@@ -25,7 +26,8 @@ import {
   ListItemAvatar,
   ListItemText,
   Rating,
-  lighten
+  lighten,
+  useMediaQuery
 } from "@mui/material";
 import {
   ExpandMore,
@@ -49,6 +51,7 @@ import {
 import axiosClient from "@/api/axiosClient";
 
 const MemberEvaluationSummary = ({ projectId, theme }) => {
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [summary, setSummary] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -271,22 +274,68 @@ const MemberEvaluationSummary = ({ projectId, theme }) => {
             Team Performance Analysis
           </Typography>
 
-          <TableContainer component={Paper} variant="outlined">
-            <Table>
-              <TableHead sx={{ bgcolor: 'action.hover' }}>
-                <TableRow>
-                  <TableCell><strong>Rank</strong></TableCell>
-                  <TableCell><strong>Team Member</strong></TableCell>
-                  <TableCell align="center"><strong>Overall Score</strong></TableCell>
-                  <TableCell align="center"><strong>Project Evals</strong></TableCell>
-                  <TableCell align="center"><strong>Peer Reviews</strong></TableCell>
-                  <TableCell align="center"><strong>Details</strong></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {summary.map((member, index) => (
-                  <React.Fragment key={member.member._id}>
-                    <TableRow hover>
+          {isMobile ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {summary.map((member, index) => (
+                <Paper key={member.member._id} variant="outlined" sx={{ p: 1.75, borderRadius: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.25 }}>
+                    <Box>{getRankIcon(index)}</Box>
+                    <Avatar src={member.member.avatar} sx={{ width: 42, height: 42 }}>
+                      {member.member.name.charAt(0)}
+                    </Avatar>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography variant="body1" fontWeight="700">{member.member.name}</Typography>
+                      <Typography variant="caption" color="text.secondary">{member.member.email}</Typography>
+                    </Box>
+                    <Chip label={`${member.finalScore.toFixed(1)}/10`} color={getScoreColor(member.finalScore)} size="small" />
+                  </Box>
+
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1, mb: 1.25 }}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Project Evals</Typography>
+                      <Typography variant="body2" fontWeight="700">{member.totalProjectEvaluations}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Peer Reviews</Typography>
+                      <Typography variant="body2" fontWeight="700">{member.totalPeerReviews}</Typography>
+                    </Box>
+                  </Box>
+
+                  <Button
+                    size="small"
+                    onClick={() => toggleExpand(member.member._id)}
+                    endIcon={expandedMember === member.member._id ? <KeyboardArrowUp /> : <KeyboardArrowDown />}
+                  >
+                    {expandedMember === member.member._id ? 'Hide details' : 'Show details'}
+                  </Button>
+
+                  <Collapse in={expandedMember === member.member._id} timeout="auto" unmountOnExit>
+                    <Box sx={{ pt: 1.5 }}>
+                      <Typography variant="body2" sx={{ mb: 0.6 }}><strong>Project Evaluation:</strong> {member.projectEvaluationAverage?.toFixed(1)}/10</Typography>
+                      <Typography variant="body2" sx={{ mb: 0.6 }}><strong>Peer Review:</strong> {member.peerReviewAverage?.toFixed(1)}/5</Typography>
+                      <Typography variant="body2"><strong>Comments:</strong> {member.totalProjectComments || 0}</Typography>
+                    </Box>
+                  </Collapse>
+                </Paper>
+              ))}
+            </Box>
+          ) : (
+            <TableContainer component={Paper} variant="outlined">
+              <Table>
+                <TableHead sx={{ bgcolor: 'action.hover' }}>
+                  <TableRow>
+                    <TableCell><strong>Rank</strong></TableCell>
+                    <TableCell><strong>Team Member</strong></TableCell>
+                    <TableCell align="center"><strong>Overall Score</strong></TableCell>
+                    <TableCell align="center"><strong>Project Evals</strong></TableCell>
+                    <TableCell align="center"><strong>Peer Reviews</strong></TableCell>
+                    <TableCell align="center"><strong>Details</strong></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {summary.map((member, index) => (
+                    <React.Fragment key={member.member._id}>
+                      <TableRow hover>
                       <TableCell>
                         <Box display="flex" alignItems="center">
                           <Box sx={{ mr: 1 }}>
@@ -586,11 +635,12 @@ const MemberEvaluationSummary = ({ projectId, theme }) => {
                         </Collapse>
                       </TableCell>
                     </TableRow>
-                  </React.Fragment>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                    </React.Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
 
           {/* Note about evaluations */}
           <Alert severity="info" sx={{ mt: 2 }}>

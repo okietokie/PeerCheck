@@ -44,10 +44,6 @@ export const getSecurityStats = async (req, res) => {
     });
 
     
-    // // Recent suspicious activities (you can define your own criteria)
-    // const recentSuspicious = await LoginAttempt.find({ suspicious: true })
-    //   .sort({ createdAt: -1 })
-    //   .limit(5);
 
     res.json({
       totalLogins,
@@ -639,9 +635,7 @@ const generateProgressTrends = (projects, timeRange) => {
     
     // Calculate progress for this period
     const targetProgress = Math.round((100 / periods) * (i + 1));
-    
-    // For simplicity, we'll use actual progress from projects
-    // In a real app, you'd filter projects by creation date
+
     const actualProgress = projects.length > 0 
       ? projects.reduce((sum, proj) => sum + (proj.progress || 0), 0) / projects.length
       : targetProgress * 0.8;

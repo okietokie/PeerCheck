@@ -249,15 +249,12 @@ const useMyProject = (projectId, navigate, theme) => {
       </button>
     );
   }, [getThemeColor, getContrastColor]);
-  // Helper function to format date for input field
   const formatDateForInput = (dateString) => {
     if (!dateString) return '';
     try {
-      // If date is already in YYYY-MM-DD format, return it
       if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
         return dateString;
       }
-      // Otherwise parse and format it
       const date = new Date(dateString);
       return format(date, 'yyyy-MM-dd');
     } catch (error) {
@@ -266,7 +263,6 @@ const useMyProject = (projectId, navigate, theme) => {
     }
   };
 
-  // Helper function to convert from input format to ISO string
   const parseDateFromInput = (dateString) => {
     if (!dateString) return null;
     try {
