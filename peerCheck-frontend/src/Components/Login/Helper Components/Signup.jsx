@@ -27,7 +27,7 @@ import {
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import axiosClient from "@/api/axiosClient";
 import AuthShell from "../AuthShell";
 
@@ -59,6 +59,10 @@ const inputStyles = (theme) => ({
 });
 
 function calculateAge(birthDate) {
+  if (!(birthDate instanceof Date) || !isValid(birthDate)) {
+    return null;
+  }
+
   const today = new Date();
   let age = today.getFullYear() - birthDate.getFullYear();
   const monthDiff = today.getMonth() - birthDate.getMonth();
@@ -68,6 +72,63 @@ function calculateAge(birthDate) {
   }
 
   return age;
+}
+
+function validateSignupForm(formData, selectedDate) {
+  const errors = {};
+  const trimmedName = formData.name.trim();
+  const trimmedUsername = formData.username.trim();
+  const trimmedEmail = formData.email.trim();
+  const password = formData.password;
+  const computedAge = calculateAge(selectedDate);
+
+  if (!trimmedName) {
+    errors.name = "Full name is required.";
+  }
+
+  if (!trimmedUsername) {
+    errors.username = "Username is required.";
+  } else if (trimmedUsername.length < 3) {
+    errors.username = "Username must be at least 3 characters.";
+  }
+
+  if (!trimmedEmail) {
+    errors.email = "Email address is required.";
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+    errors.email = "Enter a valid email address.";
+  }
+
+  if (!selectedDate || !isValid(selectedDate)) {
+    errors.dob = "Choose a valid date of birth.";
+  } else if (computedAge === null) {
+    errors.dob = "Choose a valid date of birth.";
+  } else if (computedAge < 10) {
+    errors.dob = "You must be at least 10 years old to create an account.";
+  }
+
+  if (!password) {
+    errors.password = "Password is required.";
+  } else if (password.length < 8) {
+    errors.password = "Password must be at least 8 characters.";
+  }
+
+  if (!["student", "teacher"].includes(formData.role)) {
+    errors.role = "Choose a valid role.";
+  }
+
+  return errors;
+}
+
+function getSignupErrorMessage(error) {
+  if (error.response?.data?.message) {
+    return error.response.data.message;
+  }
+
+  if (error.request) {
+    return "We couldn't reach the server. Please check your connection and try again.";
+  }
+
+  return "Something went wrong while creating your account. Please try again.";
 }
 
 export default function Signup() {
@@ -81,6 +142,7 @@ export default function Signup() {
   });
   const [selectedDate, setSelectedDate] = useState(null);
   const [message, setMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const theme = useTheme();
@@ -88,32 +150,61 @@ export default function Signup() {
   const handleChange = (event) => {
     const { name, value } = event.target;
     setFormData((current) => ({ ...current, [name]: value }));
+    setFieldErrors((current) => ({ ...current, [name]: "" }));
+    if (message) {
+      setMessage("");
+    }
   };
 
   const handleDateChange = (date) => {
-    setSelectedDate(date);
+    const validDate = date instanceof Date && isValid(date) ? date : null;
+
+    setSelectedDate(validDate);
+    setFieldErrors((current) => ({ ...current, dob: "" }));
+    if (message) {
+      setMessage("");
+    }
+
     setFormData((current) => ({
       ...current,
-      dob: date ? format(date, "yyyy-MM-dd") : "",
+      dob: validDate ? format(validDate, "yyyy-MM-dd") : "",
     }));
   };
 
   const handleSignup = async (event) => {
     event.preventDefault();
-    setLoading(true);
     setMessage("");
+    const validationErrors = validateSignupForm(formData, selectedDate);
+
+    if (Object.keys(validationErrors).length > 0) {
+      setFieldErrors(validationErrors);
+      setMessage("Please correct the highlighted fields and try again.");
+      return;
+    }
+
+    setLoading(true);
+    setFieldErrors({});
 
     try {
-      const res = await axiosClient.post("/auth/register", formData);
+      const payload = {
+        ...formData,
+        name: formData.name.trim(),
+        username: formData.username.trim(),
+        email: formData.email.trim().toLowerCase(),
+      };
+
+      const res = await axiosClient.post("/auth/register", payload);
       navigate("/login", {
         state: { successMessage: res.data.message || "Account created successfully" },
       });
     } catch (error) {
-      setMessage(error.response?.data?.message || "Something went wrong");
+      setMessage(getSignupErrorMessage(error));
     } finally {
       setLoading(false);
     }
   };
+
+  const selectedAge = calculateAge(selectedDate);
 
   return (
     <AuthShell
@@ -153,6 +244,8 @@ export default function Signup() {
               value={formData.name}
               onChange={handleChange}
               autoComplete="name"
+              error={Boolean(fieldErrors.name)}
+              helperText={fieldErrors.name}
               sx={inputStyles(theme)}
               InputProps={{
                 startAdornment: (
@@ -171,6 +264,8 @@ export default function Signup() {
               value={formData.username}
               onChange={handleChange}
               autoComplete="username"
+              error={Boolean(fieldErrors.username)}
+              helperText={fieldErrors.username}
               sx={inputStyles(theme)}
               InputProps={{
                 startAdornment: (
@@ -190,6 +285,8 @@ export default function Signup() {
               value={formData.email}
               onChange={handleChange}
               autoComplete="email"
+              error={Boolean(fieldErrors.email)}
+              helperText={fieldErrors.email}
               sx={inputStyles(theme)}
               InputProps={{
                 startAdornment: (
@@ -209,6 +306,8 @@ export default function Signup() {
                 textField: {
                   fullWidth: true,
                   required: true,
+                  error: Boolean(fieldErrors.dob),
+                  helperText: fieldErrors.dob,
                   sx: inputStyles(theme),
                   InputProps: {
                     startAdornment: (
@@ -221,9 +320,9 @@ export default function Signup() {
               }}
             />
 
-            {selectedDate ? (
+            {selectedDate && selectedAge !== null ? (
               <Typography sx={{ color: alpha(theme.palette.text.primary, 0.64), fontSize: "0.92rem", mt: -0.5 }}>
-                Age: {calculateAge(selectedDate)} years old
+                Age: {selectedAge} years old
               </Typography>
             ) : null}
 
@@ -236,7 +335,8 @@ export default function Signup() {
               value={formData.password}
               onChange={handleChange}
               autoComplete="new-password"
-              helperText="Use at least 8 characters for a stronger account."
+              error={Boolean(fieldErrors.password)}
+              helperText={fieldErrors.password || "Use at least 8 characters for a stronger account."}
               sx={inputStyles(theme)}
               InputProps={{
                 startAdornment: (
@@ -285,6 +385,11 @@ export default function Signup() {
                   }}
                 />
               </RadioGroup>
+              {fieldErrors.role ? (
+                <Typography sx={{ mt: 1, color: theme.palette.error.main, fontSize: "0.75rem" }}>
+                  {fieldErrors.role}
+                </Typography>
+              ) : null}
             </FormControl>
           </Stack>
 

@@ -12,26 +12,116 @@ import path from 'path';
 import TourGuideInfo from "../models/tourguideInfo.js";
 dotenv.config({ path: path.resolve('./server/.env') });
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const calculateAgeFromDate = (birthDate) => {
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age -= 1;
+  }
+
+  return age;
+};
+
+const validateRegistrationPayload = ({ name, username, email, dob, password, role }) => {
+  if (!name?.trim()) {
+    return "Full name is required.";
+  }
+
+  if (!username?.trim()) {
+    return "Username is required.";
+  }
+
+  if (username.trim().length < 3) {
+    return "Username must be at least 3 characters.";
+  }
+
+  if (!email?.trim()) {
+    return "Email is required.";
+  }
+
+  if (!EMAIL_REGEX.test(email.trim())) {
+    return "Please provide a valid email address.";
+  }
+
+  if (!password) {
+    return "Password is required.";
+  }
+
+  if (password.length < 8) {
+    return "Password must be at least 8 characters.";
+  }
+
+  if (!["student", "teacher"].includes(role)) {
+    return "Please choose a valid role.";
+  }
+
+  if (!dob) {
+    return "Date of birth is required.";
+  }
+
+  const parsedDob = new Date(dob);
+
+  if (Number.isNaN(parsedDob.getTime())) {
+    return "Please provide a valid date of birth.";
+  }
+
+  if (parsedDob > new Date()) {
+    return "Date of birth cannot be in the future.";
+  }
+
+  if (calculateAgeFromDate(parsedDob) < 10) {
+    return "You must be at least 10 years old to create an account.";
+  }
+
+  return null;
+};
 
 export const registerUser = async (req, res) => {
   try {
     const { name, username, email, dob, password, role } = req.body;  //contains info sent from the user 
+    const validationError = validateRegistrationPayload({ name, username, email, dob, password, role });
+
+    if (validationError) {
+      return res.status(400).json({ message: validationError });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedUsername = username.trim().toLowerCase();
+    const normalizedName = name.trim();
+    const parsedDob = new Date(dob);
+
     // Check if user exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) return res.status(400).json({ message: "Email already exists! Try logging in!" });
     //Check if username already exists
-    const existingUsername = await User.findOne({ username });
+    const existingUsername = await User.findOne({ username: normalizedUsername });
     if (existingUsername) return res.status(400).json({ message: "Username already exists! Please try a different one!" })
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
     //saving the user
-    const user = new User({ name, username, email, dob, password: hashedPassword, role });
+    const user = new User({
+      name: normalizedName,
+      username: normalizedUsername,
+      email: normalizedEmail,
+      dob: parsedDob,
+      password: hashedPassword,
+      role,
+    });
     await user.save();
     const tourInfo = new TourGuideInfo({user: user._id})
     await tourInfo.save();
 
     res.status(201).json({ message: "User registered successfully" });
   } catch (error) {
+    if (error?.name === "ValidationError") {
+      const firstError = Object.values(error.errors || {})[0];
+      return res.status(400).json({ message: firstError?.message || "Invalid registration details." });
+    }
+
     res.status(500).json({ message: "Server error" });
   }
 };
