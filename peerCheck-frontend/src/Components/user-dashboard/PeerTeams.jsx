@@ -40,7 +40,9 @@ import {
   Analytics,
   Chat,
   Warning,
-  Delete
+  Delete,
+  CheckCircle,
+  Cancel
 } from '@mui/icons-material';
 import axiosClient from '@/api/axiosClient';
 import TeamDetails from './PeerTeams/TeamDetails';
@@ -51,6 +53,7 @@ export default function PeerTeams() {
   const theme = useTheme();
   const [teams, setTeams] = useState([]);
   const [peerConnections, setPeerConnections] = useState([]);
+  const [pendingTeamInvites, setPendingTeamInvites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [createTeamDialog, setCreateTeamDialog] = useState(false);
@@ -100,6 +103,18 @@ export default function PeerTeams() {
       setPeerConnections(res.data.connections || []);
     } catch (error) {
       console.error(`Error fetching peer connections: ${error}`);
+    }
+  };
+
+  const fetchPendingTeamInvites = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axiosClient.get("/user/teams/invitations/pending", {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setPendingTeamInvites(res.data.invites || []);
+    } catch (error) {
+      console.error(`Error fetching pending team invites: ${error}`);
     }
   };
 
@@ -171,6 +186,28 @@ const deleteTeam = async (teamId) => {
   } catch (error) {
     console.error(`Error deleting team: ${error}`);
     setError('Failed to delete team');
+  }
+};
+
+const respondToTeamInvite = async (teamId, action) => {
+  if (!teamId) return;
+
+  try {
+    const token = localStorage.getItem("token");
+    const response = await axiosClient.post(
+      `/user/teams/${teamId}/invitations/${action}`,
+      {},
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+
+    setSuccess(
+      response?.data?.message ||
+      (action === 'accept' ? 'Team invitation accepted' : 'Team invitation rejected')
+    );
+    await Promise.all([fetchTeams(), fetchPendingTeamInvites()]);
+  } catch (error) {
+    console.error(`Error responding to team invite: ${error}`);
+    setError(error.response?.data?.message || 'Failed to update team invitation');
   }
 };
 
@@ -256,10 +293,94 @@ const deleteTeam = async (teamId) => {
     fetchTeams();
   };
 
+  const renderPendingInvitesSection = () => {
+    if (pendingTeamInvites.length === 0) return null;
+
+    return (
+      <Box sx={{ mb: 5 }}>
+        <Typography variant="h5" sx={{ fontWeight: 700, mb: 2, color: 'text.primary' }}>
+          Pending Team Invitations
+        </Typography>
+        <Typography variant="body1" sx={{ color: 'text.secondary', mb: 3 }}>
+          Accept or reject the teams that have invited you.
+        </Typography>
+
+        <Grid container spacing={3}>
+          {pendingTeamInvites.map((invite) => (
+            <Grid item xs={12} md={6} key={invite.teamId}>
+              <Card
+                sx={{
+                  p: 3,
+                  borderRadius: 4,
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
+                  background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.background.paper, 1)} 100%)`
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 2 }}>
+                  <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+                      {invite.teamName}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      {invite.memberCount} members
+                    </Typography>
+                  </Box>
+                  <Chip
+                    label="Invite Pending"
+                    color="warning"
+                    variant="outlined"
+                    sx={{ fontWeight: 600 }}
+                  />
+                </Box>
+
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 3 }}>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    Invited by <strong>{invite.invitedBy?.name || invite.leader?.name || 'Team leader'}</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    Team leader: <strong>{invite.leader?.name || 'Unknown'}</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    Sent {invite.invitedAt ? new Date(invite.invitedAt).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    }) : 'recently'}
+                  </Typography>
+                </Box>
+
+                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                  <Button
+                    variant="contained"
+                    color="success"
+                    startIcon={<CheckCircle />}
+                    onClick={() => respondToTeamInvite(invite.teamId, 'accept')}
+                    sx={{ borderRadius: 2, fontWeight: 600 }}
+                  >
+                    Accept
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<Cancel />}
+                    onClick={() => respondToTeamInvite(invite.teamId, 'reject')}
+                    sx={{ borderRadius: 2, fontWeight: 600 }}
+                  >
+                    Reject
+                  </Button>
+                </Box>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      </Box>
+    );
+  };
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([fetchTeams(), fetchPeerConnections()]);
+      await Promise.all([fetchTeams(), fetchPeerConnections(), fetchPendingTeamInvites()]);
       setLoading(false);
     };
     
@@ -279,7 +400,7 @@ const deleteTeam = async (teamId) => {
   }
 
   // No teams and no peer connections
-  if (teams.length === 0 && peerConnections.length === 0) {
+  if (teams.length === 0 && peerConnections.length === 0 && pendingTeamInvites.length === 0) {
     return (
       <Container maxWidth="md" sx={{ py: 8 }} className='peer-connections-preview'>
         {error && (
@@ -363,12 +484,17 @@ const deleteTeam = async (teamId) => {
   }
 
   // No teams but has peer connections
-  if (teams.length === 0 && peerConnections.length > 0) {
+  if (teams.length === 0 && (peerConnections.length > 0 || pendingTeamInvites.length > 0)) {
     return (
       <Container maxWidth="lg" sx={{ py: 6 }}>
         {error && (
           <Alert severity="error" sx={{ mb: 4 }} onClose={() => setError('')}>
             {error}
+          </Alert>
+        )}
+        {success && (
+          <Alert severity="success" sx={{ mb: 4 }} onClose={() => setSuccess('')}>
+            {success}
           </Alert>
         )}
 
@@ -381,6 +507,8 @@ const deleteTeam = async (teamId) => {
             Create your first team with your connections
           </Typography>
         </Box>
+
+        {renderPendingInvitesSection()}
 
         {/* Empty State with Connections */}
         <Grid container spacing={4}>
@@ -574,6 +702,11 @@ const deleteTeam = async (teamId) => {
           {error}
         </Alert>
       )}
+      {success && (
+        <Alert severity="success" sx={{ mb: 4 }} onClose={() => setSuccess('')}>
+          {success}
+        </Alert>
+      )}
 
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 6 }}>
@@ -600,6 +733,8 @@ const deleteTeam = async (teamId) => {
           Create Team
         </Button>
       </Box>
+
+      {renderPendingInvitesSection()}
 
       {/* Teams Grid */}
       <Box

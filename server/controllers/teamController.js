@@ -495,6 +495,68 @@ export const inviteToTeam = async (req, res) => {
   }
 };
 
+export const getPendingTeamInvites = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    const teams = await Team.find({
+      'pendingInvites.user': userId,
+      deletedAt: { $exists: false }
+    })
+      .populate('members', 'name username email course institution bio avatar skills year onlineStatus')
+      .populate('createdBy', 'name username email avatar')
+      .populate('pendingInvites.user', 'name username email avatar')
+      .populate('pendingInvites.invitedBy', 'name username email avatar')
+      .sort({ updatedAt: -1 });
+
+    const invites = teams
+      .map((team) => {
+        const pendingInvite = (team.pendingInvites || []).find(
+          (invite) => invite.user?._id?.toString() === userId.toString()
+        );
+
+        if (!pendingInvite) {
+          return null;
+        }
+
+        return {
+          teamId: team._id,
+          teamName: team.name,
+          createdAt: team.createdAt,
+          memberCount: team.members?.length || 0,
+          leader: team.createdBy ? {
+            _id: team.createdBy._id,
+            name: team.createdBy.name,
+            username: team.createdBy.username,
+            email: team.createdBy.email,
+            avatar: team.createdBy.avatar
+          } : null,
+          invitedBy: pendingInvite.invitedBy ? {
+            _id: pendingInvite.invitedBy._id,
+            name: pendingInvite.invitedBy.name,
+            username: pendingInvite.invitedBy.username,
+            email: pendingInvite.invitedBy.email,
+            avatar: pendingInvite.invitedBy.avatar
+          } : null,
+          invitedAt: pendingInvite.invitedAt
+        };
+      })
+      .filter(Boolean);
+
+    res.status(200).json({
+      success: true,
+      invites,
+      count: invites.length
+    });
+  } catch (err) {
+    console.error('Error fetching pending team invites:', err);
+    res.status(500).json({
+      success: false,
+      message: `Error fetching team invites: ${err.message}`
+    });
+  }
+};
+
 export const acceptTeamInvite = async (req, res) => {
   try {
     const { teamId } = req.params;

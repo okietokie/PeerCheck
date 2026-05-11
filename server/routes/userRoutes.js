@@ -96,6 +96,7 @@ router.put("/decline-request/:connectionId", connectionController.rejectRequest)
 router.delete("/remove-connection/:connectionId", connectionController.removeConnection); // remove connection
 // Team routes
 router.get('/teams', teamController.getUserTeams); // get user's teams
+router.get('/teams/invitations/pending', teamController.getPendingTeamInvites);
 router.post('/create-team', teamController.createTeam);  // create new team
 router.delete('/leave-team/:teamId', teamController.leaveTeam);  // leave team
 router.delete('/delete-team/:teamId', teamController.deleteTeam);
