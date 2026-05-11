@@ -3195,6 +3195,7 @@ const Projects = () => {
   const [teams, setTeams] = useState([]);
   const [authError, setAuthError] = useState(false);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'grid'
+  const [projectRulesOpen, setProjectRulesOpen] = useState(false);
   const [insightDialog, setInsightDialog] = useState({ open: false, card: null });
   const [activeProjectsView, setActiveProjectsView] = useState('recentlyStarted');
 
@@ -3583,6 +3584,26 @@ const Projects = () => {
               }}
             > 
               {viewMode === 'table' ? 'Grid View' : 'Table View'}
+            </Button>
+
+            <Button
+              variant="outlined"
+              onClick={() => setProjectRulesOpen(true)}
+              startIcon={<Info />}
+              sx={{
+                borderRadius: 2,
+                px: 3,
+                minHeight: 46,
+                width: { xs: '100%', sm: 'auto' },
+                borderColor: alpha(theme.palette.info.main, 0.34),
+                color: theme.palette.info.main,
+                '&:hover': {
+                  borderColor: theme.palette.info.main,
+                  backgroundColor: alpha(theme.palette.info.main, 0.06),
+                }
+              }}
+            >
+              Project Rules
             </Button>
             
             <Button
@@ -4659,6 +4680,119 @@ const Projects = () => {
       )}
 
       {/* Modals */}
+      <Dialog
+        open={projectRulesOpen}
+        onClose={() => setProjectRulesOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            backgroundColor: theme.palette.background.paper,
+            border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
+            backgroundImage: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.06)} 0%, ${alpha(theme.palette.background.paper, 1)} 100%)`
+          }
+        }}
+      >
+        <DialogTitle sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 2,
+          pb: 2
+        }}>
+          <Box>
+            <Typography variant="h5" fontWeight={700} sx={{ color: theme.palette.info.main }}>
+              Project Rules
+            </Typography>
+            <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mt: 0.5 }}>
+              Rules, restrictions, and collaboration guidance for all projects.
+            </Typography>
+          </Box>
+          <IconButton onClick={() => setProjectRulesOpen(false)}>
+            <Close />
+          </IconButton>
+        </DialogTitle>
+
+        <DialogContent dividers sx={{ px: 3, py: 3 }}>
+          <Stack spacing={2}>
+            <Alert severity="info">
+              <Typography variant="body2">
+                <strong>Project Access:</strong> Only users with valid project and team access should work inside a project. Project visibility depends on the team and collaboration context attached to it.
+              </Typography>
+            </Alert>
+
+            <Alert severity="info">
+              <Typography variant="body2">
+                <strong>Project Creation:</strong> New projects should be created under a real team so members, tasks, metrics, and collaboration activity stay linked to the correct workspace.
+              </Typography>
+            </Alert>
+
+            <Alert severity="success">
+              <Typography variant="body2">
+                <strong>Shared Collaboration:</strong> Team projects are collaborative spaces. Members contribute through tasks, updates, proofs, progress tracking, peer review, and shared project health metrics.
+              </Typography>
+            </Alert>
+
+            <Alert severity="warning">
+              <Typography variant="body2">
+                <strong>Status Rules:</strong> A project status should match reality. Use ongoing or active for live work, paused or on hold when work is halted, and completed only when the project is actually finished.
+              </Typography>
+            </Alert>
+
+            <Alert severity="warning">
+              <Typography variant="body2">
+                <strong>Date Restrictions:</strong> Start date and deadline must be valid in order. Deadlines should always come after the start date and should be realistic for the scope of work.
+              </Typography>
+            </Alert>
+
+            <Alert severity="warning">
+              <Typography variant="body2">
+                <strong>Task Restrictions:</strong> Tasks should be created and maintained in ways that respect project ownership, team membership, and current project status. Completed projects should not keep receiving normal active work items.
+              </Typography>
+            </Alert>
+
+            <Alert severity="info">
+              <Typography variant="body2">
+                <strong>Review Rules:</strong> If peer review or mentor review is enabled, grading criteria and review weights should stay balanced and meaningful so evaluations remain fair and usable.
+              </Typography>
+            </Alert>
+
+            <Alert severity="error">
+              <Typography variant="body2">
+                <strong>Membership Dependency:</strong> Project access is tied to team participation. If someone loses the relevant team relationship, their continued project privileges should be treated as limited by those team rules.
+              </Typography>
+            </Alert>
+
+            <Alert severity="error">
+              <Typography variant="body2">
+                <strong>Ownership Boundaries:</strong> Sensitive project actions such as structural edits, task control, and assessment-related workflows should stay within the permission boundaries already enforced by project ownership and team roles.
+              </Typography>
+            </Alert>
+
+            <Alert severity="success">
+              <Typography variant="body2">
+                <strong>Good Project Hygiene:</strong> Keep project names clear, descriptions accurate, tags useful, deadlines honest, and progress updated regularly so dashboards, risk signals, and health insights remain trustworthy.
+              </Typography>
+            </Alert>
+          </Stack>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, py: 2.5 }}>
+          <Button
+            variant="contained"
+            onClick={() => setProjectRulesOpen(false)}
+            sx={{
+              borderRadius: 2,
+              px: 3.5,
+              background: `linear-gradient(45deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <CreateProjectModal
         open={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
