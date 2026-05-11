@@ -20,7 +20,7 @@ import axiosClient from "@/api/axiosClient";
 import { useNavigate } from "react-router-dom";
 
 export default function ForgotPassword() {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -36,7 +36,7 @@ export default function ForgotPassword() {
     setMessage("");
 
     try {
-      const res = await axiosClient.post("/auth/forgot-password", { email });
+      const res = await axiosClient.post("/auth/forgot-password", { identifier });
       console.log("response:", res);
       setMessage(res.data.message);
       setSuccess(res.data.message);
@@ -171,7 +171,7 @@ export default function ForgotPassword() {
                     fontFamily: '"Inter", sans-serif',
                   }}
                 >
-                  Enter your email address and we'll send you a link to reset your password.
+                  Enter your email address or username and we'll send the reset link to the email on that account.
                 </Typography>
               </Box>
 
@@ -239,10 +239,10 @@ export default function ForgotPassword() {
                 <Box sx={{ mb: 3 }}>
                   <TextField
                     fullWidth
-                    type="email"
-                    label="Email Address"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    type="text"
+                    label="Email Address or Username"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
                     required
                     disabled={loading}
                     variant="outlined"

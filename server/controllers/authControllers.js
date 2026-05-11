@@ -14,6 +14,23 @@ dotenv.config({ path: path.resolve('./server/.env') });
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const normalizeIdentifier = (value = "") => value.trim().toLowerCase();
+
+const findUserByIdentifier = async (identifier) => {
+  const normalizedIdentifier = normalizeIdentifier(identifier);
+
+  if (!normalizedIdentifier) {
+    return null;
+  }
+
+  return User.findOne({
+    $or: [
+      { email: normalizedIdentifier },
+      { username: normalizedIdentifier },
+    ],
+  });
+};
+
 const calculateAgeFromDate = (birthDate) => {
   const today = new Date();
   let age = today.getFullYear() - birthDate.getFullYear();
@@ -128,18 +145,25 @@ export const registerUser = async (req, res) => {
 
 export const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    const identifier = req.body.identifier || req.body.email || req.body.username || "";
+    const password = req.body.password;
+    const normalizedIdentifier = normalizeIdentifier(identifier);
+
+    if (!normalizedIdentifier || !password) {
+      return res.status(400).json({ message: "Username or email and password are required." });
+    }
+
+    const user = await findUserByIdentifier(normalizedIdentifier);
     if (!user) {
       return res.status(400).json({ message: "User not found" });
     }
     if (user.status === "banned") {
-      await userData.create({email, status: "Failed", reason: "User not found"})
+      await userData.create({ email: user.email, status: "Failed", reason: "User banned" })
       return res.status(400).json({ message: "User is BANNED! We are so sorry! Do YOU think we made a mistake? Contact us via email!" });
     }
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      await userData.create({email, status: "Failed", reason: "Invalid credentials" });
+      await userData.create({ email: user.email, status: "Failed", reason: "Invalid credentials" });
       return res.status(400).json({ message: "Invalid credentials" });
     }  
     const token = jwt.sign({ id: user._id, username: user.username, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1d" });
@@ -148,9 +172,9 @@ export const loginUser = async (req, res) => {
       user._id,
       { $set: {onlineStatus: "active"}}
     )
-    await userData.create({email})
+    await userData.create({ email: user.email })
     //save into login_logs
-    const loginLog = new userData({email, status: "Success"});
+    const loginLog = new userData({ email: user.email, status: "Success" });
     await loginLog.save();
     const loggedInUser = await User.findById(user._id).select('-password')
 
@@ -163,8 +187,14 @@ export const loginUser = async (req, res) => {
 // Forgot Password
 export const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
-    const user = await User.findOne({ email });
+    const identifier = req.body.identifier || req.body.email || req.body.username || "";
+    const normalizedIdentifier = normalizeIdentifier(identifier);
+
+    if (!normalizedIdentifier) {
+      return res.status(400).json({ message: "Enter your username or email address." });
+    }
+
+    const user = await findUserByIdentifier(normalizedIdentifier);
     if (!user) return res.status(400).json({ message: "User not found" });
 
     const resetToken = crypto.randomBytes(20).toString("hex");

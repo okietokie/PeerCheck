@@ -50,7 +50,7 @@ const fieldStyles = (theme) => ({
 });
 
 export default function Login() {
-  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [formData, setFormData] = useState({ identifier: "", password: "" });
   const [message, setMessage] = useState("");
   const [messageSeverity, setMessageSeverity] = useState("error");
   const [loading, setLoading] = useState(false);
@@ -123,20 +123,20 @@ export default function Login() {
       </Typography>
 
       <Typography sx={{ mt: 1, mb: 3, color: alpha(theme.palette.text.primary, 0.7), lineHeight: 1.7 }}>
-        Use your email and password to continue where you left off.
+        Use your email or username with your password to continue where you left off.
       </Typography>
 
       <Box component="form" onSubmit={handleLogin}>
         <Stack spacing={2}>
           <TextField
-            label="Email address"
-            name="email"
-            type="email"
+            label="Email or username"
+            name="identifier"
+            type="text"
             fullWidth
             required
-            value={formData.email}
+            value={formData.identifier}
             onChange={handleChange}
-            autoComplete="email"
+            autoComplete="username"
             sx={fieldStyles(theme)}
             InputProps={{
               startAdornment: (
