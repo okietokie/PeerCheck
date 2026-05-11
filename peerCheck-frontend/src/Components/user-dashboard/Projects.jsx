@@ -4718,61 +4718,92 @@ const Projects = () => {
           <Stack spacing={2}>
             <Alert severity="info">
               <Typography variant="body2">
-                <strong>Project Access:</strong> Only users with valid project and team access should work inside a project. Project visibility depends on the team and collaboration context attached to it.
+                <strong>Who can see a project?</strong><br />
+                Only users with valid project and team access should work inside a project. Project visibility depends on the team and collaboration context attached to it.
               </Typography>
             </Alert>
 
             <Alert severity="info">
               <Typography variant="body2">
-                <strong>Project Creation:</strong> New projects should be created under a real team so members, tasks, metrics, and collaboration activity stay linked to the correct workspace.
+                <strong>Who can create a project?</strong><br />
+                A project should be created by an authorized user working under a valid team context. Projects are expected to belong to a real team so members, tasks, metrics, and collaboration activity stay linked to the correct workspace.
               </Typography>
             </Alert>
 
             <Alert severity="success">
               <Typography variant="body2">
-                <strong>Shared Collaboration:</strong> Team projects are collaborative spaces. Members contribute through tasks, updates, proofs, progress tracking, peer review, and shared project health metrics.
+                <strong>What happens once a project is created?</strong><br />
+                The project becomes a shared collaboration space for its team. Members contribute through tasks, updates, proofs, progress tracking, peer review, and project health activity.
               </Typography>
             </Alert>
 
             <Alert severity="warning">
               <Typography variant="body2">
-                <strong>Status Rules:</strong> A project status should match reality. Use ongoing or active for live work, paused or on hold when work is halted, and completed only when the project is actually finished.
+                <strong>Who can create tasks inside a project?</strong><br />
+                Task creation should follow the project ownership and permission boundaries already enforced by the system. In practice, tasks should be created only by users who have proper access to manage work inside that project.
               </Typography>
             </Alert>
 
             <Alert severity="warning">
               <Typography variant="body2">
-                <strong>Date Restrictions:</strong> Start date and deadline must be valid in order. Deadlines should always come after the start date and should be realistic for the scope of work.
+                <strong>Who can assign or update tasks?</strong><br />
+                Task assignment and task updates should be done only by users who are allowed to manage project work. These actions should respect team membership, task ownership, and the current project state.
               </Typography>
             </Alert>
 
             <Alert severity="warning">
               <Typography variant="body2">
-                <strong>Task Restrictions:</strong> Tasks should be created and maintained in ways that respect project ownership, team membership, and current project status. Completed projects should not keep receiving normal active work items.
+                <strong>Can tasks still be created if a project is completed?</strong><br />
+                Normally, no. Completed projects should not continue receiving regular active work items unless the project is intentionally moved back into an active working state.
               </Typography>
             </Alert>
 
             <Alert severity="info">
               <Typography variant="body2">
-                <strong>Review Rules:</strong> If peer review or mentor review is enabled, grading criteria and review weights should stay balanced and meaningful so evaluations remain fair and usable.
+                <strong>Who can participate in the project work?</strong><br />
+                Team members connected to the project are the intended collaborators. Their access and participation depend on the project’s team relationship and the permissions already enforced in the app.
+              </Typography>
+            </Alert>
+
+            <Alert severity="warning">
+              <Typography variant="body2">
+                <strong>What are the date rules for projects?</strong><br />
+                Start date and deadline must be valid in order. Deadlines should always come after the start date and should be realistic for the project scope.
+              </Typography>
+            </Alert>
+
+            <Alert severity="warning">
+              <Typography variant="body2">
+                <strong>How should project status be used?</strong><br />
+                Project status should match reality. Use ongoing or active for live work, paused or on hold when work is halted, and completed only when the project is actually finished.
+              </Typography>
+            </Alert>
+
+            <Alert severity="info">
+              <Typography variant="body2">
+                <strong>What about peer review and grading rules?</strong><br />
+                If peer review or mentor review is enabled, grading criteria and review weights should stay balanced and meaningful so evaluations remain fair and usable.
               </Typography>
             </Alert>
 
             <Alert severity="error">
               <Typography variant="body2">
-                <strong>Membership Dependency:</strong> Project access is tied to team participation. If someone loses the relevant team relationship, their continued project privileges should be treated as limited by those team rules.
+                <strong>What if a user leaves the team connected to the project?</strong><br />
+                Project access is tied to team participation. If someone loses the relevant team relationship, their continued project privileges should be treated as limited by those team rules.
               </Typography>
             </Alert>
 
             <Alert severity="error">
               <Typography variant="body2">
-                <strong>Ownership Boundaries:</strong> Sensitive project actions such as structural edits, task control, and assessment-related workflows should stay within the permission boundaries already enforced by project ownership and team roles.
+                <strong>Who can perform sensitive project actions?</strong><br />
+                Sensitive actions such as structural edits, task control, and assessment-related workflows should remain within the permission boundaries already enforced by project ownership and team roles.
               </Typography>
             </Alert>
 
             <Alert severity="success">
               <Typography variant="body2">
-                <strong>Good Project Hygiene:</strong> Keep project names clear, descriptions accurate, tags useful, deadlines honest, and progress updated regularly so dashboards, risk signals, and health insights remain trustworthy.
+                <strong>How should a healthy project be maintained?</strong><br />
+                Keep project names clear, descriptions accurate, tags useful, deadlines honest, and progress updated regularly so dashboards, risk signals, and health insights remain trustworthy.
               </Typography>
             </Alert>
           </Stack>
