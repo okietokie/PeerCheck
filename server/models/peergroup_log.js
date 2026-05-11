@@ -22,6 +22,17 @@ const peergroupSchema = new mongoose.Schema({
         reviewCount: {type: Number, default: 0}
     },
     createdBy: {type: mongoose.Schema.Types.ObjectId, ref: "User"},
+    pendingLeadershipTransfer: {
+        toUser: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        fromUser: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+        requestedAt: { type: Date, default: null },
+        autoFinalizeOnExit: { type: Boolean, default: true }
+    },
+    pendingInvites: [{
+        user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+        invitedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+        invitedAt: { type: Date, default: Date.now }
+    }],
     deletedAt: { type: Date }
 }, { timestamps: true });
 

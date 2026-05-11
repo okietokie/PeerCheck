@@ -3,6 +3,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogActions,
   Box,
   Typography,
   Avatar,
@@ -189,12 +190,16 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [selectedLeaderCandidate, setSelectedLeaderCandidate] = useState(null);
 
   // Reset states when team changes
   useEffect(() => {
     if (team) {
       setTeamName(team.name || '');
       setIsEditingName(false);
+      setSelectedLeaderCandidate(null);
+      setShowTransferDialog(false);
     }
   }, [team]);
 
@@ -267,6 +272,15 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
 
   if (!team) return null;
 
+  const currentUserMembership = team.members?.find((member) => member.isCurrentUser);
+  const isCurrentLeader = currentUserMembership?.role === 'leader';
+  const transferCandidates = (team.members || []).filter(
+    (member) => member._id !== team.createdBy
+  );
+  const pendingTransferMember = transferCandidates.find(
+    (member) => member._id === team.pendingLeadershipTransfer?.toUser
+  );
+
   // Handle team name update
   const handleUpdateTeamName = async () => {
     if (!teamName.trim() || teamName === team.name) {
@@ -308,13 +322,13 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
         { 
           email: inviteData.email,
           username: inviteData.username,
-          message: `You've been invited to join ${team.name || team.teamName || 'the team'}!` 
+          message: `You've been invited to join ${team.name || team.teamName || 'the team'}. Accept or reject this request from your notifications.` 
         },
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
       
       
-      setMessage({ type: 'success', text: 'Invitation sent successfully!' });
+      setMessage({ type: 'success', text: response.data?.message || 'Invitation sent successfully!' });
       setShowInvite(false);
       setInviteData({ email: '', username: '', inviteMethod: 'email' });
       setSelectedUser(null);
@@ -372,7 +386,51 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
 
   // Handle transfer leadership
   const handleTransferLeadership = () => {
-    setMessage({ type: 'info', text: 'Transfer leadership functionality coming soon!' });
+    if (!isCurrentLeader) {
+      setMessage({ type: 'error', text: 'Only the current team leader can transfer leadership.' });
+      return;
+    }
+
+    if (transferCandidates.length === 0) {
+      setMessage({ type: 'error', text: 'Add at least one more team member before transferring leadership.' });
+      return;
+    }
+
+    setSelectedLeaderCandidate(null);
+    setShowTransferDialog(true);
+  };
+
+  const submitLeadershipTransfer = async () => {
+    if (!selectedLeaderCandidate?._id) {
+      setMessage({ type: 'error', text: 'Choose a team member first.' });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await axiosClient.post(
+        `/user/teams/${team._id}/transfer-leadership`,
+        { targetUserId: selectedLeaderCandidate._id },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setMessage({
+        type: 'success',
+        text: response.data?.message || 'Leadership transfer request sent successfully.'
+      });
+      setShowTransferDialog(false);
+      setSelectedLeaderCandidate(null);
+      if (onTeamUpdate) onTeamUpdate();
+    } catch (error) {
+      console.error('Error transferring leadership:', error);
+      setMessage({
+        type: 'error',
+        text: error.response?.data?.message || 'Failed to send leadership transfer request'
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Handle quick invite action
@@ -697,13 +755,22 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                     Manage your team settings and permissions
                   </Typography>
+                  {team.pendingLeadershipTransfer?.toUser && (
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      {isCurrentLeader
+                        ? `Leadership transfer is pending ${pendingTransferMember?.user?.name || 'the selected member'}'s response.`
+                        : pendingTransferMember?._id === currentUserMembership?._id
+                          ? 'You have a pending leadership transfer request in your notifications.'
+                          : 'This team has a pending leadership transfer request.'}
+                    </Alert>
+                  )}
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                     <Button 
                       variant="outlined" 
                       color="primary"
                       onClick={() => setIsEditingName(true)}
                       sx={{ borderRadius: 2 }}
-                      disabled={loading}
+                      disabled={loading || !isCurrentLeader}
                     >
                       Change Team Name
                     </Button>
@@ -712,9 +779,64 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
                       color="warning"
                       onClick={handleTransferLeadership}
                       sx={{ borderRadius: 2 }}
+                      disabled={loading || !isCurrentLeader || transferCandidates.length === 0}
                     >
                       Transfer Leadership
                     </Button>
+                  </Box>
+                </Card>
+
+                <Card
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.04)} 0%, transparent 100%)`
+                  }}
+                >
+                  <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                    Team Rules
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    These rules explain what each team role can do and how ownership works in this team.
+                  </Typography>
+
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                    <Alert severity="info" sx={{ alignItems: 'flex-start' }}>
+                      <Typography variant="body2">
+                        <strong>Team Leader:</strong> The leader owns the team, can rename it, invite members, start a leadership transfer, and controls who currently leads the team.
+                      </Typography>
+                    </Alert>
+
+                    <Alert severity="info" sx={{ alignItems: 'flex-start' }}>
+                      <Typography variant="body2">
+                        <strong>Team Members:</strong> Members can participate in the team, view shared work, collaborate on projects, and receive leadership transfer requests, but they cannot rename the team or invite others unless they become leader.
+                      </Typography>
+                    </Alert>
+
+                    <Alert severity="warning" sx={{ alignItems: 'flex-start' }}>
+                      <Typography variant="body2">
+                        <strong>Leadership Transfer:</strong> A transfer does not complete immediately. The selected member must accept it first. If they reject it, the current leader stays in charge.
+                      </Typography>
+                    </Alert>
+
+                    <Alert severity="warning" sx={{ alignItems: 'flex-start' }}>
+                      <Typography variant="body2">
+                        <strong>Leader Leaving Rule:</strong> If the leader has already nominated a member for transfer and then leaves the team, ownership automatically moves to that nominated member.
+                      </Typography>
+                    </Alert>
+
+                    <Alert severity="success" sx={{ alignItems: 'flex-start' }}>
+                      <Typography variant="body2">
+                        <strong>Projects:</strong> Team projects can be created from this team space and are shared with the team, so members can collaborate under the same team context.
+                      </Typography>
+                    </Alert>
+
+                    <Alert severity="error" sx={{ alignItems: 'flex-start' }}>
+                      <Typography variant="body2">
+                        <strong>Leaving a Team:</strong> Any member who leaves loses access and must be invited again to rejoin. A leader with other members should transfer or nominate leadership before leaving.
+                      </Typography>
+                    </Alert>
                   </Box>
                 </Card>
 
@@ -723,7 +845,9 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
                     Danger Zone
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Once you leave a team, you'll need to be re-invited to rejoin
+                    {isCurrentLeader && team.members?.length > 1
+                      ? "If you leave after nominating someone, ownership will automatically move to that selected member. Otherwise, transfer leadership first."
+                      : "Once you leave a team, you'll need to be re-invited to rejoin"}
                   </Typography>
                   <Button 
                     variant="outlined" 
@@ -739,6 +863,67 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
             </Box>
           </TabPanel>
         </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showTransferDialog}
+        onClose={() => !loading && setShowTransferDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Transfer Team Leadership</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Choose the teammate who should receive the leadership request. They must accept before the role changes.
+          </Typography>
+          <Autocomplete
+            options={transferCandidates}
+            value={selectedLeaderCandidate}
+            onChange={(event, value) => setSelectedLeaderCandidate(value)}
+            getOptionLabel={(option) => option?.user?.name || option?.name || ''}
+            isOptionEqualToValue={(option, value) => option._id === value._id}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Choose a team member"
+                placeholder="Select a member"
+              />
+            )}
+            renderOption={(props, option) => (
+              <Box component="li" {...props}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Avatar src={option.user?.avatar} sx={{ width: 32, height: 32 }}>
+                    {option.user?.name?.[0] || 'U'}
+                  </Avatar>
+                  <Box>
+                    <Typography variant="body2" fontWeight={600}>
+                      {option.user?.name || 'Unknown Member'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      @{option.user?.username || 'unknown'}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+            )}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button
+            onClick={() => setShowTransferDialog(false)}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="warning"
+            onClick={submitLeadershipTransfer}
+            disabled={loading || !selectedLeaderCandidate}
+          >
+            {loading ? 'Sending...' : 'Send Request'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       {/* Enhanced Invite Members Dialog */}

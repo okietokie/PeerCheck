@@ -44,7 +44,7 @@ export const createNotification = async ({
 export const getUserNotifications = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { limit = 20, unreadOnly = false, page = 1 } = req.query;
+    const { limit = 20, unreadOnly = false, page = 1, type } = req.query;
     
     const skip = (page - 1) * limit;
     
@@ -52,6 +52,9 @@ export const getUserNotifications = async (req, res) => {
     const query = { user: userId };
     if (unreadOnly === 'true') {
       query.read = false;
+    }
+    if (type) {
+      query.type = type;
     }
     
     // Get notifications

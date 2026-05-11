@@ -61,6 +61,8 @@ const NotificationsPage = () => {
     { value: 'unread', label: 'Unread Only' },
     { value: 'connection_request', label: 'Connection Requests' },
     { value: 'project_invitation', label: 'Project Invitations' },
+    { value: 'team_invitation', label: 'Team Invitations' },
+    { value: 'team_leadership_transfer', label: 'Leadership Transfers' },
     { value: 'task_assigned', label: 'Task Assignments' },
     { value: 'deadline_reminder', label: 'Deadline Reminders' },
   ];
@@ -70,6 +72,12 @@ const NotificationsPage = () => {
       'connection_request': <PersonAddIcon sx={{ color: theme.palette.primary.main }} />,
       'connection_accepted': <CheckCircleIcon sx={{ color: theme.palette.success.main }} />,
       'project_invitation': <WorkIcon sx={{ color: theme.palette.warning.main }} />,
+      'team_invitation': <WorkIcon sx={{ color: theme.palette.primary.main }} />,
+      'team_invitation_accepted': <CheckCircleIcon sx={{ color: theme.palette.success.main }} />,
+      'team_invitation_rejected': <CommentIcon sx={{ color: theme.palette.error.main }} />,
+      'team_leadership_transfer': <PersonAddIcon sx={{ color: theme.palette.warning.main }} />,
+      'team_leadership_transfer_completed': <CheckCircleIcon sx={{ color: theme.palette.success.main }} />,
+      'team_leadership_transfer_rejected': <CommentIcon sx={{ color: theme.palette.error.main }} />,
       'task_assigned': <AssignmentIcon sx={{ color: theme.palette.info.main }} />,
       'task_completed': <CheckCircleIcon sx={{ color: theme.palette.success.main }} />,
       'deadline_reminder': <ScheduleIcon sx={{ color: theme.palette.error.main }} />,
@@ -172,6 +180,32 @@ const NotificationsPage = () => {
       markAsRead(notification._id);
     }
     
+  };
+
+  const handleLeadershipTransferAction = async (notification, action) => {
+    const teamId = notification?.data?.metadata?.teamId;
+    if (!teamId) {
+      return;
+    }
+
+    try {
+      await axiosClient.post(`/user/teams/${teamId}/transfer-leadership/${action}`);
+      await fetchNotifications(1, true);
+    } catch (error) {
+      console.error(`Error handling leadership transfer ${action}:`, error);
+    }
+  };
+
+  const handleTeamInvitationAction = async (notification, action) => {
+    const teamId = notification?.data?.metadata?.teamId;
+    if (!teamId) return;
+
+    try {
+      await axiosClient.post(`/user/teams/${teamId}/invitations/${action}`);
+      await fetchNotifications(1, true);
+    } catch (error) {
+      console.error(`Error handling team invitation ${action}:`, error);
+    }
   };
 
   const handleFilterClick = (event) => {
@@ -371,6 +405,62 @@ const NotificationsPage = () => {
                                   {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
                                 </Typography>
                                 <Box sx={{ display: 'flex', gap: 1 }}>
+                                  {notification.type === 'team_leadership_transfer' && (
+                                    <>
+                                      <Button
+                                        size="small"
+                                        color="success"
+                                        variant="contained"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleLeadershipTransferAction(notification, 'accept');
+                                        }}
+                                        sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+                                      >
+                                        Accept
+                                      </Button>
+                                      <Button
+                                        size="small"
+                                        color="error"
+                                        variant="outlined"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleLeadershipTransferAction(notification, 'reject');
+                                        }}
+                                        sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+                                      >
+                                        Reject
+                                      </Button>
+                                    </>
+                                  )}
+                                  {notification.type === 'team_invitation' && (
+                                    <>
+                                      <Button
+                                        size="small"
+                                        color="success"
+                                        variant="contained"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleTeamInvitationAction(notification, 'accept');
+                                        }}
+                                        sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+                                      >
+                                        Accept
+                                      </Button>
+                                      <Button
+                                        size="small"
+                                        color="error"
+                                        variant="outlined"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleTeamInvitationAction(notification, 'reject');
+                                        }}
+                                        sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+                                      >
+                                        Reject
+                                      </Button>
+                                    </>
+                                  )}
                                   {!notification.read && (
                                     <Button
                                       size="small"

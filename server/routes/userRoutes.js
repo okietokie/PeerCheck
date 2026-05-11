@@ -101,6 +101,11 @@ router.delete('/leave-team/:teamId', teamController.leaveTeam);  // leave team
 router.delete('/delete-team/:teamId', teamController.deleteTeam);
 router.put('/update-team/:teamId', teamController.updateTeam); // update team details
 router.post('/invite-to-team/:teamId', teamController.inviteToTeam); 
+router.post('/teams/:teamId/invitations/accept', teamController.acceptTeamInvite);
+router.post('/teams/:teamId/invitations/reject', teamController.rejectTeamInvite);
+router.post('/teams/:teamId/transfer-leadership', teamController.requestLeadershipTransfer);
+router.post('/teams/:teamId/transfer-leadership/accept', teamController.acceptLeadershipTransfer);
+router.post('/teams/:teamId/transfer-leadership/reject', teamController.rejectLeadershipTransfer);
 router.get('/team-suggestions', teamController.getTeamSuggestions); // get team suggestions
 router.get('/projects/:projectId/members', teamController.getProjectTeamMembers);
 

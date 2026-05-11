@@ -78,7 +78,12 @@ export default function PeerTeams() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      setTeams(res.data.teams || []);
+      const fetchedTeams = res.data.teams || [];
+      setTeams(fetchedTeams);
+      setSelectedTeam((prev) => {
+        if (!prev?._id) return prev;
+        return fetchedTeams.find((team) => team._id === prev._id) || prev;
+      });
       console.log("Fetched teams:", res.data);
     } catch (error) {
       console.error(`Error fetching teams: ${error}`);
