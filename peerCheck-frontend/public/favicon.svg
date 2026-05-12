@@ -1,12 +1,38 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="PeerCheck">
   <defs>
-    <linearGradient id="peercheck-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0d3b66" />
-      <stop offset="100%" stop-color="#1f8de0" />
+    <linearGradient id="peercheck-bg" x1="8%" y1="8%" x2="92%" y2="92%">
+      <stop offset="0%" stop-color="#0b2340" />
+      <stop offset="55%" stop-color="#14538f" />
+      <stop offset="100%" stop-color="#0f8f8a" />
+    </linearGradient>
+    <linearGradient id="peercheck-accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9af2d0" />
+      <stop offset="100%" stop-color="#45d2c4" />
     </linearGradient>
   </defs>
-  <rect width="64" height="64" rx="16" fill="url(#peercheck-gradient)" />
-  <path d="M19 24.5C19 21.4624 21.4624 19 24.5 19H37.5C40.5376 19 43 21.4624 43 24.5V27.5C43 30.5376 40.5376 33 37.5 33H24.5C21.4624 33 19 30.5376 19 27.5V24.5Z" fill="white" opacity="0.94" />
-  <path d="M21 39.5C21 36.4624 23.4624 34 26.5 34H34.5C37.5376 34 40 36.4624 40 39.5V39.5C40 42.5376 37.5376 45 34.5 45H26.5C23.4624 45 21 42.5376 21 39.5V39.5Z" fill="white" opacity="0.68" />
-  <circle cx="44.5" cy="38.5" r="5.5" fill="#7fe3c5" />
+  <rect width="64" height="64" rx="18" fill="url(#peercheck-bg)" />
+  <path
+    d="M32 12L46 18.4V31.2C46 40.3 40.4 48.1 32 52C23.6 48.1 18 40.3 18 31.2V18.4L32 12Z"
+    fill="rgba(255,255,255,0.12)"
+    stroke="rgba(255,255,255,0.18)"
+    stroke-width="1.2"
+  />
+  <circle cx="25" cy="24.5" r="4.2" fill="#ffffff" opacity="0.96" />
+  <circle cx="39" cy="24.5" r="4.2" fill="#ffffff" opacity="0.96" />
+  <path
+    d="M19.8 38.6C21.3 34.6 24.8 32 29 32H35C39.2 32 42.7 34.6 44.2 38.6"
+    fill="none"
+    stroke="#ffffff"
+    stroke-linecap="round"
+    stroke-width="4.2"
+    opacity="0.96"
+  />
+  <path
+    d="M27.1 33.8L31 37.8L38.1 29.9"
+    fill="none"
+    stroke="url(#peercheck-accent)"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="4.5"
+  />
 </svg>

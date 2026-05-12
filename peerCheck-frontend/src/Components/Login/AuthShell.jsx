@@ -22,18 +22,18 @@ import Navbar from "./Helper Components/Navbar";
 const highlights = [
   {
     icon: <PeopleAlt sx={{ fontSize: 18 }} />,
-    title: "Peer-first teamwork",
-    description: "Coordinate roles, feedback, and progress without losing momentum.",
+    title: "Structured team coordination",
+    description: "Keep roles, feedback, and progress aligned in one shared workflow.",
   },
   {
     icon: <TaskAlt sx={{ fontSize: 18 }} />,
-    title: "Work that stays visible",
-    description: "Track deliverables, proof, and ownership in one shared workspace.",
+    title: "Visible contribution records",
+    description: "Track deliverables, proof of work, and ownership without losing context.",
   },
   {
     icon: <Insights sx={{ fontSize: 18 }} />,
-    title: "Smarter reviews",
-    description: "Turn activity and reflection into clearer evaluation conversations.",
+    title: "Fairer evaluation signals",
+    description: "Turn activity, proof, and peer input into clearer review conversations.",
   },
 ];
 

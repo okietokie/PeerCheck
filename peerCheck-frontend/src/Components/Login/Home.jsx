@@ -230,38 +230,38 @@ export default function Home() {
   const features = [
     {
       icon: <TrackChanges />,
-      title: "Smart Goal Tracking",
-      description: "Set learning objectives and track progress with your peers",
+      title: "Contribution Tracking",
+      description: "Track individual ownership and project progress across team work",
       color: theme.palette.primary.main
     },
     {
       icon: <Message />,
-      title: "Real-time Feedback",
-      description: "Give and receive constructive feedback instantly",
+      title: "Structured Feedback",
+      description: "Collect peer input in a format that supports clearer decisions",
       color: theme.palette.secondary.main
     },
     {
       icon: <BarChart />,
-      title: "Progress Analytics",
-      description: "Visualize your learning journey with detailed insights",
+      title: "Project Risk Insights",
+      description: "Surface delivery risk, proof gaps, and uneven contribution early",
       color: theme.palette.info.main
     },
     {
       icon: <CalendarToday />,
-      title: "Collaborative Scheduling",
-      description: "Coordinate study sessions and project deadlines",
+      title: "Deadline Visibility",
+      description: "Keep teams aligned on deadlines, task progress, and next actions",
       color: theme.palette.success.main
     },
     {
       icon: <VerifiedUser />,
-      title: "Peer Evaluation System",
-      description: "Evaluate teammates fairly using structured criteria and rubrics",
+      title: "Proof-Backed Peer Review",
+      description: "Evaluate teammates with structured criteria supported by visible work",
       color: theme.palette.warning.main
     },
     {
       icon: <School />,
-      title: "Mentor-Guided Review",
-      description: "Enable mentors to monitor progress and provide expert feedback",
+      title: "Mentor Oversight",
+      description: "Help mentors and teachers validate progress before grading time",
       color: theme.palette.info.main
     }
   ];
@@ -418,13 +418,13 @@ export default function Home() {
                     mb: 3,
                   }}
                 >
-                  Learn Together,
+                  Make Team Work
                   <Box component="span" sx={{ 
                     display: 'block', 
                     mt: 0.5,
                     color: theme.palette.primary.main 
                   }}>
-                    Grow Together
+                    Fair, Visible, and Verifiable
                   </Box>
                 </Typography>
 
@@ -439,9 +439,9 @@ export default function Home() {
                     mx: { xs: 'auto', lg: 0 },
                   }}
                 >
-                  Join the ultimate peer learning platform where feedback fuels growth, 
-                  collaboration sparks innovation, and every student thrives together.
-                  <br/> For the students, by the students!
+                  PeerCheck helps student teams and educators track contributions,
+                  upload proof of work, and run fairer peer review in one structured workspace.
+                  <br /> Built for accountability, not just task lists.
                 </Typography>
 
                 {/* Live Stats */}
@@ -461,7 +461,7 @@ export default function Home() {
                       animation: 'pulse 2s infinite'
                     }} />
                     <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                      {stats.activeUsers} students active now
+                      {stats.activeUsers} active users right now
                     </Typography>
                   </Box>
                   
@@ -505,7 +505,7 @@ export default function Home() {
                     }}
                   >
                     <Link to="/sign-up" style={{ textDecoration: "none", color: "white" }}>
-                      Start Free Today
+                      Get Started
                     </Link>
                   </Button>
 

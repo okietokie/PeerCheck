@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
-const SITE_URL = "https://peercheck.online";
-const DEFAULT_TITLE = "PeerCheck | Peer Review and Project Collaboration Platform";
+const SITE_URL = "https://www.peercheck.online";
+const DEFAULT_TITLE = "PeerCheck | Contribution Tracking and Fair Peer Review";
 const DEFAULT_DESCRIPTION =
-  "PeerCheck helps students and educators manage peer review, project collaboration, feedback, task tracking, and team progress in one structured workspace.";
+  "PeerCheck helps educators and student teams track contributions, verify work with proof, and run fairer peer review.";
 const DEFAULT_IMAGE = `${SITE_URL}/favicon.svg`;
 
 const ROUTE_META = [
@@ -12,21 +12,21 @@ const ROUTE_META = [
     match: (pathname) => pathname === "/",
     title: DEFAULT_TITLE,
     description:
-      "PeerCheck is a peer review and project collaboration platform for students, teams, and educators.",
+      "Track contributions, upload proof of work, and support fairer peer review with a workspace built for team projects.",
     robots: "index,follow",
   },
   {
     match: (pathname) => pathname === "/login",
     title: "Login | PeerCheck",
     description:
-      "Sign in to PeerCheck to access your peer review workspace, projects, tasks, and collaboration dashboard.",
+      "Sign in to PeerCheck to review contributions, manage projects, and keep peer evaluation organized.",
     robots: "index,follow",
   },
   {
     match: (pathname) => pathname === "/sign-up",
     title: "Create Your Account | PeerCheck",
     description:
-      "Create a PeerCheck account to manage peer feedback, collaborative projects, and team progress in one place.",
+      "Create a PeerCheck account to track team work, upload proof, and make peer review more reliable.",
     robots: "index,follow",
   },
   {
@@ -45,14 +45,14 @@ const ROUTE_META = [
     match: (pathname) => pathname.startsWith("/user-app"),
     title: "Student Workspace | PeerCheck",
     description:
-      "Manage student projects, peer reviews, team coordination, and task tracking inside PeerCheck.",
+      "Manage project tasks, proof of work, peer reviews, and contribution tracking inside PeerCheck.",
     robots: "noindex,nofollow",
   },
   {
     match: (pathname) => pathname.startsWith("/teacher-app"),
     title: "Teacher Workspace | PeerCheck",
     description:
-      "Review classes, feedback, analytics, and collaboration activity inside the PeerCheck teacher workspace.",
+      "Monitor team health, validate peer reviews, and evaluate collaboration inside the PeerCheck teacher workspace.",
     robots: "noindex,nofollow",
   },
   {
