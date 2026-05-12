@@ -1,17 +1,25 @@
 // Components/ThemesComponents/ThemeToggleButton.jsx
 import { Box, IconButton, Tooltip, Fade, alpha, useMediaQuery, useTheme } from "@mui/material";
 import { Palette, Close } from "@mui/icons-material";
+import { useLocation } from "react-router-dom";
 
 const ThemeToggleButton = ({ theme, onClick, isPickerOpen = false }) => {
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+  const location = useLocation();
+  const isDashboardWorkspace =
+    location.pathname.startsWith("/user-app") ||
+    location.pathname.startsWith("/teacher-app");
+  const bottomOffset = isDashboardWorkspace
+    ? { xs: 86, sm: 96 }
+    : { xs: 16, sm: 24 };
 
   return (
     <Fade in timeout={300}>
       <Box
         sx={{
           position: 'fixed',
-          bottom: { xs: 16, sm: 24 },
+          bottom: bottomOffset,
           right: { xs: 12, sm: 24 },
           zIndex: 1000,
           '&:hover': {

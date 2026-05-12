@@ -1,43 +1,45 @@
 import { useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 
+// Fallback-only productivity calculator.
+// Main productivity score must come from GET /user/productivity.
+// This fallback is used only when backend productivity data is unavailable.
 export const calculateProductivity = (userTasks) => {
   if (!userTasks || userTasks.length === 0) return 0;
 
-  let totalWeightedScore = 0;
-  let totalWeight = 0;
+  let totalScore = 0;
 
   userTasks.forEach(task => {
-    const completionWeight = 0.5;
-    const timeWeight = 0.3;
-    const riskWeight = 0.2;
+    const completionScore =
+      task.status === 'completed' ? 100 :
+      task.status === 'active' ? 60 :
+      task.status === 'paused' ? 40 : 20;
 
-    const completionScore = task.status === 'completed' ? 1 : 0;
+    const estimated = task.estimatedTime || 1;
+    const actual = task.totalFocusTime || 0;
+    const ratio = actual / estimated;
 
-    const timeScore = task.estimatedTime
-      ? Math.min(1, task.totalFocusTime / task.estimatedTime)
-      : 1;
+    let timeScore = 100;
+    if (ratio < 0.4) timeScore = 50;
+    else if (ratio <= 1.2) timeScore = 100;
+    else if (ratio <= 2) timeScore = 70;
+    else timeScore = 40;
 
-    const riskScore = (task.risk?.riskScore || 0) / 5;
+    const proofScore = task.proofUploads?.length > 0 ? 100 : 40;
 
-    let flagPenalty = 0;
-    if (task.flags?.rushedCompletion) flagPenalty += 0.2;
-    if (task.flags?.noProof) flagPenalty += 0.1;
-    if (task.flags?.manualReviewRequired) flagPenalty += 0.1;
-    flagPenalty = Math.min(flagPenalty, 1);
+    const risk = task.metrics?.riskScore || task.risk?.riskScore || 0;
+    const normalizedRisk = Math.min(risk / 8, 1);
+    const integrityAdjustment = 1 - Math.min(0.35, normalizedRisk * 0.35);
 
-    const taskWeightedScore = (
-      completionScore * completionWeight +
-      timeScore * timeWeight +
-      riskScore * riskWeight
-    ) * (1 - flagPenalty);
+    const taskScore =
+      completionScore * 0.45 +
+      timeScore * 0.35 +
+      proofScore * 0.20;
 
-    totalWeightedScore += taskWeightedScore;
-    totalWeight += 1;
+    totalScore += taskScore * integrityAdjustment;
   });
 
-  const productivity = (totalWeightedScore / totalWeight) * 100;
-  return Math.min(100, Math.round(productivity));
+  return Math.round(totalScore / userTasks.length);
 };
 
 export const generateRecentActivities = (userTasks, setRecentActivities) => {

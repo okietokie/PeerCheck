@@ -346,9 +346,12 @@ const TodoButtonDialog = () => {
       <Box
         sx={{
           position: 'fixed',
-          left: { xs: 16, sm: 20 },
-          bottom: { xs: 16, sm: 20 },
-          zIndex: 9999,
+          right: { xs: 16, sm: 20 },
+          bottom: {
+            xs: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+            sm: 20,
+          },
+          zIndex: theme.zIndex.drawer - 1,
         }}
       >
         <motion.div

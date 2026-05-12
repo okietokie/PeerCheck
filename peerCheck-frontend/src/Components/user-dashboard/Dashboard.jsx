@@ -49,6 +49,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import  useInView  from '../../hooks/useInView';
+import { calculateProductivity, generateRecentActivities } from '../../utils/dashboardUtils';
 import TourGuide from '../TourGuide';
 import TodoList from './HelperComp/ToDoList';
 
@@ -108,6 +109,7 @@ export default function Dashboard() {
     performanceDemo: false
   });
   const [insightDialog, setInsightDialog] = useState({ open: false, card: null });
+  const [productivityGuideOpen, setProductivityGuideOpen] = useState(false);
 
   // Stats state
   const [stats, setStats] = useState({
@@ -296,48 +298,6 @@ export default function Dashboard() {
     }
   };
 
-  const calculateProductivity = (userTasks) => {
-    if (productivityInsights?.score) {
-      return productivityInsights.score;
-    }
-    
-    if (!userTasks || userTasks.length === 0) return 0;
-
-    let totalWeightedScore = 0;
-    let totalWeight = 0;
-
-    userTasks.forEach(task => {
-      const completionWeight = 0.5;
-      const timeWeight = 0.3;
-      const riskWeight = 0.2;
-
-      const completionScore = task.status === 'completed' ? 1 : 0;
-      const timeScore = task.estimatedTime
-        ? Math.min(1, task.totalFocusTime / task.estimatedTime)
-        : 1;
-      const riskScore = (task.metrics?.riskScore || task.risk?.riskScore || 0) / 5;
-
-      let flagPenalty = 0;
-      if (task.flags?.rushedCompletion) flagPenalty += 0.2;
-      if (task.flags?.noProof) flagPenalty += 0.1;
-      if (task.flags?.manualReviewRequired) flagPenalty += 0.1;
-      flagPenalty = Math.min(flagPenalty, 1);
-
-      const taskWeightedScore = (
-        completionScore * completionWeight +
-        timeScore * timeWeight +
-        riskScore * riskWeight
-      ) * (1 - flagPenalty);
-
-      totalWeightedScore += taskWeightedScore;
-      totalWeight += 1;
-    });
-
-    const productivity = (totalWeightedScore / totalWeight) * 100;
-    return Math.min(100, Math.round(productivity));
-  };
-
-
 
   const generateRecentActivities = (userTasks) => {
     if (!userTasks || userTasks.length === 0) {
@@ -428,6 +388,14 @@ export default function Dashboard() {
 
   const closeInsightDialog = () => {
     setInsightDialog({ open: false, card: null });
+  };
+
+  const openProductivityGuide = () => {
+    setProductivityGuideOpen(true);
+  };
+
+  const closeProductivityGuide = () => {
+    setProductivityGuideOpen(false);
   };
 
   const handleStatsDemo = () => {
@@ -560,7 +528,28 @@ export default function Dashboard() {
               </Typography>
             </Box>
             
-            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <Button
+                variant="outlined"
+                startIcon={<TrendingUpIcon />}
+                onClick={openProductivityGuide}
+                sx={{
+                  borderRadius: 3,
+                  px: 2.25,
+                  py: 1.2,
+                  fontWeight: 600,
+                  borderColor: alpha(theme.palette.success.main, 0.28),
+                  color: theme.palette.success.main,
+                  backgroundColor: alpha(theme.palette.success.main, 0.04),
+                  '&:hover': {
+                    borderColor: alpha(theme.palette.success.main, 0.42),
+                    backgroundColor: alpha(theme.palette.success.main, 0.09),
+                    transform: 'translateY(-1px)',
+                  }
+                }}
+              >
+                What does my productivity score mean?
+              </Button>
               <Tooltip title="Refresh Dashboard">
                 <IconButton 
                   onClick={handleRefresh}
@@ -1035,6 +1024,129 @@ export default function Dashboard() {
                   </Paper>
                 </Stack>
               )}
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={productivityGuideOpen}
+            onClose={closeProductivityGuide}
+            fullWidth
+            maxWidth="md"
+            PaperProps={{
+              sx: {
+                borderRadius: 4,
+                overflow: 'hidden',
+                background: `linear-gradient(180deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.background.default, 0.98)} 100%)`,
+                border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
+              }
+            }}
+          >
+            <DialogTitle sx={{ pb: 1.5 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'flex-start' }}>
+                <Box>
+                  <Typography variant="h5" fontWeight={700}>
+                    What Does My Productivity Score Mean?
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 0.75, color: theme.palette.text.secondary, maxWidth: 680 }}>
+                    Your productivity score is a personal performance snapshot. It looks at how well you work, how reliable your work patterns are, and how others experience your contribution.
+                  </Typography>
+                </Box>
+                <IconButton onClick={closeProductivityGuide} sx={{ mt: -0.5, mr: -0.5 }}>
+                  <CloseIcon />
+                </IconButton>
+              </Box>
+            </DialogTitle>
+            <DialogContent sx={{ pt: 1, pb: 3 }}>
+              <Stack spacing={2.25}>
+                <Paper sx={{ p: 2.5, borderRadius: 3, background: alpha(theme.palette.primary.main, 0.04), border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}` }}>
+                  <Typography variant="subtitle1" fontWeight={700}>
+                    How the score is built
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1, color: theme.palette.text.secondary }}>
+                    Your overall productivity combines four signals. Task efficiency matters most, then peer feedback, then project evaluation, then whether completed work finishes on time.
+                  </Typography>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 1.5, mt: 2 }}>
+                    {[
+                      { label: 'Overall Task Efficiency', value: '40%', color: theme.palette.primary.main },
+                      { label: 'Peer Review Score', value: '30%', color: theme.palette.info.main },
+                      { label: 'Project Evaluation Score', value: '20%', color: theme.palette.secondary.main },
+                      { label: 'On-Time Completion Rate', value: '10%', color: theme.palette.warning.main }
+                    ].map((item) => (
+                      <Paper key={item.label} sx={{ p: 1.6, borderRadius: 2.5, border: `1px solid ${alpha(item.color, 0.14)}`, backgroundColor: alpha(item.color, 0.05) }}>
+                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                          {item.label}
+                        </Typography>
+                        <Typography variant="h5" fontWeight={700} sx={{ mt: 0.4, color: item.color }}>
+                          {item.value}
+                        </Typography>
+                      </Paper>
+                    ))}
+                  </Box>
+                </Paper>
+
+                <Paper sx={{ p: 2.5, borderRadius: 3, background: alpha(theme.palette.success.main, 0.04), border: `1px solid ${alpha(theme.palette.success.main, 0.1)}` }}>
+                  <Typography variant="subtitle1" fontWeight={700}>
+                    What the system is really checking
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1, color: theme.palette.text.secondary }}>
+                    The score is not just counting completed tasks. It is trying to reflect the quality of your work, your consistency, your accountability, your collaboration with others, your work integrity, and your deadline discipline.
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1.25, color: theme.palette.text.secondary }}>
+                    Larger tasks carry more weight than tiny ones, so finishing one serious task well can matter more than quickly clearing several very small tasks.
+                  </Typography>
+                </Paper>
+
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 2 }}>
+                  <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.success.main, 0.12)}`, backgroundColor: alpha(theme.palette.success.main, 0.04) }}>
+                    <Typography variant="subtitle1" fontWeight={700} sx={{ color: theme.palette.success.main }}>
+                      Your score improves when you
+                    </Typography>
+                    <Stack spacing={1} sx={{ mt: 1.5 }}>
+                      {[
+                        'complete tasks properly instead of leaving them half-done',
+                        'stay reasonably close to the estimated work time',
+                        'submit proof or evidence when work is finished',
+                        'finish before the deadline or stay on track',
+                        'contribute well inside your team',
+                        'receive strong peer and mentor feedback'
+                      ].map((item) => (
+                        <Typography key={item} variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                          {'\u2705'} {item}
+                        </Typography>
+                      ))}
+                    </Stack>
+                  </Paper>
+
+                  <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.warning.main, 0.14)}`, backgroundColor: alpha(theme.palette.warning.main, 0.04) }}>
+                    <Typography variant="subtitle1" fontWeight={700} sx={{ color: theme.palette.warning.dark }}>
+                      Your score drops when you
+                    </Typography>
+                    <Stack spacing={1} sx={{ mt: 1.5 }}>
+                      {[
+                        'rush tasks unrealistically',
+                        'log suspiciously high time for small work',
+                        'miss deadlines',
+                        'avoid uploading proof when proof is expected',
+                        'show work patterns that look unreliable or risky',
+                        'receive weak collaboration or contribution feedback'
+                      ].map((item) => (
+                        <Typography key={item} variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                          {'\u26A0\uFE0F'} {item}
+                        </Typography>
+                      ))}
+                    </Stack>
+                  </Paper>
+                </Box>
+
+                <Paper sx={{ p: 2.5, borderRadius: 3, border: `1px solid ${alpha(theme.palette.info.main, 0.12)}`, backgroundColor: alpha(theme.palette.info.main, 0.04) }}>
+                  <Typography variant="subtitle1" fontWeight={700}>
+                    In simple terms
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1, color: theme.palette.text.secondary }}>
+                    A high productivity score usually means you are completing meaningful work in a believable, timely, and collaborative way. A lower score usually means the system is seeing missed deadlines, weak evidence, risky work patterns, or poor feedback from others.
+                  </Typography>
+                </Paper>
+              </Stack>
             </DialogContent>
           </Dialog>
 

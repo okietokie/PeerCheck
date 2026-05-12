@@ -191,7 +191,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
             completionQuality: 0,
             timeliness: 0,
             proofQuality: 0,
-            riskFactor: 0
+            integrityAdjustment: 0
           }
         },
         flags: {
@@ -236,7 +236,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
           completionQuality: safeGet(taskData, 'metrics.componentScores.completionQuality', 0),
           timeliness: safeGet(taskData, 'metrics.componentScores.timeliness', 0),
           proofQuality: safeGet(taskData, 'metrics.componentScores.proofQuality', 0),
-          riskFactor: safeGet(taskData, 'metrics.componentScores.riskFactor', 0)
+          integrityAdjustment: safeGet(taskData, 'metrics.componentScores.integrityAdjustment', 0)
         },
         risk: safeGet(taskData, 'metrics.risk', {}),
       },
@@ -462,7 +462,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
         completionQuality: 0,
         timeliness: 0,
         proofQuality: 0,
-        riskFactor: 0
+        integrityAdjustment: 0
       })
     };
 
@@ -481,7 +481,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                            task?.status === 'paused' ? 40 : 0,
           timeliness: calculateTimeliness(task),
           proofQuality: task?.proofUploads?.length > 0 ? 80 : 20,
-          riskFactor: 100 - ((safeGet(task, 'metrics.riskScore', 0) * 12.5))
+          integrityAdjustment: 100 - ((safeGet(task, 'metrics.riskScore', 0) * 12.5))
         }
       };
     }
@@ -1559,9 +1559,9 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                             weight: '15%'
                           },
                           { 
-                            key: 'riskFactor', 
-                            label: 'Risk Factor', 
-                            description: 'Inverse of task risk score',
+                            key: 'integrityAdjustment', 
+                            label: 'Integrity Adjustment', 
+                            description: 'Final penalty layer applied from task risk',
                             icon: <Security />,
                             weight: '10%'
                           }

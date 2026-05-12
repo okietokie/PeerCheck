@@ -1,39 +1,39 @@
 // App.jsx
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Home from "./Components/Login/Home.jsx";
-import AuthPage from "./Components/Login/AuthPage.jsx";
-import ForgotPassword from "@/Components/Login/Helper Components/ForgotPassword.jsx";
-import ResetPassword from "@/Components/Login/Helper Components/ResetPassword.jsx";
-import AdminPage from "./Components/AdminComponents/AdminPage.jsx";
-import SecNAuth from "./Components/AdminComponents/SecNAuth.jsx";
-
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 
 import ProtectedRoute from "./Components/ProtectedRoute.jsx";
 import { ThemeProvider } from "@mui/material/styles";
-import { Box, CssBaseline } from "@mui/material"; // Added CssBaseline
+import { Box, CircularProgress, CssBaseline } from "@mui/material"; // Added CssBaseline
 
 import themes from './assets/theme.js';
 import { useInView } from "react-intersection-observer";
-
-import UserApp from "./Components/user-dashboard/UserApp.jsx";
-import Tasks from "./Components/user-dashboard/Tasks.jsx";
-import Projects from "./Components/user-dashboard/Projects.jsx";
-import MyProject from "./Components/user-dashboard/MyProject.jsx";
-import PeerTeams from "./Components/user-dashboard/PeerTeams.jsx";
-import Profile from "./Components/user-dashboard/Profile.jsx";
-import Dashboard from "./Components/user-dashboard/Dashboard.jsx";
-import NotificationsPage from "./Components/Notifications/NotificationsPage.jsx";
-import MyProjectNull from "./Components/user-dashboard/MyProjectNull.jsx";
+import SeoHead from "./Components/SeoHead.jsx";
 
 // Import new components
 import ThemePicker from "./Components/ThemesComponents/ThemePicker.jsx";
 import ThemeToggleButton from "./Components/ThemesComponents/ThemeToggleButton.jsx";
 import { getThemeNames } from "./utils/themeUtils.js";
-import TeacherApp from "./Components/teacher-dashboard/teacher-dash-app.jsx";
-import TeacherDashboard from "./Components/teacher-dashboard/Dashboard.jsx";
-import TeacherClasses from "./Components/teacher-dashboard/TeacherClasses.jsx";
-import Feedback from "./Components/teacher-dashboard/Feedback.jsx";
+
+const Home = lazy(() => import("./Components/Login/Home.jsx"));
+const AuthPage = lazy(() => import("./Components/Login/AuthPage.jsx"));
+const ForgotPassword = lazy(() => import("@/Components/Login/Helper Components/ForgotPassword.jsx"));
+const ResetPassword = lazy(() => import("@/Components/Login/Helper Components/ResetPassword.jsx"));
+const AdminPage = lazy(() => import("./Components/AdminComponents/AdminPage.jsx"));
+const SecNAuth = lazy(() => import("./Components/AdminComponents/SecNAuth.jsx"));
+const UserApp = lazy(() => import("./Components/user-dashboard/UserApp.jsx"));
+const Tasks = lazy(() => import("./Components/user-dashboard/Tasks.jsx"));
+const Projects = lazy(() => import("./Components/user-dashboard/Projects.jsx"));
+const MyProject = lazy(() => import("./Components/user-dashboard/MyProject.jsx"));
+const PeerTeams = lazy(() => import("./Components/user-dashboard/PeerTeams.jsx"));
+const Profile = lazy(() => import("./Components/user-dashboard/Profile.jsx"));
+const Dashboard = lazy(() => import("./Components/user-dashboard/Dashboard.jsx"));
+const NotificationsPage = lazy(() => import("./Components/Notifications/NotificationsPage.jsx"));
+const MyProjectNull = lazy(() => import("./Components/user-dashboard/MyProjectNull.jsx"));
+const TeacherApp = lazy(() => import("./Components/teacher-dashboard/teacher-dash-app.jsx"));
+const TeacherDashboard = lazy(() => import("./Components/teacher-dashboard/Dashboard.jsx"));
+const TeacherClasses = lazy(() => import("./Components/teacher-dashboard/TeacherClasses.jsx"));
+const Feedback = lazy(() => import("./Components/teacher-dashboard/Feedback.jsx"));
 
 // Extract theme names dynamically
 const themeNames = getThemeNames(themes);
@@ -99,6 +99,19 @@ export default function App() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, [showThemePicker]);
 
+  const routeFallback = (
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <CircularProgress />
+    </Box>
+  );
+
   return (
     <ThemeProvider theme={themes[themeName]}>
       <CssBaseline /> {/* resets default browser styles */}
@@ -111,65 +124,68 @@ export default function App() {
         position: 'relative' 
       }} ref={ref}>
         <Router>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/*" element={<AuthPage />} />
-            <Route path="/admin-page" element={<AdminPage />} />
-            <Route path="/sec-n-auth" element={<SecNAuth />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password/:token" element={<ResetPassword />} />
-            
-            <Route
-              path="/user-app/*"
-              element={
-                <ProtectedRoute>
-                  <UserApp />
-                </ProtectedRoute>
-              }
-            >
-                <Route index element={<Dashboard />} />
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="tasks" element={<Tasks />} />
-                <Route path="projects" element={<Projects />} />
-                <Route path="my-project" element={<MyProjectNull />} />
-                <Route path="my-project/:projectId" element={<MyProject />} />
-                <Route path="peerteams" element={<PeerTeams />} />
-                <Route path="notifications" element={<NotificationsPage />} />
+          <SeoHead />
+          <Suspense fallback={routeFallback}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/*" element={<AuthPage />} />
+              <Route path="/admin-page" element={<AdminPage />} />
+              <Route path="/sec-n-auth" element={<SecNAuth />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password/:token" element={<ResetPassword />} />
+              
+              <Route
+                path="/user-app/*"
+                element={
+                  <ProtectedRoute>
+                    <UserApp />
+                  </ProtectedRoute>
+                }
+              >
+                  <Route index element={<Dashboard />} />
+                  <Route path="dashboard" element={<Dashboard />} />
+                  <Route path="tasks" element={<Tasks />} />
+                  <Route path="projects" element={<Projects />} />
+                  <Route path="my-project" element={<MyProjectNull />} />
+                  <Route path="my-project/:projectId" element={<MyProject />} />
+                  <Route path="peerteams" element={<PeerTeams />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="profile" element={<Profile />} />
+              </Route>
+
+              <Route path="/teacher-app/*" element={<ProtectedRoute> <TeacherApp /> </ProtectedRoute>}>
+                <Route path="dashboard" element={<TeacherDashboard />} />
+                <Route path="classes" element={<TeacherClasses />} />
+                <Route path="peer-teams" element={<PeerTeams />} />
+                <Route path="analytics" element={<div>Analytics Page</div>} />
+                <Route path="feedback" element={<Feedback />} />
                 <Route path="profile" element={<Profile />} />
-            </Route>
+              </Route>
+            </Routes>
+          </Suspense>
 
-            <Route path="/teacher-app/*" element={<ProtectedRoute> <TeacherApp /> </ProtectedRoute>}>
-              <Route path="dashboard" element={<TeacherDashboard />} />
-              <Route path="classes" element={<TeacherClasses />} />
-              <Route path="peer-teams" element={<PeerTeams />} />
-              <Route path="analytics" element={<div>Analytics Page</div>} />
-              <Route path="feedback" element={<Feedback />} />
-              <Route path="profile" element={<Profile />} />
-            </Route>
-          </Routes>
-        </Router>
-
-        {/* Theme Toggle Button */}
-        <div className="theme-toggle-button">
-          <ThemeToggleButton 
-            theme={themes[themeName]}
-            onClick={toggleThemePicker}
-            isPickerOpen={showThemePicker}
-          />
-        </div>
-
-        {/* Theme Picker */}
-        {showThemePicker && (
-          <div className="theme-picker">
-            <ThemePicker 
-              themes={themes}
-              themeNames={themeNames}
-              currentThemeName={themeName}
-              onThemeChange={handleThemeChange}
-              onClose={toggleThemePicker}
+          {/* Theme Toggle Button */}
+          <div className="theme-toggle-button">
+            <ThemeToggleButton 
+              theme={themes[themeName]}
+              onClick={toggleThemePicker}
+              isPickerOpen={showThemePicker}
             />
           </div>
-        )}
+
+          {/* Theme Picker */}
+          {showThemePicker && (
+            <div className="theme-picker">
+              <ThemePicker 
+                themes={themes}
+                themeNames={themeNames}
+                currentThemeName={themeName}
+                onThemeChange={handleThemeChange}
+                onClose={toggleThemePicker}
+              />
+            </div>
+          )}
+        </Router>
       </Box>
     </ThemeProvider>
   );

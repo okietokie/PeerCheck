@@ -308,6 +308,28 @@ const calculateProofQualityScore = (task) => {
   return Math.min(score, 100);
 };
 
+const calculateTaskComplexityScore = (task) => {
+  if (task.complexity === 'high') return 100;
+  if (task.complexity === 'medium') return 75;
+  if (task.complexity === 'low') return 50;
+
+  if (task.estimatedTime >= 6 * 60 * 60) return 100;
+  if (task.estimatedTime >= 3 * 60 * 60) return 75;
+  if (task.estimatedTime >= 1 * 60 * 60) return 60;
+
+  return 45;
+};
+
+const calculateIntegrityAdjustment = (task) => {
+  const riskMetrics = calculateTaskRisk(task);
+  const riskScore = riskMetrics.risk.riskScore || 0;
+
+  const normalizedRisk = Math.min(riskScore / 8, 1);
+  const penalty = Math.min(0.35, normalizedRisk * 0.35);
+
+  return 1 - penalty;
+};
+
 const calculateRiskFactorScore = (task) => {
   const riskMetrics = calculateTaskRisk(task);
   const riskScore = riskMetrics.risk.riskScore;
@@ -336,31 +358,36 @@ const getEfficiencyLabel = (score) => {
   return 'Unsatisfactory';
 };
 
-const calculateEnhancedTaskEfficiency = (task) => {
+const calculateTaskPerformanceIndex = (task) => {
   const factors = {
-    timeEfficiency: 0.30,      // 30% weight
-    completionQuality: 0.25,    // 25% weight
-    timeliness: 0.20,          // 20% weight
-    proofQuality: 0.15,        // 15% weight
-    riskFactor: 0.10           // 10% weight
+    timeFitness: 0.30,
+    completionQuality: 0.25,
+    timeliness: 0.20,
+    proofQuality: 0.15,
+    complexity: 0.10
   };
 
-  // Calculate component scores
   const timeEfficiencyScore = calculateTimeEfficiency(task);
   const completionQualityScore = calculateCompletionQuality(task);
   const timelinessScore = calculateTimelinessScore(task);
   const proofQualityScore = calculateProofQualityScore(task);
-  const riskFactorScore = calculateRiskFactorScore(task);
+  const complexityScore = calculateTaskComplexityScore(task);
   
-  // Calculate weighted efficiency
-  const weightedEfficiency = 
-    (timeEfficiencyScore * factors.timeEfficiency) +
+  const score =
+    (timeEfficiencyScore * factors.timeFitness) +
     (completionQualityScore * factors.completionQuality) +
     (timelinessScore * factors.timeliness) +
     (proofQualityScore * factors.proofQuality) +
-    (riskFactorScore * factors.riskFactor);
+    (complexityScore * factors.complexity);
   
-  return Math.min(Math.max(weightedEfficiency, 0), 100); // Clamp between 0-100
+  return Math.min(Math.max(score, 0), 100);
+};
+
+const calculateEnhancedTaskEfficiency = (task) => {
+  const performance = calculateTaskPerformanceIndex(task);
+  const integrityAdjustment = calculateIntegrityAdjustment(task);
+
+  return Math.round(performance * integrityAdjustment);
 };
 
 
@@ -381,7 +408,8 @@ export const enrichTaskWithMetrics = (task) => {
     completionQuality: calculateCompletionQuality(task),
     timeliness: calculateTimelinessScore(task),
     proofQuality: calculateProofQualityScore(task),
-    riskFactor: calculateRiskFactorScore(task)
+    complexity: calculateTaskComplexityScore(task),
+    integrityAdjustment: Math.round(calculateIntegrityAdjustment(task) * 100)
   };
 
   // Determine efficiency status based on comprehensive score

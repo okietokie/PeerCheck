@@ -1,8 +1,8 @@
 // ThemePicker.jsx
 import { useState } from "react";
-import { 
-  Box, 
-  Typography, 
+import {
+  Box,
+  Typography,
   Card, 
   CardContent,
   Fade,
@@ -15,6 +15,7 @@ import {
   useTheme,
 } from "@mui/material";
 import { Palette, Shuffle, CheckCircle, ExpandMore, ExpandLess } from "@mui/icons-material";
+import { useLocation } from "react-router-dom";
 
 // Function to format theme names prettily
 const formatThemeName = (name) => {
@@ -36,6 +37,13 @@ const ThemePicker = ({
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
   const currentTheme = themes[currentThemeName];
+  const location = useLocation();
+  const isDashboardWorkspace =
+    location.pathname.startsWith("/user-app") ||
+    location.pathname.startsWith("/teacher-app");
+  const pickerBottomOffset = isDashboardWorkspace
+    ? { xs: 158, sm: 168 }
+    : { xs: 88, sm: 90 };
 
   const handleRandomTheme = () => {
     const availableThemes = themeNames.filter(name => name !== currentThemeName);
@@ -52,7 +60,7 @@ const ThemePicker = ({
       <Box
         sx={{
           position: 'fixed',
-          bottom: { xs: 88, sm: 90 },
+          bottom: pickerBottomOffset,
           right: { xs: 12, sm: 20 },
           left: { xs: 12, sm: 'auto' },
           width: { xs: 'auto', sm: 380 },

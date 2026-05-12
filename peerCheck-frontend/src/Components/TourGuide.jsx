@@ -393,7 +393,7 @@ if (typeof position.left === 'number') {
               position: 'fixed',
               bottom: { xs: 82, sm: 24 },
               left: { xs: 16, sm: 24 },
-              zIndex: 9998,
+              zIndex: theme.zIndex.drawer - 1,
             }}
           >
             <IconButton

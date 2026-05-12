@@ -536,7 +536,8 @@ console.log("Rendering TaskMetricsPanel for task:", task);
                         completionQuality: { label: 'Completion Quality', icon: <CheckCircle fontSize="small" /> },
                         timeliness: { label: 'Timeliness', icon: <CalendarToday fontSize="small" /> },
                         proofQuality: { label: 'Proof Quality', icon: <Upload fontSize="small" /> },
-                        riskFactor: { label: 'Risk Factor', icon: <Security fontSize="small" /> }
+                        complexity: { label: 'Complexity', icon: <Assessment fontSize="small" /> },
+                        integrityAdjustment: { label: 'Integrity Adjustment', icon: <Security fontSize="small" /> }
                       };
                       
                       return (

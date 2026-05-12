@@ -6,6 +6,10 @@ import Project from "../models/projects.js";
 import { enrichTaskWithMetrics } from './taskController.js';
 import Team from "../models/peergroup_log.js";
 
+const getTaskWeight = (task) => {
+  return Math.max((task.estimatedTime || 3600) / 3600, 0.5);
+};
+
 export const updateUserProductivity = async (userId) => {
   try {
     const user = await User.findById(userId);
@@ -58,10 +62,17 @@ export const updateUserProductivity = async (userId) => {
     const completedTasks = enrichedTasks.filter(t => t.status === 'completed');
     const totalFocusTime = enrichedTasks.reduce((sum, t) => sum + (t.totalFocusTime || 0), 0);
     const totalEstimatedTime = enrichedTasks.reduce((sum, t) => sum + (t.estimatedTime || 0), 0);
+    const totalTaskWeight = enrichedTasks.reduce(
+      (sum, task) => sum + getTaskWeight(task),
+      0
+    );
     
     // Calculate task-based efficiency
-    const overallEfficiency = enrichedTasks.length > 0 
-      ? enrichedTasks.reduce((sum, t) => sum + (t.metrics?.efficiency || 0), 0) / enrichedTasks.length 
+    const overallEfficiency = totalTaskWeight > 0
+      ? enrichedTasks.reduce(
+          (sum, task) => sum + ((task.metrics?.efficiency || 0) * getTaskWeight(task)),
+          0
+        ) / totalTaskWeight
       : 0;
 
     // Calculate risk scores
@@ -385,6 +396,10 @@ export const getUserProductivity = async (req, res) => {
     // Enrich tasks
     const enrichedTasks = tasks.map(task => enrichTaskWithMetrics(task)).filter(t => t);
     const completedTasks = enrichedTasks.filter(t => t.status === 'completed');
+    const totalTaskWeight = enrichedTasks.reduce(
+      (sum, task) => sum + getTaskWeight(task),
+      0
+    );
 
     // Calculate recent performance
     const thirtyDaysAgo = new Date();
@@ -413,8 +428,11 @@ export const getUserProductivity = async (req, res) => {
     };
 
     // Task-based metrics
-    const overallEfficiency = enrichedTasks.length > 0 
-      ? enrichedTasks.reduce((sum, t) => sum + (t.metrics?.efficiency || 0), 0) / enrichedTasks.length 
+    const overallEfficiency = totalTaskWeight > 0
+      ? enrichedTasks.reduce(
+          (sum, task) => sum + ((task.metrics?.efficiency || 0) * getTaskWeight(task)),
+          0
+        ) / totalTaskWeight
       : 0;
 
     const averageRiskScore = enrichedTasks.length > 0 
