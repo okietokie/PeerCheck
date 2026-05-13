@@ -1075,44 +1075,133 @@ const MyProject = () => {
                     transparent 100%
                   )`,
                 }}>
-                  <Tabs 
-                    value={activeTab} 
-                    onChange={(e, newValue) => setActiveTab(newValue)}
-                    variant="scrollable"
-                    scrollButtons="auto"
-                    sx={{
-                      '& .MuiTab-root': {
-                        textTransform: 'capitalize',
-                        borderRadius: 2,
-                        mx: 0.5,
-                        minHeight: 48,
-                        fontFamily: '"Adlam Display", serif',
-                        fontWeight: 500,
-                        transition: 'all 0.3s ease',
-                        '&:hover': {
-                          backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                  {isMobile ? (
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                        gap: 1,
+                        py: 1.5,
+                      }}
+                    >
+                      {[
+                        { label: 'Tasks', icon: <Task />, value: 0 },
+                        { label: 'Team', icon: <Group />, value: 1 },
+                        { label: 'Activity', icon: <Timeline />, value: 2 },
+                        { label: 'Files', icon: <AttachFile />, value: 3 },
+                        { label: 'Analytics', icon: <Analytics />, value: 4 },
+                        { label: 'Reviews', icon: <RateReviewIcon />, value: 5 },
+                        { label: 'Notes', icon: <Note />, value: 6 },
+                      ].map((tab) => {
+                        const isSelected = activeTab === tab.value;
+
+                        return (
+                          <Button
+                            key={tab.label}
+                            onClick={() => setActiveTab(tab.value)}
+                            startIcon={null}
+                            sx={{
+                              minHeight: 78,
+                              px: 1,
+                              py: 1.25,
+                              borderRadius: 2.5,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 0.75,
+                              textTransform: 'none',
+                              fontFamily: '"Adlam Display", serif',
+                              fontSize: '0.84rem',
+                              lineHeight: 1.15,
+                              color: isSelected ? theme.palette.primary.main : theme.palette.text.secondary,
+                              backgroundColor: isSelected
+                                ? alpha(theme.palette.primary.main, 0.16)
+                                : alpha(theme.palette.common.white, 0.03),
+                              border: `1px solid ${
+                                isSelected
+                                  ? alpha(theme.palette.primary.main, 0.45)
+                                  : alpha(theme.palette.divider, 0.2)
+                              }`,
+                              boxShadow: isSelected
+                                ? `0 10px 24px ${alpha(theme.palette.primary.main, 0.16)}`
+                                : 'none',
+                              '& .MuiButton-startIcon': {
+                                margin: 0,
+                              },
+                              '&:hover': {
+                                backgroundColor: isSelected
+                                  ? alpha(theme.palette.primary.main, 0.2)
+                                  : alpha(theme.palette.primary.main, 0.08),
+                              },
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'inherit',
+                                '& svg': {
+                                  fontSize: 22,
+                                },
+                              }}
+                            >
+                              {tab.icon}
+                            </Box>
+                            <Box
+                              component="span"
+                              sx={{
+                                textAlign: 'center',
+                                wordBreak: 'break-word',
+                              }}
+                            >
+                              {tab.label}
+                            </Box>
+                          </Button>
+                        );
+                      })}
+                    </Box>
+                  ) : (
+                    <Tabs 
+                      value={activeTab} 
+                      onChange={(e, newValue) => setActiveTab(newValue)}
+                      variant="scrollable"
+                      scrollButtons="auto"
+                      sx={{
+                        '& .MuiTab-root': {
+                          textTransform: 'capitalize',
+                          borderRadius: 2,
+                          mx: 0.5,
+                          minHeight: 48,
+                          fontFamily: '"Adlam Display", serif',
+                          fontWeight: 500,
+                          transition: 'all 0.3s ease',
+                          '&:hover': {
+                            backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                          },
+                          '&.Mui-selected': {
+                            color: theme.palette.primary.main,
+                            backgroundColor: alpha(theme.palette.primary.main, 0.15),
+                          }
                         },
-                        '&.Mui-selected': {
-                          color: theme.palette.primary.main,
-                          backgroundColor: alpha(theme.palette.primary.main, 0.15),
+                        '& .MuiTabs-indicator': {
+                          backgroundColor: theme.palette.primary.main,
+                          height: 3,
+                          borderRadius: 1.5,
+                          boxShadow: `0 0 8px ${alpha(theme.palette.primary.main, 0.5)}`,
                         }
-                      },
-                      '& .MuiTabs-indicator': {
-                        backgroundColor: theme.palette.primary.main,
-                        height: 3,
-                        borderRadius: 1.5,
-                        boxShadow: `0 0 8px ${alpha(theme.palette.primary.main, 0.5)}`,
-                      }
-                    }}
-                  >
-                    <Tab icon={<Task />} label="Tasks" />
-                    <Tab icon={<Group />} label="Team" />
-                    <Tab icon={<Timeline />} label="Activity" />
-                    <Tab icon={<AttachFile />} label="Files" />
-                    <Tab icon={<Analytics />} label="Analytics" />
-                    <Tab icon={<RateReviewIcon />} label="Peer Reviews" /> 
-                    <Tab icon={<Note />} label="Notes" />
-                  </Tabs>
+                      }}
+                    >
+                      <Tab icon={<Task />} label="Tasks" />
+                      <Tab icon={<Group />} label="Team" />
+                      <Tab icon={<Timeline />} label="Activity" />
+                      <Tab icon={<AttachFile />} label="Files" />
+                      <Tab icon={<Analytics />} label="Analytics" />
+                      <Tab icon={<RateReviewIcon />} label="Peer Reviews" /> 
+                      <Tab icon={<Note />} label="Notes" />
+                    </Tabs>
+                  )}
                 </Box>
 
                 {/* Tab Content */}
