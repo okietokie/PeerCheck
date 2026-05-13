@@ -5,8 +5,12 @@ import Task from "../models/tasks.js";
 import User from "../models/user.js";
 import Team from "../models/peergroup_log.js";
 import MentorProjectAssignment from "../models/mentorProjectAssignment.js";
+import ProjectEvaluation from "../models/projectEvaluation.js";
+import PeerReview from "../models/peerReview.js";
+import TaskActivityEvent from "../models/taskActivityEvent.js";
 import { createNotification } from './notificationController.js';
 import { detectFreeRiders } from "./peerReviewController.js";
+import { getActionMessage } from "./activityLogger.js";
 import Notification from "../models/notification.js";
 
 
@@ -1091,7 +1095,13 @@ export const getContributorAnalytics = async (req, res) => {
 
     const project = await Project.findById(projectId)
       .populate('createdBy', 'name email')
-      .populate('teamId', 'members'); // populate members only
+      .populate({
+        path: 'teamId',
+        populate: {
+          path: 'members',
+          select: 'name username email avatar'
+        }
+      });
 
     if (!project) {
       return res.status(404).json({
@@ -1112,36 +1122,366 @@ export const getContributorAnalytics = async (req, res) => {
       });
     }
 
-    const tasks = await Task.find({ projectId })
-      .populate('assignedTo', 'name email avatar')
-      .lean();
+    const [tasks, projectEvaluations, peerReviews, projectActivities] = await Promise.all([
+      Task.find({ projectId })
+        .populate('assignedTo', 'name username email avatar')
+        .lean(),
+      ProjectEvaluation.find({ projectId }).lean(),
+      PeerReview.find({ projectId }).lean(),
+      TaskActivityEvent.find({ projectId })
+        .sort({ timestamp: -1 })
+        .lean()
+    ]);
 
     const metrics = await calculateAllProjectMetrics(tasks, project.teamId?.members || [], project._id);
+    const teamMembers = project.teamId?.members || [];
 
-    // Prepare contributors
-    const contributors = (project.teamId?.members || []).map(member => {
+    const contributorsById = {};
+    const uniqueActivityDaysByUser = {};
+    const projectEvaluationCategoryAverages = [];
+    const totalProjectFocusTime = tasks.reduce((sum, task) => sum + (task.totalFocusTime || 0), 0);
+    const totalProjectProgress = tasks.reduce((sum, task) => {
+      if (Array.isArray(task.progressByUser) && task.progressByUser.length > 0) {
+        return sum + task.progressByUser.reduce((progressSum, entry) => progressSum + (entry.progress || 0), 0);
+      }
+      return sum + 100;
+    }, 0);
+
+    const initContributor = (member) => ({
+      user: {
+        _id: member._id,
+        name: member.name,
+        username: member.username,
+        email: member.email,
+        avatar: member.avatar
+      },
+      stats: {
+        assignedTasks: 0,
+        completedTasks: 0,
+        activeTasks: 0,
+        pausedTasks: 0,
+        notStartedTasks: 0,
+        overdueTasks: 0,
+        tasksWithProof: 0,
+        proofUploads: 0,
+        tasksTouched: 0,
+        totalFocusTime: 0,
+        totalEstimatedTime: 0,
+        avgEfficiency: 0,
+        highRiskTasks: 0,
+        mediumRiskTasks: 0,
+        lowRiskTasks: 0,
+        averageRiskScore: 0,
+        completionRate: 0,
+        proofRate: 0,
+        progressContribution: 0,
+        focusContribution: 0,
+        activityCount: 0,
+        activeDays: 0,
+        recentActivityCount: 0,
+        timeLoggedEvents: 0,
+        commentCount: 0,
+        proofActivityCount: 0,
+        statusChangeCount: 0,
+        reassignmentCount: 0,
+        lastActiveAt: null
+      },
+      scores: {
+        peerReviewAverage: 0,
+        peerReviewNormalized: 0,
+        peerReviewCount: 0,
+        memberEvaluationAverage: 0,
+        memberEvaluationNormalized: 0,
+        memberEvaluationCount: 0,
+        teamEvaluationAverage: 0,
+        teamEvaluationNormalized: 0,
+        teamEvaluationCount: 0,
+        qualityScore: 0
+      },
+      shares: {
+        assigned: 0,
+        completed: 0,
+        progress: 0,
+        focus: 0,
+        activity: 0
+      },
+      indicators: {
+        contributionShareScore: 0,
+        deliveryScore: 0,
+        efficiencyScore: 0,
+        activityScore: 0,
+        proofScore: 0,
+        qualityScore: 0
+      },
+      recentWork: {
+        completedTasks: [],
+        activeTasks: [],
+        overdueTasks: [],
+        recentActivities: []
+      },
+      isCreator: false
+    });
+
+    teamMembers.forEach((member) => {
       const memberId = member._id.toString();
-      const memberStats = metrics.contributorFairness.contributors[memberId] || {
+      contributorsById[memberId] = initContributor(member);
+      contributorsById[memberId].isCreator = project.createdBy._id.toString() === memberId;
+      uniqueActivityDaysByUser[memberId] = new Set();
+    });
+
+    tasks.forEach((task) => {
+      const assigneeId = task.assignedTo?._id?.toString?.() || task.assignedTo?.toString?.();
+      const riskScore = task.metrics?.riskScore || task.risk?.riskScore || 0;
+      const riskLevel = task.risk?.riskLevel || (riskScore >= 4 ? 'high' : riskScore >= 2 ? 'medium' : 'low');
+      const hasProof = Array.isArray(task.proofUploads) && task.proofUploads.length > 0;
+      const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== 'completed';
+
+      if (assigneeId && contributorsById[assigneeId]) {
+        const contributor = contributorsById[assigneeId];
+        contributor.stats.assignedTasks += 1;
+        contributor.stats.totalEstimatedTime += task.estimatedTime || 0;
+        contributor.stats.totalFocusTime += task.totalFocusTime || 0;
+        contributor.stats.proofUploads += task.proofUploads?.length || 0;
+        contributor.stats.tasksTouched += 1;
+
+        if (task.status === 'completed') {
+          contributor.stats.completedTasks += 1;
+          contributor.recentWork.completedTasks.push({
+            _id: task._id,
+            taskTitle: task.taskTitle
+          });
+        } else if (task.status === 'active') {
+          contributor.stats.activeTasks += 1;
+          contributor.recentWork.activeTasks.push({
+            _id: task._id,
+            taskTitle: task.taskTitle
+          });
+        } else if (task.status === 'paused') {
+          contributor.stats.pausedTasks += 1;
+        } else {
+          contributor.stats.notStartedTasks += 1;
+        }
+
+        if (isOverdue) {
+          contributor.stats.overdueTasks += 1;
+          contributor.recentWork.overdueTasks.push({
+            _id: task._id,
+            taskTitle: task.taskTitle
+          });
+        }
+
+        if (hasProof) {
+          contributor.stats.tasksWithProof += 1;
+        }
+
+        if (riskLevel === 'high') contributor.stats.highRiskTasks += 1;
+        else if (riskLevel === 'medium') contributor.stats.mediumRiskTasks += 1;
+        else contributor.stats.lowRiskTasks += 1;
+
+        contributor.stats.averageRiskScore += riskScore;
+      }
+
+      if (Array.isArray(task.progressByUser) && task.progressByUser.length > 0) {
+        task.progressByUser.forEach((entry) => {
+          const progressUserId = entry.userId?.toString?.();
+          if (!progressUserId || !contributorsById[progressUserId]) return;
+
+          contributorsById[progressUserId].stats.progressContribution += entry.progress || 0;
+          contributorsById[progressUserId].stats.focusContribution += entry.focusTime || 0;
+
+          if (entry.proofUploaded?.yesOrNo) {
+            contributorsById[progressUserId].stats.tasksWithProof += 1;
+          }
+        });
+      } else if (assigneeId && contributorsById[assigneeId]) {
+        contributorsById[assigneeId].stats.progressContribution += 100;
+        contributorsById[assigneeId].stats.focusContribution += task.totalFocusTime || 0;
+      }
+    });
+
+    projectEvaluations.forEach((evaluation) => {
+      const categoryScores = evaluation.grading ? [
+        evaluation.grading.technicalExecution?.score || 0,
+        evaluation.grading.taskValidity?.score || 0,
+        evaluation.grading.timeAuthenticity?.score || 0,
+        evaluation.grading.teamwork?.score || 0,
+        evaluation.grading.documentationQuality?.score || 0
+      ] : [];
+
+      if (categoryScores.length > 0) {
+        const evaluationAverage = categoryScores.reduce((sum, score) => sum + score, 0) / categoryScores.length;
+        projectEvaluationCategoryAverages.push(evaluationAverage);
+      }
+
+      (evaluation.memberEvaluations || []).forEach((memberEvaluation) => {
+        const memberId = memberEvaluation.member?.toString?.();
+        if (!memberId || !contributorsById[memberId]) return;
+
+        contributorsById[memberId].scores.memberEvaluationAverage += memberEvaluation.contributionScore || 0;
+        contributorsById[memberId].scores.memberEvaluationCount += 1;
+      });
+    });
+
+    peerReviews.forEach((review) => {
+      const revieweeId = review.reviewee?.toString?.();
+      if (!revieweeId || !contributorsById[revieweeId]) return;
+
+      contributorsById[revieweeId].scores.peerReviewAverage += review.totalScore || 0;
+      contributorsById[revieweeId].scores.peerReviewCount += 1;
+    });
+
+    const sevenDaysAgo = new Date(Date.now() - (7 * 24 * 60 * 60 * 1000));
+
+    projectActivities.forEach((activity) => {
+      const activityUserId = activity.userId?.toString?.();
+      if (!activityUserId || !contributorsById[activityUserId]) return;
+
+      const contributor = contributorsById[activityUserId];
+      contributor.stats.activityCount += 1;
+
+      const activityTimestamp = activity.timestamp ? new Date(activity.timestamp) : null;
+      if (activityTimestamp) {
+        uniqueActivityDaysByUser[activityUserId].add(activityTimestamp.toISOString().slice(0, 10));
+        if (!contributor.stats.lastActiveAt || activityTimestamp > new Date(contributor.stats.lastActiveAt)) {
+          contributor.stats.lastActiveAt = activity.timestamp;
+        }
+        if (activityTimestamp >= sevenDaysAgo) {
+          contributor.stats.recentActivityCount += 1;
+        }
+      }
+
+      if (activity.eventType === 'time_logged') contributor.stats.timeLoggedEvents += 1;
+      if (activity.eventType === 'comment_added') contributor.stats.commentCount += 1;
+      if (['proof_uploaded', 'proof_viewed', 'proof_deleted'].includes(activity.eventType)) contributor.stats.proofActivityCount += 1;
+      if (['status_changed', 'start', 'pause', 'resume', 'complete', 'reopen'].includes(activity.eventType)) contributor.stats.statusChangeCount += 1;
+      if (activity.eventType === 'task_reassigned') contributor.stats.reassignmentCount += 1;
+
+      if (contributor.recentWork.recentActivities.length < 4) {
+        contributor.recentWork.recentActivities.push({
+          _id: activity._id,
+          eventType: activity.eventType,
+          action: getActionMessage(activity),
+          timestamp: activity.timestamp,
+          taskTitle: activity.metadata?.taskTitle || 'Task activity'
+        });
+      }
+    });
+
+    const contributorList = Object.values(contributorsById);
+
+    const assignedTotal = contributorList.reduce((sum, contributor) => sum + contributor.stats.assignedTasks, 0);
+    const completedTotal = contributorList.reduce((sum, contributor) => sum + contributor.stats.completedTasks, 0);
+    const maxActivityCount = Math.max(...contributorList.map((contributor) => contributor.stats.activityCount), 0);
+
+    const teamEvaluationAverage = projectEvaluationCategoryAverages.length > 0
+      ? projectEvaluationCategoryAverages.reduce((sum, score) => sum + score, 0) / projectEvaluationCategoryAverages.length
+      : 0;
+
+    const normalizeEfficiency = (efficiency) => {
+      if (!efficiency) return 0;
+      const distanceFromIdeal = Math.abs(efficiency - 100);
+      return Math.max(0, Math.min(100, 100 - distanceFromIdeal));
+    };
+
+    contributorList.forEach((contributor) => {
+      const { stats, scores } = contributor;
+
+      stats.averageRiskScore = stats.assignedTasks > 0
+        ? Number((stats.averageRiskScore / stats.assignedTasks).toFixed(2))
+        : 0;
+      stats.avgEfficiency = stats.totalEstimatedTime > 0
+        ? Number(((stats.totalFocusTime / stats.totalEstimatedTime) * 100).toFixed(2))
+        : 0;
+      stats.completionRate = stats.assignedTasks > 0
+        ? Number(((stats.completedTasks / stats.assignedTasks) * 100).toFixed(2))
+        : 0;
+      stats.proofRate = stats.assignedTasks > 0
+        ? Number(((stats.tasksWithProof / stats.assignedTasks) * 100).toFixed(2))
+        : 0;
+      stats.activeDays = uniqueActivityDaysByUser[contributor.user._id.toString()]?.size || 0;
+
+      scores.peerReviewAverage = scores.peerReviewCount > 0
+        ? Number((scores.peerReviewAverage / scores.peerReviewCount).toFixed(2))
+        : 0;
+      scores.peerReviewNormalized = Number(((scores.peerReviewAverage / 5) * 100).toFixed(2));
+      scores.memberEvaluationAverage = scores.memberEvaluationCount > 0
+        ? Number((scores.memberEvaluationAverage / scores.memberEvaluationCount).toFixed(2))
+        : 0;
+      scores.memberEvaluationNormalized = Number(((scores.memberEvaluationAverage / 10) * 100).toFixed(2));
+      scores.teamEvaluationAverage = Number(teamEvaluationAverage.toFixed(2));
+      scores.teamEvaluationNormalized = Number(((teamEvaluationAverage / 10) * 100).toFixed(2));
+      scores.teamEvaluationCount = projectEvaluations.length;
+
+      contributor.shares.assigned = assignedTotal > 0
+        ? Number(((stats.assignedTasks / assignedTotal) * 100).toFixed(2))
+        : 0;
+      contributor.shares.completed = completedTotal > 0
+        ? Number(((stats.completedTasks / completedTotal) * 100).toFixed(2))
+        : 0;
+      contributor.shares.progress = totalProjectProgress > 0
+        ? Number(((stats.progressContribution / totalProjectProgress) * 100).toFixed(2))
+        : 0;
+      contributor.shares.focus = totalProjectFocusTime > 0
+        ? Number(((stats.focusContribution / totalProjectFocusTime) * 100).toFixed(2))
+        : 0;
+      contributor.shares.activity = maxActivityCount > 0
+        ? Number(((stats.activityCount / maxActivityCount) * 100).toFixed(2))
+        : 0;
+
+      contributor.indicators.contributionShareScore = Number((
+        (contributor.shares.progress * 0.5) +
+        (contributor.shares.completed * 0.3) +
+        (contributor.shares.focus * 0.2)
+      ).toFixed(2));
+      contributor.indicators.deliveryScore = stats.completionRate;
+      contributor.indicators.efficiencyScore = Number(normalizeEfficiency(stats.avgEfficiency).toFixed(2));
+      contributor.indicators.activityScore = contributor.shares.activity;
+      contributor.indicators.proofScore = stats.proofRate;
+
+      const riskPenalty = Math.min(20, stats.averageRiskScore * 5);
+      const qualityBase = (
+        (scores.peerReviewNormalized * 0.45) +
+        (scores.memberEvaluationNormalized * 0.3) +
+        (scores.teamEvaluationNormalized * 0.25)
+      );
+
+      contributor.indicators.qualityScore = Number(Math.max(0, qualityBase - riskPenalty).toFixed(2));
+      scores.qualityScore = contributor.indicators.qualityScore;
+
+      contributor.contributionScore = Number((
+        (contributor.indicators.contributionShareScore * 0.3) +
+        (contributor.indicators.deliveryScore * 0.18) +
+        (contributor.indicators.efficiencyScore * 0.14) +
+        (contributor.indicators.activityScore * 0.12) +
+        (scores.peerReviewNormalized * 0.1) +
+        (scores.memberEvaluationNormalized * 0.08) +
+        (scores.teamEvaluationNormalized * 0.03) +
+        (contributor.indicators.proofScore * 0.05)
+      ).toFixed(2));
+    });
+
+    const contributors = contributorList.map((contributor) => {
+      const fairnessStats = metrics.contributorFairness.contributors[contributor.user._id.toString()] || {
         assignedTasks: 0,
         completedTasks: 0,
         assignedPercentage: 0,
         completedPercentage: 0,
         isFreeRider: false
       };
+
       return {
-        user: {
-          _id: member._id,
-          name: member.name,
-          email: member.email,
-          avatar: member.avatar
-        },
-        stats: memberStats,
-        isCreator: project.createdBy._id.toString() === memberId
+        ...contributor,
+        stats: {
+          ...contributor.stats,
+          assignedPercentage: fairnessStats.assignedPercentage || 0,
+          completedPercentage: fairnessStats.completedPercentage || 0,
+          isFreeRider: fairnessStats.isFreeRider || false
+        }
       };
     });
 
     // Sort by contribution
-    contributors.sort((a, b) => b.stats.completedTasks - a.stats.completedTasks);
+    contributors.sort((a, b) => b.contributionScore - a.contributionScore);
 
     res.json({
       success: true,
@@ -1151,10 +1491,25 @@ export const getContributorAnalytics = async (req, res) => {
       },
       contributors,
       summary: {
-        totalTeamMembers: project.teamId?.members.length || 0,
+        totalTeamMembers: teamMembers.length,
         freeRiderRisk: metrics.contributorFairness.freeRiderRisk,
         totalTasks: tasks.length,
-        completedTasks: metrics.progress.completedTasks
+        completedTasks: metrics.progress.completedTasks,
+        totalFocusTime: totalProjectFocusTime,
+        totalEstimatedTime: tasks.reduce((sum, task) => sum + (task.estimatedTime || 0), 0),
+        averageContributionScore: contributors.length > 0
+          ? Number((contributors.reduce((sum, contributor) => sum + contributor.contributionScore, 0) / contributors.length).toFixed(2))
+          : 0,
+        weights: {
+          contributionShare: 30,
+          delivery: 18,
+          efficiency: 14,
+          activity: 12,
+          peerScore: 10,
+          memberEvaluation: 8,
+          teamEvaluation: 3,
+          proof: 5
+        }
       }
     });
 

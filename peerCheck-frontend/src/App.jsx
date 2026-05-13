@@ -1,6 +1,6 @@
 // App.jsx
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
-import { useEffect, useState, lazy, Suspense } from "react";
+import { useEffect, useRef, useState, lazy, Suspense } from "react";
 
 import ProtectedRoute from "./Components/ProtectedRoute.jsx";
 import { ThemeProvider } from "@mui/material/styles";
@@ -15,7 +15,7 @@ import ThemePicker from "./Components/ThemesComponents/ThemePicker.jsx";
 import ThemeToggleButton from "./Components/ThemesComponents/ThemeToggleButton.jsx";
 import { getThemeNames } from "./utils/themeUtils.js";
 import TodoButtonDialog from "./Components/user-dashboard/HelperComp/ToDoList.jsx";
-import { Palette, PlaylistAddCheck, NoteAlt, AddTask } from "@mui/icons-material";
+import { Palette, PlaylistAddCheck } from "@mui/icons-material";
 
 const Home = lazy(() => import("./Components/Login/Home.jsx"));
 const AuthPage = lazy(() => import("./Components/Login/AuthPage.jsx"));
@@ -99,18 +99,6 @@ function FloatingUtilities({
     },
     ...(isMyProjectRoute
       ? [
-          {
-            key: "notes",
-            name: "Open Notes",
-            icon: <NoteAlt />,
-            onClick: () => window.dispatchEvent(new CustomEvent("myproject-open-notes")),
-          },
-          {
-            key: "task",
-            name: "Add Task",
-            icon: <AddTask />,
-            onClick: () => window.dispatchEvent(new CustomEvent("myproject-open-create-task")),
-          },
         ]
       : []),
   ];
@@ -151,6 +139,7 @@ function FloatingUtilities({
             tooltipOpen={!isMobile}
             onClick={action.onClick}
             FabProps={{
+              className: action.key === "theme" ? "theme-toggle-button" : undefined,
               sx: {
                 bgcolor: alpha(muiTheme.palette.background.paper, 0.96),
                 color: muiTheme.palette.primary.main,
@@ -195,6 +184,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
+  const skipNextThemeOutsideClose = useRef(false);
   const { ref, inView } = useInView();
 
   // Save theme preference to localStorage
@@ -222,7 +212,8 @@ export default function App() {
   }, []);
   
   const toggleThemePicker = () => {
-    setShowThemePicker(!showThemePicker);
+    skipNextThemeOutsideClose.current = true;
+    setShowThemePicker((current) => !current);
   };
 
   const handleThemeChange = (newThemeName) => {
@@ -233,6 +224,10 @@ export default function App() {
   // Close picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
+      if (skipNextThemeOutsideClose.current) {
+        skipNextThemeOutsideClose.current = false;
+        return;
+      }
       if (showThemePicker && !event.target.closest('.theme-picker') && !event.target.closest('.theme-toggle-button')) {
         setShowThemePicker(false);
       }

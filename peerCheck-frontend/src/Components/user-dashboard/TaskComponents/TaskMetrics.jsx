@@ -11,7 +11,8 @@ import {
   alpha,
   Zoom,
   Slide,
-  CircularProgress
+  CircularProgress,
+  useMediaQuery,
 } from '@mui/material';
 import {
   TrendingUp,
@@ -40,6 +41,7 @@ import {
 import { Stack } from '@mui/system';
 
 const TaskMetricsPanel = ({ task, open, onClose, theme }) => {
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [expandedSections, setExpandedSections] = useState({
     efficiency: true,
     risk: true,
@@ -134,13 +136,14 @@ console.log("Rendering TaskMetricsPanel for task:", task);
           position: 'fixed',
           top: 0,
           right: 0,
-          width: 380,
-          height: '100vh',
+          width: { xs: '100vw', sm: 440, md: 480 },
+          maxWidth: '100vw',
+          height: '100dvh',
           overflow: 'hidden',
-          borderRadius: 0,
+          borderRadius: { xs: 0, sm: '20px 0 0 20px' },
           backgroundColor: alpha(theme.palette.background.paper, 0.98),
           backdropFilter: 'blur(20px)',
-          borderLeft: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+          borderLeft: { xs: 'none', sm: `1px solid ${alpha(theme.palette.primary.main, 0.2)}` },
           boxShadow: `-20px 0 60px ${alpha(theme.palette.mode === 'dark' ? '#000' : theme.palette.primary.main, 0.2)}`,
           zIndex: 1300,
           display: 'flex',
@@ -158,20 +161,22 @@ console.log("Rendering TaskMetricsPanel for task:", task);
       >
         {/* Header */}
         <Box sx={{ 
-          p: 3, 
-          pb: 2,
+          p: { xs: 2, sm: 3 }, 
+          pb: { xs: 1.75, sm: 2 },
           borderBottom: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
           position: 'relative'
         }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h5" fontWeight="800" sx={{ 
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1.5, mb: 2 }}>
+            <Typography variant={isMobile ? 'h6' : 'h5'} fontWeight="800" sx={{ 
               fontFamily: '"Alkatra", cursive',
               color: theme.palette.primary.main,
               display: 'flex',
               alignItems: 'center',
-              gap: 1.5
+              gap: 1.25,
+              pr: 1,
+              lineHeight: 1.2,
             }}>
-              <Insights sx={{ fontSize: 28 }} />
+              <Insights sx={{ fontSize: { xs: 24, sm: 28 } }} />
               Task Analytics
             </Typography>
             <IconButton 
@@ -200,7 +205,13 @@ console.log("Rendering TaskMetricsPanel for task:", task);
               fontWeight: 600,
               backgroundColor: alpha(theme.palette.primary.main, 0.1),
               color: theme.palette.primary.main,
-              borderRadius: 2
+              borderRadius: 2,
+              maxWidth: '100%',
+              '& .MuiChip-label': {
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }
             }}
           />
         </Box>
@@ -209,7 +220,7 @@ console.log("Rendering TaskMetricsPanel for task:", task);
         <Box sx={{ 
           flex: 1, 
           overflowY: 'auto',
-          p: 3,
+          p: { xs: 2, sm: 3 },
           '&::-webkit-scrollbar': { width: '6px' },
           '&::-webkit-scrollbar-track': {
             background: alpha(theme.palette.divider, 0.1),
@@ -226,7 +237,7 @@ console.log("Rendering TaskMetricsPanel for task:", task);
             <Paper
               elevation={0}
               sx={{
-                p: 3,
+                p: { xs: 2, sm: 3 },
                 mb: 3,
                 borderRadius: 3,
                 background: `linear-gradient(135deg, 
@@ -249,9 +260,9 @@ console.log("Rendering TaskMetricsPanel for task:", task);
                 Overall Efficiency
               </Typography>
               
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5, mb: 2 }}>
                 <Stack spacing={0.5}>
-                  <Typography variant="h1" fontWeight="800" sx={{ 
+                  <Typography variant={isMobile ? 'h2' : 'h1'} fontWeight="800" sx={{ 
                     fontFamily: '"Alkatra", cursive',
                     color: getEfficiencyColor(task?.metrics?.efficiency || 0),
                     lineHeight: 1
@@ -309,7 +320,7 @@ console.log("Rendering TaskMetricsPanel for task:", task);
           >
             <Box
               sx={{
-                p: 2,
+                p: { xs: 1.5, sm: 2 },
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -339,7 +350,7 @@ console.log("Rendering TaskMetricsPanel for task:", task);
             </Box>
             
             <Collapse in={expandedSections.risk}>
-              <Box sx={{ p: 2.5 }}>
+              <Box sx={{ p: { xs: 1.75, sm: 2.5 } }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
                   <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
                     Risk Score
@@ -371,8 +382,10 @@ console.log("Rendering TaskMetricsPanel for task:", task);
                     key={factor.label}
                     sx={{ 
                       display: 'flex',
-                      alignItems: 'center',
+                      alignItems: { xs: 'flex-start', sm: 'center' },
                       justifyContent: 'space-between',
+                      flexDirection: { xs: 'column', sm: 'row' },
+                      gap: 1,
                       p: 1.5,
                       mb: 1.5,
                       borderRadius: 2,
@@ -440,7 +453,7 @@ console.log("Rendering TaskMetricsPanel for task:", task);
           >
             <Box
               sx={{
-                p: 2,
+                p: { xs: 1.5, sm: 2 },
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -463,7 +476,7 @@ console.log("Rendering TaskMetricsPanel for task:", task);
             </Box>
             
             <Collapse in={expandedSections.efficiency}>
-              <Box sx={{ p: 2.5 }}>
+              <Box sx={{ p: { xs: 1.75, sm: 2.5 } }}>
                 {/* Time Utilization */}
                 <Box sx={{ mb: 3 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
@@ -588,7 +601,7 @@ console.log("Rendering TaskMetricsPanel for task:", task);
           >
             <Box
               sx={{
-                p: 2,
+                p: { xs: 1.5, sm: 2 },
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -610,7 +623,7 @@ console.log("Rendering TaskMetricsPanel for task:", task);
             </Box>
             
             <Collapse in={expandedSections.performance}>
-              <Box sx={{ p: 2.5 }}>
+              <Box sx={{ p: { xs: 1.75, sm: 2.5 } }}>
                 <Stack spacing={2}>
                   <Box>
                     <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>
@@ -660,7 +673,7 @@ console.log("Rendering TaskMetricsPanel for task:", task);
 
         {/* Footer */}
         <Box sx={{ 
-          p: 2,
+          p: { xs: 1.5, sm: 2 },
           borderTop: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
           backgroundColor: alpha(theme.palette.background.default, 0.5)
         }}>

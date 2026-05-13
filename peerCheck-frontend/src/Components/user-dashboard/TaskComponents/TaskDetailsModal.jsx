@@ -36,6 +36,7 @@ import {
   Stack,
   alpha,
   useTheme,
+  useMediaQuery,
   CircularProgress,
   Badge,
   Popover,
@@ -134,6 +135,8 @@ const getAssignedUserName = (task, user, userRole) => {
 };
 
 export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, userRole, onTaskUpdate, onUploadProof, onStatusChange }) => {
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('md'));
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -632,15 +635,17 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
     <Dialog 
       open={open} 
       onClose={!loading ? onClose : undefined}
+      fullScreen={isMobile}
       maxWidth="md" 
       fullWidth
       PaperProps={{
         sx: {
-          borderRadius: 4,
+          borderRadius: { xs: 0, sm: 4 },
           backgroundColor: theme.palette.background.paper,
           border: `2px solid ${alpha(theme.palette.mode === 'dark' ? theme.palette.grey[800] : theme.palette.grey[200], 0.5)}`,
           overflow: 'hidden',
-          maxHeight: '92vh',
+          maxHeight: { xs: '100dvh', sm: '92vh' },
+          height: { xs: '100dvh', sm: 'auto' },
           boxShadow: `0 25px 60px ${alpha(theme.palette.mode === 'dark' ? '#000' : theme.palette.primary.main, 0.15)}`,
           backgroundImage: theme.palette.mode === 'dark' 
             ? `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.95)} 0%, ${alpha(theme.palette.primary.main, 0.05)} 100%)`
@@ -663,13 +668,13 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
         }
       }}>
         <DialogTitle sx={{ 
-          pb: 2.5,
-          pt: 3.5,
-          px: 4,
+          pb: { xs: 2, sm: 2.5 },
+          pt: { xs: 2.5, sm: 3.5 },
+          px: { xs: 2, sm: 4 },
         }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <Box sx={{ maxWidth: 'calc(100% - 48px)' }}>
-              <Typography variant="h4" fontWeight="800" gutterBottom sx={{ 
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: { xs: 1.25, sm: 2 }, flexDirection: { xs: 'column', sm: 'row' } }}>
+            <Box sx={{ maxWidth: { xs: '100%', sm: 'calc(100% - 112px)' }, minWidth: 0 }}>
+              <Typography variant={isMobile ? "h5" : "h4"} fontWeight="800" gutterBottom sx={{ 
                 fontFamily: '"Alkatra", cursive',
                 color: theme.palette.text.primary,
                 lineHeight: 1.2,
@@ -678,10 +683,10 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                 <TourGuide page='taskModal' showAppBarButton={true} />
                 {updatedTask?.taskTitle}
               </Typography>
-              <Typography>
+              <Typography sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 0.75 }}>
                 Assigned To:                 
                 
-                <Box onClick={handleAssigneeClick} sx={{ cursor: 'pointer', display: 'inline-flex', marginLeft:1, marginBottom: 0.5 }}>
+                <Box onClick={handleAssigneeClick} sx={{ cursor: 'pointer', display: 'inline-flex', marginLeft: { xs: 0, sm: 1 }, marginBottom: 0.5, maxWidth: '100%' }}>
                   <Chip 
                     label={assignedUserName} 
                     color={theme.palette.secondary.main}
@@ -699,7 +704,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
 
               </Typography>
               
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mt: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 1 }}>
                 <Chip
                   label={(updatedTask?.status || 'not_started').replace('_', ' ').toUpperCase()}
                   color={getStatusColor(updatedTask?.status)}
@@ -743,7 +748,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                 )}
               </Box>
             </Box>
-              <Stack direction="row" spacing={2}>
+              <Stack direction="row" spacing={1.25} sx={{ width: { xs: '100%', sm: 'auto' }, justifyContent: { xs: 'flex-end', sm: 'flex-start' } }}>
                 <Tooltip title="View Metrics Insights">
                   <IconButton 
                     onClick={() => setMetricsInsightsOpen(true)}
@@ -759,10 +764,10 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                         borderColor: alpha(theme.palette.primary.main, 0.4),
                       },
                       transition: 'all 0.3s ease',
-                      width: 44,
-                      height: 44,
+                      width: { xs: 40, sm: 44 },
+                      height: { xs: 40, sm: 44 },
                       borderRadius: 2,
-                      ml: 1,
+                      ml: { xs: 0, sm: 1 },
                     }}
                   >
                     <Insights />
@@ -783,8 +788,8 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                       borderColor: alpha(theme.palette.primary.main, 0.4),
                     },
                     transition: 'all 0.3s ease',
-                    width: 44,
-                    height: 44,
+                    width: { xs: 40, sm: 44 },
+                    height: { xs: 40, sm: 44 },
                     borderRadius: 2,
                   }}
                 > 
@@ -805,55 +810,65 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
       {/* Minimalist Tab Navigation */}
       <Box className='modal-tabs' sx={{ 
         borderBottom: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
-        px: 4,
+        px: { xs: 0, sm: 4 },
         pt: 1,
         pb: 1,
       }}>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, value) => setActiveTab(value)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{
+            minHeight: 0,
+            px: { xs: 1, sm: 0 },
+            '& .MuiTabs-flexContainer': { gap: { xs: 0.5, sm: 1 } },
+            '& .MuiTabs-indicator': { display: 'none' },
+          }}
+        >
           {[
             { key: 'overview', label: 'Overview', icon: <Dashboard fontSize="small" /> },
+            { key: 'metrics', label: 'Metrics', icon: <Insights fontSize="small" /> },
             { key: 'proof', label: 'Proof', icon: <Upload fontSize="small" /> },
             { key: 'activity', label: 'Activity', icon: <HistoryIcon fontSize="small" /> },
             { key: 'comments', label: 'Comments', icon: <Comment fontSize="small" /> }
           ].map((tab) => (
-            <Button
+            <Tab
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              variant={activeTab === tab.key ? 'contained' : 'text'}
-              size="medium"
+              value={tab.key}
+              icon={tab.icon}
+              iconPosition="start"
+              label={tab.label}
               data-tour-tab={tab.key}
               data-tour-label={tab.label}
-              startIcon={tab.icon}
-              sx={{ 
+              sx={{
                 textTransform: 'capitalize',
                 borderRadius: 2,
-                px: 3,
-                py: 1,
-                fontWeight: 600,
+                minHeight: { xs: 40, sm: 44 },
+                px: { xs: 1.5, sm: 2.25 },
+                py: 0.75,
+                minWidth: 'max-content',
+                fontWeight: 700,
                 fontFamily: '"Inter", sans-serif',
-                fontSize: '0.875rem',
-                minWidth: 'auto',
-                '&.MuiButton-contained': {
+                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                color: theme.palette.text.secondary,
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
+                backgroundColor: alpha(theme.palette.background.paper, 0.55),
+                '&.Mui-selected': {
+                  color: theme.palette.common.white,
                   background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                  boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+                  boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.22)}`,
                 },
-                '&.MuiButton-text': {
-                  color: theme.palette.text.secondary,
-                  '&:hover': {
-                    color: theme.palette.primary.main,
-                    backgroundColor: alpha(theme.palette.primary.main, 0.05),
-                  }
-                }
               }}
-            >
-              {tab.label}
-            </Button>
+            />
           ))}
-        </Box>
+        </Tabs>
       </Box>
 
       <DialogContent dividers sx={{ 
-        p: 0, 
+        p: 0,
+        bgcolor: alpha(theme.palette.background.default, 0.12),
         '&.MuiDialogContent-dividers': {
           border: 'none',
         }
@@ -867,7 +882,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
 
         {/* Error State */}
         {error && !loading && (
-          <Box sx={{ p: 4 }}>
+          <Box sx={{ p: { xs: 2, sm: 4 } }}>
             <Alert severity="error" sx={{ mb: 2 }}>
               {error}
             </Alert>
@@ -955,13 +970,13 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                   elevation={0}
                   sx={{ 
                     flex: 1,
-                    p: 3,
+                    p: { xs: 2, sm: 3 },
                     borderRadius: 3,
                     backgroundColor: theme.palette.background.paper,
                     border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
                     position: 'relative',
                     overflow: 'hidden',
-                    minWidth: 280,
+                    minWidth: { xs: 0, sm: 280 },
                   }}
                 >
                   <Box sx={{ 
@@ -1025,7 +1040,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                   elevation={0}
                   sx={{ 
                     flex: 1,
-                    p: 3,
+                    p: { xs: 2, sm: 3 },
                     borderRadius: 3,
                     backgroundColor: updatedTask?.metrics?.isOverdue 
                       ? alpha(theme.palette.error.main, 0.05)
@@ -1035,7 +1050,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                       : alpha(theme.palette.divider, 0.3)}`,
                     position: 'relative',
                     overflow: 'hidden',
-                    minWidth: 280,
+                    minWidth: { xs: 0, sm: 280 },
                   }}
                 >
                   <Box sx={{ 
@@ -1115,13 +1130,13 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                   elevation={0}
                   sx={{ 
                     flex: 1,
-                    p: 3,
+                    p: { xs: 2, sm: 3 },
                     borderRadius: 3,
                     backgroundColor: theme.palette.background.paper,
                     border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
                     position: 'relative',
                     overflow: 'hidden',
-                    minWidth: 280,
+                    minWidth: { xs: 0, sm: 280 },
                   }}
                 >
                   <Box sx={{ 
@@ -1205,13 +1220,13 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                   elevation={0}
                   sx={{ 
                     flex: 1,
-                    p: 3,
+                    p: { xs: 2, sm: 3 },
                     borderRadius: 3,
                     backgroundColor: theme.palette.background.paper,
                     border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
                     position: 'relative',
                     overflow: 'hidden',
-                    minWidth: 280,
+                    minWidth: { xs: 0, sm: 280 },
                   }}
                 >
                   <Box sx={{ 
@@ -1286,7 +1301,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
 
         {/* Metrics Tab */}
         {!loading && !error && activeTab === 'metrics' && (
-          <Box sx={{ p: 4 }}>
+          <Box sx={{ p: { xs: 2, sm: 4 } }}>
             <Typography variant="h5" fontWeight="700" gutterBottom sx={{ 
               fontFamily: '"Adlam Display", serif',
               mb: 3,
@@ -1308,7 +1323,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                     : getRiskColor(updatedTask?.metrics?.riskScore) === 'warning'
                       ? theme.palette.warning.main
                       : theme.palette.success.main, 0.2)}`,
-                  minWidth: 280,
+                  minWidth: { xs: 0, sm: 280 },
                 }}
               >
                 <Box sx={{ 
@@ -1570,11 +1585,11 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                           const weightedContribution = (score * parseInt(component.weight)) / 100;
                           
                           return (
-                            <Paper
+                          <Paper
                               key={component.key}
                               elevation={0}
                               sx={{
-                                p: 2.5,
+                                p: { xs: 1.75, sm: 2.5 },
                                 borderRadius: 2,
                                 backgroundColor: alpha(theme.palette.background.default, 0.5),
                                 border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
@@ -1585,8 +1600,8 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                                 }
                               }}
                             >
-                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
+                              <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between', flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, minWidth: 0, width: '100%' }}>
                                   <Box sx={{ 
                                     p: 1.5,
                                     borderRadius: 2,
@@ -1625,7 +1640,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                                   </Box>
                                 </Box>
                                 
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 2 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: { xs: 0, sm: 2 }, width: { xs: '100%', sm: 'auto' }, justifyContent: { xs: 'space-between', sm: 'flex-start' } }}>
                                   <Box sx={{ textAlign: 'center', minWidth: 60 }}>
                                     <Typography variant="h6" fontWeight="700" sx={{ 
                                       fontFamily: '"Alkatra", cursive',
@@ -1754,13 +1769,15 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
 
         {/* Proof Tab */}
         {!loading && !error && activeTab === 'proof' && (
-          <Box sx={{ p: 4 }}>
+          <Box sx={{ p: { xs: 2, sm: 4 } }}>
             <Box sx={{ 
               display: 'flex', 
               justifyContent: 'space-between', 
-              alignItems: 'center', 
+              alignItems: { xs: 'stretch', sm: 'center' }, 
+              flexDirection: { xs: 'column', sm: 'row' },
               mb: 4,
               pb: 2,
+              gap: 2,
               borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
             }}>
               <Box>
@@ -1785,6 +1802,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
                   variant="contained"
                   startIcon={<Upload />}
                   size="medium"
+                  fullWidth={isMobile}
                   onClick={() => onUploadProof?.(updatedTask)}
                   sx={{ 
                     borderRadius: 2,
@@ -1947,7 +1965,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
         
         {/* Activity Tab */}
         {!loading && !error && activeTab === 'activity' && (
-          <Box sx={{ p: 4 }}>
+          <Box sx={{ p: { xs: 2, sm: 4 } }}>
             <Box sx={{ 
               display: 'flex', 
               justifyContent: 'space-between', 
@@ -2209,7 +2227,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
         )}
         {/*Comments tab */}
         {!loading && !error && activeTab === 'comments' && (
-          <Box sx={{ p: 4, height: '100%' }}>
+          <Box sx={{ p: { xs: 2, sm: 4 }, height: '100%' }}>
             <CommentTab
               taskId={updatedTask?._id}
               projectId={updatedTask?.projectId}
@@ -2221,12 +2239,15 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
       
       {/* Dialog Actions */}
       <DialogActions sx={{ 
-        p: 2.5, 
+        p: { xs: 2, sm: 2.5 }, 
         justifyContent: 'space-between',
+        alignItems: { xs: 'stretch', sm: 'center' },
+        flexDirection: { xs: 'column', sm: 'row' },
+        gap: 1.5,
         borderTop: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
         backgroundColor: alpha(theme.palette.background.default, 0.3),
       }}>
-        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', width: '100%' }}>
           {userRole?.role === 'teacher' || userRole?.role === 'admin' ? (
             <>
               <Button
@@ -2342,6 +2363,7 @@ export const TaskDetailsModal = ({ open, onClose, task: initialTask, theme, user
           onClick={onClose} 
           disabled={loading}
           size="medium"
+          fullWidth={isMobile}
           sx={{ 
             borderRadius: 2,
             px: 3,

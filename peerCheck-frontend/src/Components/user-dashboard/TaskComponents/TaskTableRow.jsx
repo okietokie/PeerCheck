@@ -180,6 +180,22 @@ export const TaskTableRow = ({
     return 'success';
   };
 
+  const formatTimeValue = (seconds) => {
+    if (!seconds) return '0m';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
+  };
+
+  const getRiskLabel = (riskScore) => {
+    if (riskScore >= 4) return 'High';
+    if (riskScore >= 2) return 'Medium';
+    return 'Low';
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     try {
@@ -553,6 +569,90 @@ useEffect(() => {
             </Box>
           </Box>
 
+          <Box
+            sx={{
+              mt: 1.1,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+              gap: 1,
+            }}
+          >
+            <Box
+              sx={{
+                p: 1,
+                borderRadius: 2,
+                backgroundColor: alpha(theme.palette.info.main, 0.06),
+                border: `1px solid ${alpha(theme.palette.info.main, 0.12)}`,
+              }}
+            >
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.35 }}>
+                Time
+              </Typography>
+              <Typography variant="body2" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+                {formatTimeValue(task.totalFocusTime)}
+              </Typography>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                of {formatTimeValue(task.estimatedTime)}
+              </Typography>
+            </Box>
+            <Box
+              sx={{
+                p: 1,
+                borderRadius: 2,
+                backgroundColor: alpha(
+                  task.metrics?.hasProof ? theme.palette.success.main : theme.palette.warning.main,
+                  0.08
+                ),
+                border: `1px solid ${alpha(
+                  task.metrics?.hasProof ? theme.palette.success.main : theme.palette.warning.main,
+                  0.16
+                )}`,
+              }}
+            >
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.35 }}>
+                Proof
+              </Typography>
+              <Typography variant="body2" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+                {task.metrics?.hasProof ? 'Ready' : 'Pending'}
+              </Typography>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                {task.metrics?.proofCount || task.proofUploads?.length || 0} file(s)
+              </Typography>
+            </Box>
+            <Box
+              sx={{
+                p: 1,
+                borderRadius: 2,
+                backgroundColor: alpha(
+                  getRiskColor(task.metrics?.riskScore) === 'error'
+                    ? theme.palette.error.main
+                    : getRiskColor(task.metrics?.riskScore) === 'warning'
+                    ? theme.palette.warning.main
+                    : theme.palette.success.main,
+                  0.08
+                ),
+                border: `1px solid ${alpha(
+                  getRiskColor(task.metrics?.riskScore) === 'error'
+                    ? theme.palette.error.main
+                    : getRiskColor(task.metrics?.riskScore) === 'warning'
+                    ? theme.palette.warning.main
+                    : theme.palette.success.main,
+                  0.16
+                )}`,
+              }}
+            >
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.35 }}>
+                Risk
+              </Typography>
+              <Typography variant="body2" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+                {getRiskLabel(task.metrics?.riskScore || 0)}
+              </Typography>
+              <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                score {task.metrics?.riskScore || 0}
+              </Typography>
+            </Box>
+          </Box>
+
           <Stack direction="row" spacing={1} sx={{ mt: 1.4, flexWrap: 'wrap' }}>
             {isAssignedUser && task.status !== 'completed' && (
               <Button
@@ -592,17 +692,186 @@ useEffect(() => {
                 Upload Proof
               </Button>
             )}
+            <Button
+              size="small"
+              variant="contained"
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDetails(task);
+              }}
+              sx={{
+                ml: 'auto',
+                borderRadius: 999,
+                px: 1.6,
+                minHeight: 34,
+              }}
+            >
+              Full details
+            </Button>
           </Stack>
 
           <Collapse in={expanded} timeout="auto" unmountOnExit>
             <Box sx={{ mt: 1.5, pt: 1.5, borderTop: `1px solid ${alpha(theme.palette.divider, 0.16)}` }}>
-              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.5 }}>Timeline</Typography>
-              <Typography variant="body2" sx={{ mb: 0.4 }}>Started: {formatFullDate(task.startDate || task.createdAt)}</Typography>
-              <Typography variant="body2" sx={{ mb: 1.1 }}>Deadline: {formatFullDate(task.deadline)}</Typography>
-              <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.45 }}>Description</Typography>
-              <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                {task.description || 'No description provided.'}
-              </Typography>
+              <Stack spacing={1.25}>
+                <Box
+                  sx={{
+                    p: 1.2,
+                    borderRadius: 2.5,
+                    backgroundColor: alpha(theme.palette.background.paper, 0.55),
+                    border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
+                  }}
+                >
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.85 }}>
+                    Overview
+                  </Typography>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1.1 }}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block' }}>
+                        Project
+                      </Typography>
+                      <Typography variant="body2" fontWeight={600} noWrap>
+                        {task.projectId?.name || 'No project'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block' }}>
+                        Assigned by
+                      </Typography>
+                      <Typography variant="body2" fontWeight={600} noWrap>
+                        {task.assignedBy?.name || 'Unknown'}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block' }}>
+                        Comments
+                      </Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        {task.commentsCount || task.comments?.length || 0}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block' }}>
+                        Completion
+                      </Typography>
+                      <Typography variant="body2" fontWeight={600}>
+                        {task.endDate ? formatDate(task.endDate) : 'In progress'}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+
+                <Box
+                  sx={{
+                    p: 1.2,
+                    borderRadius: 2.5,
+                    backgroundColor: alpha(theme.palette.primary.main, 0.04),
+                    border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
+                  }}
+                >
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.85 }}>
+                    Timeline
+                  </Typography>
+                  <Stack spacing={0.9}>
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                      <CalendarToday sx={{ fontSize: 16, color: theme.palette.text.secondary, mt: 0.1 }} />
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block' }}>
+                          Started
+                        </Typography>
+                        <Typography variant="body2" fontWeight={600}>
+                          {formatFullDate(task.startDate || task.createdAt)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                      <Schedule sx={{ fontSize: 16, color: theme.palette.text.secondary, mt: 0.1 }} />
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block' }}>
+                          Deadline
+                        </Typography>
+                        <Typography variant="body2" fontWeight={600} color={task.metrics?.isOverdue ? 'error.main' : 'text.primary'}>
+                          {formatFullDate(task.deadline)}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                          {calculateDaysText()}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    {task.endDate && (
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                        <CheckCircle sx={{ fontSize: 16, color: theme.palette.success.main, mt: 0.1 }} />
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block' }}>
+                            Completed
+                          </Typography>
+                          <Typography variant="body2" fontWeight={600}>
+                            {formatFullDate(task.endDate)}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )}
+                  </Stack>
+                </Box>
+
+                <Box
+                  sx={{
+                    p: 1.2,
+                    borderRadius: 2.5,
+                    backgroundColor: alpha(theme.palette.info.main, 0.05),
+                    border: `1px solid ${alpha(theme.palette.info.main, 0.12)}`,
+                  }}
+                >
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.85 }}>
+                    Time Tracking
+                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 0.8 }}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block' }}>
+                        Focus time
+                      </Typography>
+                      <Typography variant="body2" fontWeight={700}>
+                        {formatTimeValue(task.totalFocusTime)}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ minWidth: 0, textAlign: 'right' }}>
+                      <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block' }}>
+                        Estimated
+                      </Typography>
+                      <Typography variant="body2" fontWeight={700}>
+                        {formatTimeValue(task.estimatedTime)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Box sx={{ height: 7, borderRadius: 999, overflow: 'hidden', backgroundColor: alpha(theme.palette.info.main, 0.12) }}>
+                    <Box
+                      sx={{
+                        height: '100%',
+                        width: `${Math.min(((task.totalFocusTime || 0) / ((task.estimatedTime || 0) || 1)) * 100, 100)}%`,
+                        background: `linear-gradient(90deg, ${theme.palette.info.main}, ${theme.palette.info.light})`,
+                      }}
+                    />
+                  </Box>
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mt: 0.65 }}>
+                    {(((task.totalFocusTime || 0) / ((task.estimatedTime || 0) || 1)) * 100).toFixed(1)}% of planned time used
+                  </Typography>
+                </Box>
+
+                <Box
+                  sx={{
+                    p: 1.2,
+                    borderRadius: 2.5,
+                    backgroundColor: alpha(theme.palette.background.paper, 0.55),
+                    border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
+                  }}
+                >
+                  <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.45 }}>
+                    Description
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: theme.palette.text.secondary, lineHeight: 1.6 }}>
+                    {task.description || 'No description provided.'}
+                  </Typography>
+                </Box>
+              </Stack>
             </Box>
           </Collapse>
         </Box>

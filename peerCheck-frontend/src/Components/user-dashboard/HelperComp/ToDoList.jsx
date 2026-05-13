@@ -413,7 +413,7 @@ const TodoButtonDialog = ({ showTrigger = true, open: controlledOpen, onOpenChan
         open={open}
         onClose={handleClose}
         TransitionComponent={Slide}
-        TransitionProps={{ direction: 'left' }}
+        TransitionProps={{ direction: 'right' }}
         PaperProps={{
           sx: {
             margin: 0,

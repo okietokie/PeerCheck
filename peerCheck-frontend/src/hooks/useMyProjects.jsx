@@ -72,6 +72,7 @@ const useMyProject = (projectId, navigate, theme) => {
   const [memberEfficiencies, setMemberEfficiencies] = useState({});
   const [overallEfficiency, setOverallEfficiency] = useState(null);
   const [projectMetrics, setProjectMetrics] = useState(null);
+  const [contributorAnalytics, setContributorAnalytics] = useState(null);
   const [stickyNotes, setStickyNotes] = useState([]);
   const [isLoadingNotes, setIsLoadingNotes] = useState(false);
   const [showNewNoteDialog, setShowNewNoteDialog] = useState(false);
@@ -451,6 +452,28 @@ const useMyProject = (projectId, navigate, theme) => {
       showSnackbar('Error loading tasks', 'error');
     }
   }, [projectId, showSnackbar]);
+
+  const fetchContributorAnalytics = useCallback(async () => {
+    if (!projectId) return;
+
+    try {
+      const token = getAuthToken();
+      if (!token) return;
+
+      const response = await axiosClient.get(`/projects/${projectId}/contributors`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response?.data?.success) {
+        setContributorAnalytics(response.data);
+      } else {
+        setContributorAnalytics(null);
+      }
+    } catch (error) {
+      console.error('Error fetching contributor analytics:', error);
+      setContributorAnalytics(null);
+    }
+  }, [projectId]);
 
   // Fetch user data
   const fetchUserData = useCallback(async () => {
@@ -849,10 +872,11 @@ const validateDates = useCallback(() => {
     await Promise.all([
       fetchUserData(),
       fetchProjectDetails(),
-      fetchTasks()
+      fetchTasks(),
+      fetchContributorAnalytics()
     ]);
     showSnackbar('Data refreshed successfully', 'success');
-  }, [fetchUserData, fetchProjectDetails, fetchTasks, showSnackbar]);
+  }, [fetchUserData, fetchProjectDetails, fetchTasks, fetchContributorAnalytics, showSnackbar]);
 
   const onCreateTask = useCallback((project) => {
     setCreateTaskModalOpen(true);
@@ -949,9 +973,10 @@ const validateDates = useCallback(() => {
       fetchUserData();
       fetchProjectDetails();
       fetchTasks();
+      fetchContributorAnalytics();
       fetchStickyNotes();
     }
-  }, [projectId, fetchUserData, fetchProjectDetails, fetchTasks, fetchStickyNotes]);
+  }, [projectId, fetchUserData, fetchProjectDetails, fetchTasks, fetchContributorAnalytics, fetchStickyNotes]);
 
   // Calculate efficiencies when tasks or members change
   useEffect(() => {
@@ -1116,6 +1141,7 @@ const validateDates = useCallback(() => {
     memberEfficiencies,
     overallEfficiency,
     projectMetrics,
+    contributorAnalytics,
     stickyNotes,
     isLoadingNotes,
     showNewNoteDialog,

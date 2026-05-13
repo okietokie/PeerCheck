@@ -222,10 +222,12 @@ const Tasks = () => {
               mt: 1,
               width: { xs: 'calc(100vw - 32px)', sm: 460 },
               maxWidth: 460,
+              maxHeight: { xs: 'min(78vh, 720px)', sm: 'min(82vh, 760px)' },
               borderRadius: 3,
               border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
               boxShadow: `0 18px 50px ${alpha(theme.palette.common.black, 0.16)}`,
-              overflow: 'hidden'
+              overflow: 'auto',
+              WebkitOverflowScrolling: 'touch'
             }
           }}
         >
@@ -246,20 +248,23 @@ const Tasks = () => {
               </Box>
               <Box sx={{ minWidth: 0 }}>
                 <Typography variant="subtitle1" fontWeight={700}>
-                  How Your Task Efficiency Works
+                  How Your Task Score Works
                 </Typography>
                 <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                  This score is calculated from your own work on a task, not from the whole team.
+                  This score looks at your work on one task. It does not use the whole team's work.
                 </Typography>
               </Box>
             </Box>
 
             <Alert severity="info" sx={{ mb: 2, borderRadius: 2 }}>
-              Spending more time than estimated does not increase the efficiency score. It increases the raw time ratio, and going far over the estimate lowers the time-efficiency part of the score.
+              Taking much longer does not automatically give a better score. The system wants work time that feels realistic, not too short and not too long.
             </Alert>
 
-            <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1 }}>
-              Example: if you worked for <strong>54 minutes</strong> on a task estimated at <strong>10 minutes</strong>, the raw time ratio is:
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
+              The system checks 8 things
+            </Typography>
+            <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 1.5 }}>
+              There are <strong>5 score parts</strong> and <strong>3 warning checks</strong>.
             </Typography>
             <Paper
               elevation={0}
@@ -280,24 +285,155 @@ const Tasks = () => {
             </Paper>
 
             <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
-              Overall Efficiency Score Formula
+              The 5 score parts
             </Typography>
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mb: 2 }}>
-              <Chip label="Time Efficiency 30%" size="small" />
-              <Chip label="Completion Quality 25%" size="small" />
-              <Chip label="Timeliness 20%" size="small" />
-              <Chip label="Proof Quality 15%" size="small" />
-              <Chip label="Risk Factor 10%" size="small" />
+              <Chip label="Time 30%" size="small" />
+              <Chip label="Quality 25%" size="small" />
+              <Chip label="On Time 20%" size="small" />
+              <Chip label="Proof 15%" size="small" />
+              <Chip label="Risk 10%" size="small" />
             </Stack>
 
             <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mb: 2 }}>
-              Your final score is a weighted average from these five parts, then it is capped between 0 and 100.
+              Think of this like a report card out of 100. Bigger parts matter more.
             </Typography>
+
+            <Stack spacing={1.1} sx={{ mb: 2 }}>
+              <Box
+                sx={{
+                  p: 1.25,
+                  borderRadius: 2,
+                  backgroundColor: alpha(theme.palette.background.default, 0.55),
+                  border: `1px solid ${alpha(theme.palette.divider, 0.14)}`
+                }}
+              >
+                <Typography variant="body2" fontWeight={700}>
+                  1. Time
+                </Typography>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                  Did your work time look close to what the task expected?
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  p: 1.25,
+                  borderRadius: 2,
+                  backgroundColor: alpha(theme.palette.background.default, 0.55),
+                  border: `1px solid ${alpha(theme.palette.divider, 0.14)}`
+                }}
+              >
+                <Typography variant="body2" fontWeight={700}>
+                  2. Quality
+                </Typography>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                  Did you really finish the task properly?
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  p: 1.25,
+                  borderRadius: 2,
+                  backgroundColor: alpha(theme.palette.background.default, 0.55),
+                  border: `1px solid ${alpha(theme.palette.divider, 0.14)}`
+                }}
+              >
+                <Typography variant="body2" fontWeight={700}>
+                  3. On Time
+                </Typography>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                  Did you finish before the deadline, or are you still on track?
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  p: 1.25,
+                  borderRadius: 2,
+                  backgroundColor: alpha(theme.palette.background.default, 0.55),
+                  border: `1px solid ${alpha(theme.palette.divider, 0.14)}`
+                }}
+              >
+                <Typography variant="body2" fontWeight={700}>
+                  4. Proof
+                </Typography>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                  Did you show your work with files, pictures, videos, or notes?
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  p: 1.25,
+                  borderRadius: 2,
+                  backgroundColor: alpha(theme.palette.background.default, 0.55),
+                  border: `1px solid ${alpha(theme.palette.divider, 0.14)}`
+                }}
+              >
+                <Typography variant="body2" fontWeight={700}>
+                  5. Risk
+                </Typography>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                  Did anything look unsafe or strange about the task?
+                </Typography>
+              </Box>
+            </Stack>
 
             <Divider sx={{ my: 2 }} />
 
             <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
-              Time Efficiency Band Rules
+              The 3 warning checks
+            </Typography>
+            <Stack spacing={1.1} sx={{ mb: 2 }}>
+              <Box
+                sx={{
+                  p: 1.25,
+                  borderRadius: 2,
+                  backgroundColor: alpha(theme.palette.background.default, 0.55),
+                  border: `1px solid ${alpha(theme.palette.divider, 0.14)}`
+                }}
+              >
+                <Typography variant="body2" fontWeight={700}>
+                  6. Too fast?
+                </Typography>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                  Example: a big task finished in only 1 minute may look rushed.
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  p: 1.25,
+                  borderRadius: 2,
+                  backgroundColor: alpha(theme.palette.background.default, 0.55),
+                  border: `1px solid ${alpha(theme.palette.divider, 0.14)}`
+                }}
+              >
+                <Typography variant="body2" fontWeight={700}>
+                  7. Too long?
+                </Typography>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                  Example: a 10-minute task taking 54 minutes may look padded.
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  p: 1.25,
+                  borderRadius: 2,
+                  backgroundColor: alpha(theme.palette.background.default, 0.55),
+                  border: `1px solid ${alpha(theme.palette.divider, 0.14)}`
+                }}
+              >
+                <Typography variant="body2" fontWeight={700}>
+                  8. Missing proof?
+                </Typography>
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                  Example: if there is no file, picture, video, or note, the proof part becomes weaker.
+                </Typography>
+              </Box>
+            </Stack>
+
+            <Divider sx={{ my: 2 }} />
+
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
+              Simple time guide
             </Typography>
             <Stack spacing={1.1} sx={{ mb: 2 }}>
               {efficiencyBands.map((band) => (
@@ -323,14 +459,12 @@ const Tasks = () => {
             <Divider sx={{ my: 2 }} />
 
             <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
-              What Each Part Means For You
+              In one simple sentence
             </Typography>
             <Stack spacing={1}>
-              <Typography variant="body2"><strong>Time Efficiency:</strong> compares your logged focus time against the estimate.</Typography>
-              <Typography variant="body2"><strong>Completion Quality:</strong> depends on task status and any grading quality attached to the task.</Typography>
-              <Typography variant="body2"><strong>Timeliness:</strong> rewards finishing on time or staying on track before the deadline.</Typography>
-              <Typography variant="body2"><strong>Proof Quality:</strong> rewards having proof and better proof coverage.</Typography>
-              <Typography variant="body2"><strong>Risk Factor:</strong> lowers the score when the task looks rushed, padded, missing proof, or risky.</Typography>
+              <Typography variant="body2">
+                The system gives the best scores when your task is finished properly, close to the expected time, before the deadline, with clear proof, and without strange warning signs.
+              </Typography>
             </Stack>
           </Box>
         </Popover>

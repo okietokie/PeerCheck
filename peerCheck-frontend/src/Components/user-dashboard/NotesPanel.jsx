@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   alpha,
   Avatar,
@@ -75,6 +75,7 @@ export function CollaborativeNotesPanel({
   onDeleteNote,
   onPinNote,
   onClose,
+  openComposerSignal = 0,
 }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -85,6 +86,11 @@ export function CollaborativeNotesPanel({
   const [newNoteContent, setNewNoteContent] = useState('');
   const [filter, setFilter] = useState('all');
   const [sortOrder, setSortOrder] = useState('latest');
+
+  useEffect(() => {
+    if (!openComposerSignal) return;
+    setShowNewNote(true);
+  }, [openComposerSignal]);
 
   const filteredNotes = useMemo(() => {
     const matchingNotes = stickyNotes.filter((note) => {

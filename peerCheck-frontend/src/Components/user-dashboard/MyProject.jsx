@@ -51,7 +51,9 @@ import {
   InputLabel,
   Select,
   Skeleton,
-  Accordion
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material';
 import {
   Edit,
@@ -252,6 +254,7 @@ const MyProject = () => {
     memberEfficiencies,
     overallEfficiency,
     projectMetrics,
+    contributorAnalytics,
     stickyNotes,
     isLoadingNotes,
     showNewNoteDialog,
@@ -320,6 +323,10 @@ const MyProject = () => {
   const [inviteSearchLoading, setInviteSearchLoading] = useState(false);
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
   const [selectedInviteUser, setSelectedInviteUser] = useState(null);
+  const [notesComposerRequest, setNotesComposerRequest] = useState(0);
+
+  const canCreateProjectTask =
+    project?.status !== 'COMPLETED' && project?.createdBy?._id === user?._id;
 
   const existingMemberIds = useMemo(
     () => new Set((members || []).map((member) => member?._id).filter(Boolean)),
@@ -330,6 +337,37 @@ const MyProject = () => {
     const baseUsers = inviteSearchQuery.trim().length > 2 ? inviteSearchResults : inviteSuggestedUsers;
     return (baseUsers || []).filter((candidate) => candidate?._id && !existingMemberIds.has(candidate._id));
   }, [existingMemberIds, inviteSearchQuery, inviteSearchResults, inviteSuggestedUsers]);
+
+  const contributorCards = contributorAnalytics?.contributors || [];
+  const contributionSummary = contributorAnalytics?.summary || null;
+  const topContributor = contributorCards[0] || null;
+
+  const formatDateTimeLabel = (value) => {
+    if (!value) return 'No recent activity';
+    try {
+      return new Date(value).toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      return 'Recent';
+    }
+  };
+
+  const getContributionColor = (score) => {
+    if (score >= 75) return getThemeColor('success');
+    if (score >= 50) return getThemeColor('warning');
+    return getThemeColor('error');
+  };
+
+  const getContributionLabel = (score) => {
+    if (score >= 75) return 'Major contributor';
+    if (score >= 50) return 'Steady contributor';
+    if (score >= 30) return 'Needs momentum';
+    return 'Low contribution';
+  };
 
   const resetInviteDialog = () => {
     setInviteData({ email: '', username: '', inviteMethod: 'email' });
@@ -398,22 +436,15 @@ const MyProject = () => {
   useEffect(() => {
     const handleOpenNotes = () => {
       setActiveTab(6);
-    };
-
-    const handleOpenCreateTask = () => {
-      if (project) {
-        onCreateTask(project);
-      }
+      setNotesComposerRequest((current) => current + 1);
     };
 
     window.addEventListener('myproject-open-notes', handleOpenNotes);
-    window.addEventListener('myproject-open-create-task', handleOpenCreateTask);
 
     return () => {
       window.removeEventListener('myproject-open-notes', handleOpenNotes);
-      window.removeEventListener('myproject-open-create-task', handleOpenCreateTask);
     };
-  }, [onCreateTask, project, setActiveTab]);
+  }, [setActiveTab]);
 
   const handleInviteUserSelect = (selectedUser) => {
     setSelectedInviteUser(selectedUser);
@@ -609,7 +640,7 @@ const MyProject = () => {
                 <IconButton 
                   size="small"
                   onClick={() => onCreateTask(project)} 
-                  disabled={project?.status === 'COMPLETED' || project?.createdBy._id !== user?._id}
+                  disabled={!canCreateProjectTask}
                   sx={{
                     width: '100%',
                     borderRadius: 2.5,
@@ -2737,6 +2768,441 @@ const MyProject = () => {
                           </Grid>
                         </Grid>
                       </Paper>
+
+                      <Paper
+                        elevation={0}
+                        sx={{
+                          mt: 3,
+                          p: { xs: 2, sm: 3 },
+                          borderRadius: 3,
+                          ...getGlassEffect(),
+                          border: `1.5px solid ${getBorderColor('secondary', 0.35)}`,
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: { xs: 'flex-start', md: 'center' },
+                            flexDirection: { xs: 'column', md: 'row' },
+                            gap: 1.5,
+                            mb: 2.5,
+                          }}
+                        >
+                          <Box>
+                            <Typography
+                              variant="h6"
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                color: getThemeColor('secondary'),
+                                fontSize: { xs: '1rem', sm: '1.25rem' },
+                                mb: 0.75,
+                              }}
+                            >
+                              <WorkspacePremium /> Contribution Intelligence
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              See who carried which parts of the project, how active they were, and how their task output lines up with peer and evaluation signals.
+                            </Typography>
+                          </Box>
+                          {contributionSummary && (
+                            <Chip
+                              icon={<BarChart />}
+                              label={`Team average ${contributionSummary.averageContributionScore || 0}`}
+                              sx={{
+                                borderRadius: 999,
+                                fontWeight: 700,
+                                backgroundColor: alpha(getThemeColor('secondary'), 0.14),
+                                color: getThemeColor('secondary'),
+                              }}
+                            />
+                          )}
+                        </Box>
+
+                        {contributionSummary && (
+                          <Grid container spacing={{ xs: 1.5, sm: 2 }} sx={{ mb: 3 }}>
+                            <Grid item xs={6} sm={3}>
+                              <Paper
+                                elevation={0}
+                                sx={{
+                                  p: 1.75,
+                                  borderRadius: 2.5,
+                                  backgroundColor: alpha(getThemeColor('secondary'), 0.08),
+                                  border: `1px solid ${alpha(getThemeColor('secondary'), 0.18)}`,
+                                  height: '100%',
+                                }}
+                              >
+                                <Typography variant="caption" color="text.secondary">Team members</Typography>
+                                <Typography variant="h4" fontWeight={800} sx={{ mt: 0.5, fontSize: { xs: '1.6rem', sm: '2rem' } }}>
+                                  {contributionSummary.totalTeamMembers || 0}
+                                </Typography>
+                              </Paper>
+                            </Grid>
+                            <Grid item xs={6} sm={3}>
+                              <Paper
+                                elevation={0}
+                                sx={{
+                                  p: 1.75,
+                                  borderRadius: 2.5,
+                                  backgroundColor: alpha(getThemeColor('primary'), 0.08),
+                                  border: `1px solid ${alpha(getThemeColor('primary'), 0.18)}`,
+                                  height: '100%',
+                                }}
+                              >
+                                <Typography variant="caption" color="text.secondary">Task coverage</Typography>
+                                <Typography variant="h4" fontWeight={800} sx={{ mt: 0.5, fontSize: { xs: '1.6rem', sm: '2rem' } }}>
+                                  {contributionSummary.completedTasks || 0}/{contributionSummary.totalTasks || 0}
+                                </Typography>
+                              </Paper>
+                            </Grid>
+                            <Grid item xs={6} sm={3}>
+                              <Paper
+                                elevation={0}
+                                sx={{
+                                  p: 1.75,
+                                  borderRadius: 2.5,
+                                  backgroundColor: alpha(getThemeColor('info'), 0.08),
+                                  border: `1px solid ${alpha(getThemeColor('info'), 0.18)}`,
+                                  height: '100%',
+                                }}
+                              >
+                                <Typography variant="caption" color="text.secondary">Tracked focus</Typography>
+                                <Typography variant="h4" fontWeight={800} sx={{ mt: 0.5, fontSize: { xs: '1.6rem', sm: '2rem' } }}>
+                                  {Math.round((contributionSummary.totalFocusTime || 0) / 3600)}h
+                                </Typography>
+                              </Paper>
+                            </Grid>
+                            <Grid item xs={6} sm={3}>
+                              <Paper
+                                elevation={0}
+                                sx={{
+                                  p: 1.75,
+                                  borderRadius: 2.5,
+                                  backgroundColor: alpha(getThemeColor(contributionSummary.freeRiderRisk ? 'error' : 'success'), 0.08),
+                                  border: `1px solid ${alpha(getThemeColor(contributionSummary.freeRiderRisk ? 'error' : 'success'), 0.18)}`,
+                                  height: '100%',
+                                }}
+                              >
+                                <Typography variant="caption" color="text.secondary">Free rider risk</Typography>
+                                <Typography variant="h6" fontWeight={800} sx={{ mt: 0.75, fontSize: { xs: '1rem', sm: '1.2rem' } }}>
+                                  {contributionSummary.freeRiderRisk ? 'Needs attention' : 'Balanced'}
+                                </Typography>
+                              </Paper>
+                            </Grid>
+                          </Grid>
+                        )}
+
+                        {topContributor && (
+                          <Paper
+                            elevation={0}
+                            sx={{
+                              mb: 2.5,
+                              p: { xs: 2, sm: 2.25 },
+                              borderRadius: 2.75,
+                              background: `linear-gradient(135deg, ${alpha(getThemeColor('primary'), 0.16)}, ${alpha(getThemeColor('secondary'), 0.12)})`,
+                              border: `1px solid ${alpha(getThemeColor('primary'), 0.24)}`,
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                flexDirection: { xs: 'column', sm: 'row' },
+                                alignItems: { xs: 'flex-start', sm: 'center' },
+                                gap: 1.5,
+                              }}
+                            >
+                              <Avatar
+                                src={topContributor.user.avatar}
+                                sx={{
+                                  width: { xs: 54, sm: 60 },
+                                  height: { xs: 54, sm: 60 },
+                                  bgcolor: alpha(getThemeColor('primary'), 0.8),
+                                }}
+                              >
+                                {topContributor.user.name?.[0] || 'U'}
+                              </Avatar>
+                              <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography variant="overline" sx={{ letterSpacing: 1.1, color: getThemeColor('primary') }}>
+                                  Top Contributor
+                                </Typography>
+                                <Typography variant="h6" fontWeight={800} sx={{ wordBreak: 'break-word' }}>
+                                  {topContributor.user.name}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {getContributionLabel(topContributor.contributionScore)} with {topContributor.stats.completedTasks} completed task{topContributor.stats.completedTasks === 1 ? '' : 's'} and {topContributor.shares.progress}% of recorded task progress.
+                                </Typography>
+                              </Box>
+                              <Box sx={{ alignSelf: { xs: 'stretch', sm: 'center' } }}>
+                                <Typography
+                                  variant="h3"
+                                  fontWeight={900}
+                                  sx={{
+                                    color: getContributionColor(topContributor.contributionScore),
+                                    fontSize: { xs: '2rem', sm: '2.4rem' },
+                                  }}
+                                >
+                                  {topContributor.contributionScore}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  Contribution score
+                                </Typography>
+                              </Box>
+                            </Box>
+                          </Paper>
+                        )}
+
+                        {contributorCards.length > 0 ? (
+                          <Stack spacing={1.5}>
+                            {contributorCards.map((contributor, index) => (
+                              <Accordion
+                                key={contributor.user._id}
+                                disableGutters
+                                elevation={0}
+                                sx={{
+                                  borderRadius: '18px !important',
+                                  overflow: 'hidden',
+                                  backgroundColor: alpha(theme.palette.background.paper, 0.58),
+                                  border: `1px solid ${alpha(getContributionColor(contributor.contributionScore), 0.2)}`,
+                                  '&:before': { display: 'none' }
+                                }}
+                              >
+                                <AccordionSummary
+                                  expandIcon={<ExpandMore />}
+                                  sx={{
+                                    px: { xs: 1.5, sm: 2 },
+                                    py: 1,
+                                    '& .MuiAccordionSummary-content': {
+                                      my: 0.5,
+                                    }
+                                  }}
+                                >
+                                  <Box sx={{ width: '100%' }}>
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        alignItems: { xs: 'flex-start', sm: 'center' },
+                                        gap: 1.5,
+                                        flexDirection: { xs: 'column', sm: 'row' }
+                                      }}
+                                    >
+                                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, width: '100%' }}>
+                                        <Avatar
+                                          src={contributor.user.avatar}
+                                          sx={{
+                                            width: 48,
+                                            height: 48,
+                                            bgcolor: alpha(getContributionColor(contributor.contributionScore), 0.8),
+                                          }}
+                                        >
+                                          {contributor.user.name?.[0] || 'U'}
+                                        </Avatar>
+                                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                                            <Typography variant="subtitle1" fontWeight={800} sx={{ wordBreak: 'break-word' }}>
+                                              #{index + 1} {contributor.user.name}
+                                            </Typography>
+                                            {contributor.isCreator && (
+                                              <Chip size="small" icon={<StarIcon />} label="Lead" />
+                                            )}
+                                            {contributor.stats.isFreeRider && (
+                                              <Chip size="small" color="error" icon={<Warning />} label="Risk" />
+                                            )}
+                                          </Box>
+                                          <Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
+                                            {contributor.user.email || contributor.user.username || 'Team member'}
+                                          </Typography>
+                                        </Box>
+                                      </Box>
+
+                                      <Box
+                                        sx={{
+                                          display: 'grid',
+                                          gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))' },
+                                          gap: 1,
+                                          width: '100%'
+                                        }}
+                                      >
+                                        <Paper elevation={0} sx={{ p: 1.2, borderRadius: 2, backgroundColor: alpha(getContributionColor(contributor.contributionScore), 0.1) }}>
+                                          <Typography variant="caption" color="text.secondary">Score</Typography>
+                                          <Typography variant="h6" fontWeight={900} sx={{ color: getContributionColor(contributor.contributionScore) }}>
+                                            {contributor.contributionScore}
+                                          </Typography>
+                                        </Paper>
+                                        <Paper elevation={0} sx={{ p: 1.2, borderRadius: 2, backgroundColor: alpha(getThemeColor('success'), 0.08) }}>
+                                          <Typography variant="caption" color="text.secondary">Completed</Typography>
+                                          <Typography variant="h6" fontWeight={800}>
+                                            {contributor.stats.completedTasks}
+                                          </Typography>
+                                        </Paper>
+                                        <Paper elevation={0} sx={{ p: 1.2, borderRadius: 2, backgroundColor: alpha(getThemeColor('info'), 0.08) }}>
+                                          <Typography variant="caption" color="text.secondary">Peer</Typography>
+                                          <Typography variant="h6" fontWeight={800}>
+                                            {contributor.scores.peerReviewAverage || 0}/5
+                                          </Typography>
+                                        </Paper>
+                                        <Paper elevation={0} sx={{ p: 1.2, borderRadius: 2, backgroundColor: alpha(getThemeColor('warning'), 0.08) }}>
+                                          <Typography variant="caption" color="text.secondary">Active</Typography>
+                                          <Typography variant="h6" fontWeight={800}>
+                                            {contributor.stats.activityCount}
+                                          </Typography>
+                                        </Paper>
+                                      </Box>
+                                    </Box>
+                                  </Box>
+                                </AccordionSummary>
+
+                                <AccordionDetails sx={{ px: { xs: 1.5, sm: 2 }, pb: 2 }}>
+                                  <Grid container spacing={{ xs: 1.5, sm: 2 }}>
+                                    <Grid item xs={12} md={6}>
+                                      <Paper elevation={0} sx={{ p: 1.75, borderRadius: 2.5, backgroundColor: alpha(getThemeColor('primary'), 0.06), height: '100%' }}>
+                                        <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.25 }}>
+                                          Task output
+                                        </Typography>
+                                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.5 }}>
+                                          <Chip size="small" label={`${contributor.stats.assignedTasks} assigned`} />
+                                          <Chip size="small" label={`${contributor.stats.completedTasks} completed`} />
+                                          <Chip size="small" label={`${contributor.shares.progress}% progress share`} />
+                                          <Chip size="small" label={`${contributor.shares.focus}% focus share`} />
+                                        </Stack>
+                                        <Grid container spacing={1}>
+                                          <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Completion rate</Typography>
+                                            <Typography variant="body1" fontWeight={700}>{contributor.stats.completionRate}%</Typography>
+                                          </Grid>
+                                          <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Efficiency</Typography>
+                                            <Typography variant="body1" fontWeight={700}>{contributor.stats.avgEfficiency}%</Typography>
+                                          </Grid>
+                                          <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Focus time</Typography>
+                                            <Typography variant="body1" fontWeight={700}>{formatTime(contributor.stats.totalFocusTime)}</Typography>
+                                          </Grid>
+                                          <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Estimated</Typography>
+                                            <Typography variant="body1" fontWeight={700}>{formatTime(contributor.stats.totalEstimatedTime)}</Typography>
+                                          </Grid>
+                                        </Grid>
+                                      </Paper>
+                                    </Grid>
+
+                                    <Grid item xs={12} md={6}>
+                                      <Paper elevation={0} sx={{ p: 1.75, borderRadius: 2.5, backgroundColor: alpha(getThemeColor('secondary'), 0.06), height: '100%' }}>
+                                        <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.25 }}>
+                                          Quality signals
+                                        </Typography>
+                                        <Grid container spacing={1}>
+                                          <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Peer score</Typography>
+                                            <Typography variant="body1" fontWeight={700}>{contributor.scores.peerReviewAverage || 0}/5</Typography>
+                                          </Grid>
+                                          <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Peer reviews</Typography>
+                                            <Typography variant="body1" fontWeight={700}>{contributor.scores.peerReviewCount || 0}</Typography>
+                                          </Grid>
+                                          <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Member eval</Typography>
+                                            <Typography variant="body1" fontWeight={700}>{contributor.scores.memberEvaluationAverage || 0}/10</Typography>
+                                          </Grid>
+                                          <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Project eval</Typography>
+                                            <Typography variant="body1" fontWeight={700}>{contributor.scores.teamEvaluationAverage || 0}/10</Typography>
+                                          </Grid>
+                                          <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Proof coverage</Typography>
+                                            <Typography variant="body1" fontWeight={700}>{contributor.stats.proofRate}%</Typography>
+                                          </Grid>
+                                          <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Avg risk</Typography>
+                                            <Typography variant="body1" fontWeight={700}>{contributor.stats.averageRiskScore}</Typography>
+                                          </Grid>
+                                        </Grid>
+                                      </Paper>
+                                    </Grid>
+
+                                    <Grid item xs={12} md={6}>
+                                      <Paper elevation={0} sx={{ p: 1.75, borderRadius: 2.5, backgroundColor: alpha(getThemeColor('info'), 0.06), height: '100%' }}>
+                                        <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.25 }}>
+                                          Activity and ownership
+                                        </Typography>
+                                        <Grid container spacing={1}>
+                                          <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Activity events</Typography>
+                                            <Typography variant="body1" fontWeight={700}>{contributor.stats.activityCount}</Typography>
+                                          </Grid>
+                                          <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Active days</Typography>
+                                            <Typography variant="body1" fontWeight={700}>{contributor.stats.activeDays}</Typography>
+                                          </Grid>
+                                          <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Recent 7 days</Typography>
+                                            <Typography variant="body1" fontWeight={700}>{contributor.stats.recentActivityCount}</Typography>
+                                          </Grid>
+                                          <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Comments</Typography>
+                                            <Typography variant="body1" fontWeight={700}>{contributor.stats.commentCount}</Typography>
+                                          </Grid>
+                                          <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Proof actions</Typography>
+                                            <Typography variant="body1" fontWeight={700}>{contributor.stats.proofActivityCount}</Typography>
+                                          </Grid>
+                                          <Grid item xs={6}>
+                                            <Typography variant="caption" color="text.secondary">Status changes</Typography>
+                                            <Typography variant="body1" fontWeight={700}>{contributor.stats.statusChangeCount}</Typography>
+                                          </Grid>
+                                        </Grid>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.25 }}>
+                                          Last active: {formatDateTimeLabel(contributor.stats.lastActiveAt)}
+                                        </Typography>
+                                      </Paper>
+                                    </Grid>
+
+                                    <Grid item xs={12} md={6}>
+                                      <Paper elevation={0} sx={{ p: 1.75, borderRadius: 2.5, backgroundColor: alpha(getThemeColor('warning'), 0.06), height: '100%' }}>
+                                        <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1.25 }}>
+                                          Recent work
+                                        </Typography>
+                                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1.25 }}>
+                                          <Chip size="small" label={`${contributor.stats.tasksWithProof} tasks with proof`} />
+                                          <Chip size="small" label={`${contributor.stats.overdueTasks} overdue`} />
+                                          <Chip size="small" label={`${contributor.stats.highRiskTasks} high risk`} />
+                                        </Stack>
+                                        <Divider sx={{ my: 1.25 }} />
+                                        <Stack spacing={1}>
+                                          {(contributor.recentWork.recentActivities || []).length > 0 ? (
+                                            contributor.recentWork.recentActivities.map((activity) => (
+                                              <Box key={activity._id} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                                                <History sx={{ mt: 0.2, fontSize: 18, color: getThemeColor('warning') }} />
+                                                <Box>
+                                                  <Typography variant="body2" sx={{ lineHeight: 1.4 }}>
+                                                    {activity.action}
+                                                  </Typography>
+                                                  <Typography variant="caption" color="text.secondary">
+                                                    {activity.taskTitle} • {formatDateTimeLabel(activity.timestamp)}
+                                                  </Typography>
+                                                </Box>
+                                              </Box>
+                                            ))
+                                          ) : (
+                                            <Typography variant="body2" color="text.secondary">
+                                              No recorded project activity yet.
+                                            </Typography>
+                                          )}
+                                        </Stack>
+                                      </Paper>
+                                    </Grid>
+                                  </Grid>
+                                </AccordionDetails>
+                              </Accordion>
+                            ))}
+                          </Stack>
+                        ) : (
+                          <Alert severity="info" sx={{ borderRadius: 2.5 }}>
+                            Contribution insights will appear here once the project has team members, tasks, and activity data to compare.
+                          </Alert>
+                        )}
+                      </Paper>
                     </Box>
                   </TabContent>
 
@@ -2797,6 +3263,7 @@ const MyProject = () => {
                       }}>
                         <StickyNoteEditor
                           projectId={projectId}
+                          openComposerSignal={notesComposerRequest}
                           initialContent=""
                           currentUser={{
                             _id: user?._id || '',
