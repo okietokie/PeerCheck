@@ -64,9 +64,9 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const TodoButtonDialog = () => {
+const TodoButtonDialog = ({ showTrigger = true, open: controlledOpen, onOpenChange }) => {
   const theme = useTheme();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [todos, setTodos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
@@ -83,6 +83,14 @@ const TodoButtonDialog = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [bulkSelect, setBulkSelect] = useState([]);
   const [dialogWidth, setDialogWidth] = useState(400); // Default width
+  const open = controlledOpen ?? internalOpen;
+
+  const setOpenState = (nextOpen) => {
+    if (typeof controlledOpen === 'undefined') {
+      setInternalOpen(nextOpen);
+    }
+    onOpenChange?.(nextOpen);
+  };
 
   useEffect(() => {
     if (open) {
@@ -329,11 +337,11 @@ const TodoButtonDialog = () => {
   };
 
   const handleOpen = () => {
-    setOpen(true);
+    setOpenState(true);
   };
 
   const handleClose = () => {
-    setOpen(false);
+    setOpenState(false);
   };
 
   const toggleDialogSize = () => {
@@ -342,62 +350,63 @@ const TodoButtonDialog = () => {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      {/* Floating Button */}
-      <Box
-        sx={{
-          position: 'fixed',
-          right: { xs: 16, sm: 20 },
-          bottom: {
-            xs: 'calc(16px + env(safe-area-inset-bottom, 0px))',
-            sm: 20,
-          },
-          zIndex: theme.zIndex.drawer - 1,
-        }}
-      >
-        <motion.div
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
+      {showTrigger && (
+        <Box
+          sx={{
+            position: 'fixed',
+            right: { xs: 16, sm: 20 },
+            bottom: {
+              xs: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+              sm: 20,
+            },
+            zIndex: theme.zIndex.drawer - 1,
+          }}
         >
-          <Badge
-            badgeContent={stats?.pending || 0}
-            color="error"
-            overlap="circular"
-            sx={{
-              '& .MuiBadge-badge': {
-                fontSize: '0.7rem',
-                height: 20,
-                minWidth: 20,
-                animation: stats?.pending > 0 ? 'pulse 1.5s infinite' : 'none',
-                '@keyframes pulse': {
-                  '0%': { transform: 'scale(1)', boxShadow: `0 0 0 0 ${alpha(theme.palette.error.main, 0.7)}` },
-                  '70%': { transform: 'scale(1.1)', boxShadow: `0 0 0 10px ${alpha(theme.palette.error.main, 0)}` },
-                  '100%': { transform: 'scale(1)', boxShadow: `0 0 0 0 ${alpha(theme.palette.error.main, 0)}` },
-                }
-              }
-            }}
+          <motion.div
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
           >
-            <Button
-              variant="contained"
-              startIcon={<TodoIcon />}
-              onClick={handleOpen}
+            <Badge
+              badgeContent={stats?.pending || 0}
+              color="error"
+              overlap="circular"
               sx={{
-                minWidth: 'auto',
-                width: { xs: 52, sm: 56 },
-                height: { xs: 52, sm: 56 },
-                borderRadius: '50%',
-                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                color: 'white',
-                boxShadow: theme.shadows[8],
-                '&:hover': {
-                  background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.secondary.dark} 100%)`,
-                  transform: 'translateY(-2px)',
-                  boxShadow: theme.shadows[12],
-                },
+                '& .MuiBadge-badge': {
+                  fontSize: '0.7rem',
+                  height: 20,
+                  minWidth: 20,
+                  animation: stats?.pending > 0 ? 'pulse 1.5s infinite' : 'none',
+                  '@keyframes pulse': {
+                    '0%': { transform: 'scale(1)', boxShadow: `0 0 0 0 ${alpha(theme.palette.error.main, 0.7)}` },
+                    '70%': { transform: 'scale(1.1)', boxShadow: `0 0 0 10px ${alpha(theme.palette.error.main, 0)}` },
+                    '100%': { transform: 'scale(1)', boxShadow: `0 0 0 0 ${alpha(theme.palette.error.main, 0)}` },
+                  }
+                }
               }}
-            />
-          </Badge>
-        </motion.div>
-      </Box>
+            >
+              <Button
+                variant="contained"
+                startIcon={<TodoIcon />}
+                onClick={handleOpen}
+                sx={{
+                  minWidth: 'auto',
+                  width: { xs: 52, sm: 56 },
+                  height: { xs: 52, sm: 56 },
+                  borderRadius: '50%',
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+                  color: 'white',
+                  boxShadow: theme.shadows[8],
+                  '&:hover': {
+                    background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.secondary.dark} 100%)`,
+                    transform: 'translateY(-2px)',
+                    boxShadow: theme.shadows[12],
+                  },
+                }}
+              />
+            </Badge>
+          </motion.div>
+        </Box>
+      )}
 
       {/* Slide Dialog */}
       <Dialog

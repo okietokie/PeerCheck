@@ -27,7 +27,8 @@ import {
   InputAdornment,
   CircularProgress,
   Autocomplete,
-  Paper
+  Paper,
+  useMediaQuery
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -173,6 +174,7 @@ function UserSuggestion({ user, onSelect, isSelected }) {
 
 export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(0);
   const [isEditingName, setIsEditingName] = useState(false);
@@ -460,10 +462,11 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
         onClose={onClose}
         maxWidth="md"
         fullWidth
+        fullScreen={isMobile}
         scroll="paper"
         sx={{
           '& .MuiDialog-paper': {
-            borderRadius: 3,
+            borderRadius: { xs: 0, sm: 3 },
             background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.background.paper, 1)} 100%)`,
             backdropFilter: 'blur(10px)'
           }
@@ -475,21 +478,22 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
           justifyContent: 'space-between',
           borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
           background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, transparent 100%)`,
-          py: 2
+          py: 2,
+          px: { xs: 2, sm: 3 }
         }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, sm: 2 }, minWidth: 0, pr: 1 }}>
             <Avatar sx={{ bgcolor: 'primary.main', width: 48, height: 48 }}>
               <TeamIcon />
             </Avatar>
-            <Box>
+            <Box sx={{ minWidth: 0 }}>
               {isEditingName ? (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                   <TextField
                     value={teamName}
                     onChange={(e) => setTeamName(e.target.value)}
                     size="small"
                     autoFocus
-                    sx={{ minWidth: 200 }}
+                    sx={{ minWidth: { xs: 0, sm: 200 }, width: { xs: '100%', sm: 'auto' } }}
                     placeholder="Enter team name..."
                     disabled={loading}
                   />
@@ -514,8 +518,8 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
                   </IconButton>
                 </Box>
               ) : (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography variant="h5" fontWeight={700} color="primary.main">
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                  <Typography variant="h5" fontWeight={700} color="primary.main" sx={{ wordBreak: 'break-word' }}>
                     {team.name}
                   </Typography>
                   <IconButton 
@@ -541,11 +545,14 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
           <Tabs 
             value={activeTab} 
             onChange={(e, newValue) => setActiveTab(newValue)}
+            variant={isMobile ? 'scrollable' : 'standard'}
+            scrollButtons="auto"
             sx={{ 
               borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-              px: 3,
+              px: { xs: 1, sm: 3 },
               '& .MuiTab-root': {
                 minHeight: 60,
+                minWidth: { xs: 120, sm: 0 },
                 fontWeight: 600,
                 '&.Mui-selected': {
                   color: 'primary.main',
@@ -566,15 +573,15 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
 
           {/* Members Tab */}
           <TabPanel value={activeTab} index={0}>
-            <Box sx={{ px: 3, pb: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Box sx={{ px: { xs: 2, sm: 3 }, pb: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, mb: 3, gap: 1.5 }}>
                 <Typography variant="h6" fontWeight={600}>Team Members</Typography>
                 <Button 
                   variant="contained" 
                   size="small" 
                   startIcon={<PersonAddIcon />}
                   onClick={() => setShowInvite(true)}
-                  sx={{ borderRadius: 2 }}
+                  sx={{ borderRadius: 2, width: { xs: '100%', sm: 'auto' } }}
                   disabled={loading}
                 >
                   Invite Members
@@ -617,8 +624,8 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
                             </Box>
                           }
                           secondary={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
-                              <Typography variant="body2" color="text.secondary">
+                            <Box sx={{ display: 'flex', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1, mt: 0.5 }}>
+                              <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
                                 {member.user?.course || 'Student'} • {member.user?.institution || 'No institution'}
                               </Typography>
                               {member.user?.email && (
@@ -629,6 +636,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
                                   sx={{ 
                                     minWidth: 'auto',
                                     color: 'primary.main',
+                                    width: { xs: '100%', sm: 'auto' },
                                     '&:hover': {
                                       backgroundColor: alpha(theme.palette.primary.main, 0.1)
                                     }
@@ -653,14 +661,14 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
 
           {/* Projects Tab */}
           <TabPanel value={activeTab} index={1}>
-            <Box sx={{ px: 3, pb: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Box sx={{ px: { xs: 2, sm: 3 }, pb: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, mb: 3, gap: 1.5 }}>
                 <Typography variant="h6" fontWeight={600}>Shared Projects</Typography>
                 <Button 
                   variant="contained" 
                   startIcon={<ProjectIcon />}
                   onClick={handleCreateProject}
-                  sx={{ borderRadius: 2 }}
+                  sx={{ borderRadius: 2, width: { xs: '100%', sm: 'auto' } }}
                 >
                   New Project
                 </Button>
@@ -744,7 +752,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
 
           {/* Settings Tab */}
           <TabPanel value={activeTab} index={2}>
-            <Box sx={{ px: 3, pb: 3 }}>
+            <Box sx={{ px: { xs: 2, sm: 3 }, pb: 3 }}>
               <Typography variant="h6" fontWeight={600} sx={{ mb: 3 }}>Team Management</Typography>
               
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -764,12 +772,12 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
                           : 'This team has a pending leadership transfer request.'}
                     </Alert>
                   )}
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', flexDirection: { xs: 'column', sm: 'row' } }}>
                     <Button 
                       variant="outlined" 
                       color="primary"
                       onClick={() => setIsEditingName(true)}
-                      sx={{ borderRadius: 2 }}
+                      sx={{ borderRadius: 2, width: { xs: '100%', sm: 'auto' } }}
                       disabled={loading || !isCurrentLeader}
                     >
                       Change Team Name
@@ -778,7 +786,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
                       variant="outlined" 
                       color="warning"
                       onClick={handleTransferLeadership}
-                      sx={{ borderRadius: 2 }}
+                      sx={{ borderRadius: 2, width: { xs: '100%', sm: 'auto' } }}
                       disabled={loading || !isCurrentLeader || transferCandidates.length === 0}
                     >
                       Transfer Leadership
@@ -870,6 +878,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
         onClose={() => !loading && setShowTransferDialog(false)}
         maxWidth="sm"
         fullWidth
+        fullScreen={isMobile}
       >
         <DialogTitle>Transfer Team Leadership</DialogTitle>
         <DialogContent>
@@ -908,10 +917,11 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
             )}
           />
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3 }}>
+        <DialogActions sx={{ px: { xs: 2, sm: 3 }, pb: { xs: 2, sm: 3 }, flexDirection: { xs: 'column-reverse', sm: 'row' }, gap: 1.25 }}>
           <Button
             onClick={() => setShowTransferDialog(false)}
             disabled={loading}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
             Cancel
           </Button>
@@ -920,6 +930,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
             color="warning"
             onClick={submitLeadershipTransfer}
             disabled={loading || !selectedLeaderCandidate}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
             {loading ? 'Sending...' : 'Send Request'}
           </Button>
@@ -932,9 +943,10 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
         onClose={() => !loading && setShowInvite(false)}
         maxWidth="sm"
         fullWidth
+        fullScreen={isMobile}
         sx={{
           '& .MuiDialog-paper': {
-            borderRadius: 3,
+            borderRadius: { xs: 0, sm: 3 },
             background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(theme.palette.background.paper, 1)} 100%)`,
             backdropFilter: 'blur(10px)',
             border: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
@@ -952,7 +964,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, sm: 2 }, minWidth: 0, pr: 1 }}>
               <Avatar
                 sx={{
                   bgcolor: 'primary.main',
@@ -993,7 +1005,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
           </Box>
         </Box>
 
-        <DialogContent sx={{ p: 3 }}>
+        <DialogContent sx={{ p: { xs: 2, sm: 3 } }}>
           {/* Description */}
           <Box
             sx={{
@@ -1095,7 +1107,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
           )}
 
           {/* User Suggestions/Results */}
-          <Box sx={{ maxHeight: 400, overflow: 'auto', mb: 3 }}>
+          <Box sx={{ maxHeight: { xs: 320, sm: 400 }, overflow: 'auto', mb: 3 }}>
             {searchLoading && displayUsers.length === 0 ? (
               <Box sx={{ textAlign: 'center', py: 4 }}>
                 <CircularProgress size={32} />
@@ -1240,7 +1252,7 @@ export default function TeamDetails({ open, onClose, team, onTeamUpdate }) {
         </DialogContent>
 
         {/* Action Buttons */}
-        <Box sx={{ p: 3, pt: 0 }}>
+        <Box sx={{ p: { xs: 2, sm: 3 }, pt: 0 }}>
           <Button
             variant="contained"
             fullWidth

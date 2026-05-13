@@ -42,6 +42,7 @@ const getUserData = () => {
 
 // Create Project Modal Component
 const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [formData, setFormData] = useState({
     creationMode: 'peer',
     projectName: '',
@@ -310,9 +311,10 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
     onClose={!loading ? onClose : undefined} 
     maxWidth="md" 
     fullWidth
+    fullScreen={isMobile}
     PaperProps={{
       sx: {
-        borderRadius: 3,
+        borderRadius: { xs: 0, sm: 3 },
         backgroundColor: theme.palette.background.paper,
         border: `2px solid ${alpha(theme.palette.primary.main, 0.2)}`,
         overflow: 'hidden',
@@ -335,16 +337,16 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
   >
     <DialogTitle sx={{ 
       pb: 2,
-      pt: 3,
-      px: 4,
+      pt: { xs: 2.5, sm: 3 },
+      px: { xs: 2, sm: 4 },
       background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
       borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
     }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center">
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+      <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={1.5}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, sm: 2 }, minWidth: 0 }}>
           <Box sx={{
-            width: 40,
-            height: 40,
+            width: { xs: 36, sm: 40 },
+            height: { xs: 36, sm: 40 },
             borderRadius: 2,
             background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
             display: 'flex',
@@ -361,6 +363,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
             <Typography variant="h5" fontWeight="800" sx={{ 
               color: theme.palette.text.primary,
               fontFamily: '"Alkatra", cursive',
+              fontSize: { xs: '1.35rem', sm: '1.5rem' },
               background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
               backgroundClip: 'text',
               WebkitBackgroundClip: 'text',
@@ -373,6 +376,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
               fontFamily: '"Inter", sans-serif',
               display: 'flex',
               alignItems: 'center',
+              flexWrap: 'wrap',
               gap: 0.5,
               mt: 0.5
             }}>
@@ -403,8 +407,8 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
     </DialogTitle>
     
     <DialogContent dividers sx={{ 
-      pt: 4, 
-      px: 4,
+      pt: { xs: 2.5, sm: 4 }, 
+      px: { xs: 2, sm: 4 },
       background: theme.palette.mode === 'dark' 
         ? alpha(theme.palette.background.default, 0.5)
         : alpha(theme.palette.background.default, 0.3),
@@ -970,7 +974,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
                   </Typography>
                 </Typography>
               }
-              sx={{ mb: 3 }}
+              sx={{ mb: 3, alignItems: 'flex-start', mr: 0 }}
             />
             
             <Typography variant="body1" fontWeight="600" gutterBottom sx={{ 
@@ -1067,8 +1071,9 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
                 0.2
               )}`,
               display: 'flex',
-              alignItems: 'center',
+              alignItems: { xs: 'flex-start', sm: 'center' },
               justifyContent: 'space-between',
+              flexDirection: { xs: 'column', sm: 'row' },
               gap: 2
             }}>
               <Typography 
@@ -1173,10 +1178,12 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
     </DialogContent>
     
     <DialogActions sx={{ 
-      px: 4, 
-      py: 3,
+      px: { xs: 2, sm: 4 }, 
+      py: { xs: 2, sm: 3 },
       borderTop: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`,
       background: alpha(theme.palette.background.default, 0.5),
+      flexDirection: { xs: 'column-reverse', sm: 'row' },
+      gap: 1.5,
     }}>
       <Button 
         onClick={onClose} 
@@ -1187,6 +1194,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
           borderRadius: 2,
           px: 4,
           py: 1.5,
+          width: { xs: '100%', sm: 'auto' },
           borderWidth: 2,
           borderColor: alpha(theme.palette.text.secondary, 0.3),
           color: theme.palette.text.secondary,
@@ -1214,6 +1222,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
           borderRadius: 2,
           px: 5,
           py: 1.5,
+          width: { xs: '100%', sm: 'auto' },
           fontWeight: 700,
           fontSize: '1rem',
           background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
@@ -1240,6 +1249,7 @@ const CreateProjectModal = ({ open, onClose, theme, onProjectCreated }) => {
 
 // Create Task Modal (now supports Edit mode too)
 export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = 'create', taskToEdit = null }) => {
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [formData, setFormData] = useState({
     taskTitle: '',
     description: '',
@@ -1473,9 +1483,10 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
       onClose={!loading ? onClose : undefined}
       maxWidth="sm"
       fullWidth
+      fullScreen={isMobile}
       PaperProps={{
         sx: {
-          borderRadius: 2,
+          borderRadius: { xs: 0, sm: 2 },
           backgroundColor: theme.palette.background.paper,
           border: `1px solid ${sectionBorder}`,
           overflow: 'hidden',
@@ -1496,14 +1507,14 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
       <DialogTitle
         sx={{
           pb: 2.5,
-          pt: 3,
-          px: 4,
+          pt: { xs: 2.5, sm: 3 },
+          px: { xs: 2, sm: 4 },
           backgroundColor: alpha(accentColor, theme.palette.mode === 'dark' ? 0.12 : 0.06),
           borderBottom: `1px solid ${alpha(accentColor, 0.12)}`,
         }}
       >
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={1.5}>
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: { xs: 1.5, sm: 2 }, minWidth: 0 }}>
             <Box
               sx={{
                 width: 42,
@@ -1567,7 +1578,7 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
         </Box>
       </DialogTitle>
 
-      <DialogContent dividers sx={{ pt: 3.5, px: 4, backgroundColor: theme.palette.background.paper }}>
+      <DialogContent dividers sx={{ pt: { xs: 2.5, sm: 3.5 }, px: { xs: 2, sm: 4 }, backgroundColor: theme.palette.background.paper }}>
         <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             <Box sx={{ position: 'relative' }}>
@@ -2009,10 +2020,12 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
 
       <DialogActions
         sx={{
-          px: 4,
-          py: 3,
+          px: { xs: 2, sm: 4 },
+          py: { xs: 2, sm: 3 },
           borderTop: `1px solid ${alpha(accentColor, 0.12)}`,
           backgroundColor: alpha(theme.palette.background.default, theme.palette.mode === 'dark' ? 0.3 : 0.6),
+          flexDirection: { xs: 'column-reverse', sm: 'row' },
+          gap: 1.5,
         }}
       >
         <Button
@@ -2024,6 +2037,7 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
             borderRadius: 1.5,
             px: 3.5,
             py: 1.2,
+            width: { xs: '100%', sm: 'auto' },
             borderColor: alpha(accentColor, 0.24),
             color: theme.palette.text.primary,
             fontWeight: 600,
@@ -2047,6 +2061,7 @@ export const CreateTaskModal = ({ open, onClose, project, theme, teams, mode = '
             borderRadius: 1.5,
             px: 4,
             py: 1.2,
+            width: { xs: '100%', sm: 'auto' },
             fontWeight: 700,
             fontSize: '0.95rem',
             background: teamMembers.length === 0 || fetchingMembers
@@ -2458,7 +2473,7 @@ const ProjectTableRow = ({
                 </Typography>
               )}
 
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1, mb: 1.2 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 1, mb: 1.2 }}>
                 <Box>
                   <Typography variant="caption" sx={{ color: theme.palette.text.secondary, display: 'block', mb: 0.35 }}>Status</Typography>
                   <Chip
@@ -2509,7 +2524,7 @@ const ProjectTableRow = ({
                 />
               </Box>
 
-              <Stack direction="row" spacing={1} sx={{ mt: 1.4, flexWrap: 'wrap' }}>
+              <Stack direction="row" spacing={1} useFlexGap sx={{ mt: 1.4, flexWrap: 'wrap' }}>
                 <Button
                   size="small"
                   variant="outlined"
@@ -2517,6 +2532,7 @@ const ProjectTableRow = ({
                     e.stopPropagation();
                     navigate(`/user-app/my-project/${project._id}`);
                   }}
+                  sx={{ flex: { xs: '1 1 100%', sm: '0 0 auto' } }}
                 >
                   Open
                 </Button>
@@ -2528,6 +2544,7 @@ const ProjectTableRow = ({
                     onCreateTask(project);
                   }}
                   disabled={project.status === 'COMPLETED' || project.createdBy?._id !== userId}
+                  sx={{ flex: { xs: '1 1 100%', sm: '0 0 auto' } }}
                 >
                   Add Task
                 </Button>
@@ -2539,6 +2556,7 @@ const ProjectTableRow = ({
                     e.stopPropagation();
                     onReviewProject(project);
                   }}
+                  sx={{ flex: { xs: '1 1 100%', sm: '0 0 auto' } }}
                 >
                   Review
                 </Button>
@@ -3198,6 +3216,7 @@ const Projects = () => {
   const [projectRulesOpen, setProjectRulesOpen] = useState(false);
   const [insightDialog, setInsightDialog] = useState({ open: false, card: null });
   const [activeProjectsView, setActiveProjectsView] = useState('recentlyStarted');
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // Check authentication
   const checkAuth = useCallback(() => {
@@ -3561,10 +3580,10 @@ const Projects = () => {
           </Box>
           
           <Box sx={{ 
-            display: 'flex', 
-            gap: 1.5,
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, auto)' },
+            gap: 1.25,
             alignItems: 'center',
-            flexWrap: 'wrap',
             width: { xs: '100%', sm: 'auto' }
           }}>
             <Button
@@ -3900,9 +3919,10 @@ const Projects = () => {
           onClose={closeInsightDialog}
           fullWidth
           maxWidth="md"
+          fullScreen={isMobile}
           PaperProps={{
             sx: {
-              borderRadius: 4,
+              borderRadius: { xs: 0, sm: 4 },
               overflow: 'hidden',
               background: `linear-gradient(180deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.background.default, 0.98)} 100%)`,
               border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
@@ -4233,9 +4253,8 @@ const Projects = () => {
           >
             <Box sx={{ 
               display: 'flex', 
-              flexDirection: { xs: 'column', md: 'row' },
-              gap: { xs: 1.5, md: 3 },
-              alignItems: { md: 'center' }
+              flexDirection: 'column',
+              gap: { xs: 1.5, md: 2 },
             }}>
               <Box sx={{ flex: 1 }}>
                 <TextField
@@ -4274,11 +4293,11 @@ const Projects = () => {
               </Box>
               
               <Box sx={{ 
-                display: 'flex', 
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', sm: 'minmax(170px, 1fr) auto auto' },
                 gap: 1.25,
                 alignItems: 'center',
-                flexWrap: 'wrap',
-                width: { xs: '100%', md: 'auto' }
+                width: '100%'
               }}>
                 {selectedProjects.size > 0 && (
                   <Chip
@@ -4291,6 +4310,7 @@ const Projects = () => {
                       px: 1,
                       py: 2,
                       borderRadius: 2,
+                      gridColumn: { xs: '1 / -1', sm: '1 / -1' },
                       backgroundColor: alpha(theme.palette.primary.main, 0.1),
                       '& .MuiChip-deleteIcon': {
                         color: theme.palette.primary.main,
@@ -4302,7 +4322,7 @@ const Projects = () => {
                   />
                 )}
                 
-                <FormControl size="medium" sx={{ minWidth: { xs: '100%', sm: 160 }, flex: { xs: '1 1 100%', sm: '0 0 auto' } }}>
+                <FormControl size="medium" sx={{ minWidth: 0, width: '100%' }}>
                   <Select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
@@ -4331,7 +4351,8 @@ const Projects = () => {
                     size="large"
                     sx={{
                       borderRadius: 2,
-                      width: { xs: '100%', sm: 'auto' },
+                      width: { xs: '100%', sm: '48px' },
+                      minHeight: 48,
                       backgroundColor: alpha(theme.palette.primary.main, 0.1),
                       color: theme.palette.primary.main,
                       '&:hover': {
@@ -4466,7 +4487,7 @@ const Projects = () => {
                     ? 'Start your journey by creating your first project. Organize tasks, collaborate with teams, and track progress effortlessly.'
                     : 'Create a team first to start managing collaborative projects effectively.'}
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 3, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap', flexDirection: { xs: 'column', sm: 'row' } }}>
                   {!hasTeams ? (
                     <Button
                       variant="outlined"
@@ -4477,6 +4498,7 @@ const Projects = () => {
                         borderRadius: 2,
                         px: 4,
                         py: 1.5,
+                        width: { xs: '100%', sm: 'auto' },
                         borderWidth: 2,
                         '&:hover': {
                           borderWidth: 2,
@@ -4495,6 +4517,7 @@ const Projects = () => {
                         borderRadius: 2,
                         px: 5,
                         py: 1.5,
+                        width: { xs: '100%', sm: 'auto' },
                         fontWeight: 600,
                         background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
                       }}
@@ -4526,12 +4549,13 @@ const Projects = () => {
           >
             {/* Table Header */}
             <Box sx={{
-              p: 3,
+              p: { xs: 2, sm: 3 },
               borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
               backgroundColor: alpha(theme.palette.primary.main, 0.02),
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center',
+              alignItems: { xs: 'stretch', sm: 'center' },
+              flexDirection: { xs: 'column', sm: 'row' },
               flexWrap: 'wrap',
               gap: 2
             }}>
@@ -4540,7 +4564,7 @@ const Projects = () => {
               </Typography>
               
               {selectedProjects.size > 0 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1.25, width: { xs: '100%', sm: 'auto' } }}>
                   <Typography variant="body2" sx={{ 
                     color: theme.palette.primary.main,
                     fontWeight: 500
@@ -4556,6 +4580,7 @@ const Projects = () => {
                     sx={{
                       borderRadius: 2,
                       px: 3,
+                      width: { xs: '100%', sm: 'auto' },
                       borderColor: alpha(theme.palette.error.main, 0.3),
                       '&:hover': {
                         borderColor: theme.palette.error.main,
@@ -4658,18 +4683,19 @@ const Projects = () => {
                 backgroundColor: alpha(theme.palette.background.default, 0.5),
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center',
+                alignItems: { xs: 'stretch', sm: 'center' },
+                flexDirection: { xs: 'column', sm: 'row' },
                 flexWrap: 'wrap',
                 gap: 2
               }}>
                 <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
                   Showing {Math.min(filteredProjects.length, 10)} of {filteredProjects.length} projects
                 </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Button size="small" variant="outlined" disabled>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'auto auto' }, alignItems: 'center', gap: 1, width: { xs: '100%', sm: 'auto' } }}>
+                  <Button size="small" variant="outlined" disabled sx={{ width: { xs: '100%', sm: 'auto' } }}>
                     Previous
                   </Button>
-                  <Button size="small" variant="outlined">
+                  <Button size="small" variant="outlined" sx={{ width: { xs: '100%', sm: 'auto' } }}>
                     Next
                   </Button>
                 </Box>

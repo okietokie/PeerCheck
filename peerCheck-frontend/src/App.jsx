@@ -1,10 +1,10 @@
 // App.jsx
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, useState, lazy, Suspense } from "react";
 
 import ProtectedRoute from "./Components/ProtectedRoute.jsx";
 import { ThemeProvider } from "@mui/material/styles";
-import { Box, CircularProgress, CssBaseline } from "@mui/material"; // Added CssBaseline
+import { Box, CircularProgress, CssBaseline, SpeedDial, SpeedDialAction, SpeedDialIcon, alpha, useMediaQuery, useTheme } from "@mui/material"; // Added CssBaseline
 
 import themes from './assets/theme.js';
 import { useInView } from "react-intersection-observer";
@@ -14,6 +14,8 @@ import SeoHead from "./Components/SeoHead.jsx";
 import ThemePicker from "./Components/ThemesComponents/ThemePicker.jsx";
 import ThemeToggleButton from "./Components/ThemesComponents/ThemeToggleButton.jsx";
 import { getThemeNames } from "./utils/themeUtils.js";
+import TodoButtonDialog from "./Components/user-dashboard/HelperComp/ToDoList.jsx";
+import { Palette, PlaylistAddCheck, NoteAlt, AddTask } from "@mui/icons-material";
 
 const Home = lazy(() => import("./Components/Login/Home.jsx"));
 const AuthPage = lazy(() => import("./Components/Login/AuthPage.jsx"));
@@ -37,6 +39,147 @@ const Feedback = lazy(() => import("./Components/teacher-dashboard/Feedback.jsx"
 
 // Extract theme names dynamically
 const themeNames = getThemeNames(themes);
+
+function FloatingUtilities({
+  themes,
+  themeNames,
+  themeName,
+  showThemePicker,
+  toggleThemePicker,
+  handleThemeChange,
+}) {
+  const location = useLocation();
+  const muiTheme = useTheme();
+  const isMobile = useMediaQuery(muiTheme.breakpoints.down("sm"));
+  const [todoOpen, setTodoOpen] = useState(false);
+
+  const isDashboardWorkspace =
+    location.pathname.startsWith("/user-app") ||
+    location.pathname.startsWith("/teacher-app");
+  const isMyProjectRoute = location.pathname.startsWith("/user-app/my-project/");
+
+  if (!isDashboardWorkspace) {
+    return (
+      <>
+        <div className="theme-toggle-button">
+          <ThemeToggleButton
+            theme={themes[themeName]}
+            onClick={toggleThemePicker}
+            isPickerOpen={showThemePicker}
+          />
+        </div>
+
+        {showThemePicker && (
+          <div className="theme-picker">
+            <ThemePicker
+              themes={themes}
+              themeNames={themeNames}
+              currentThemeName={themeName}
+              onThemeChange={handleThemeChange}
+              onClose={toggleThemePicker}
+            />
+          </div>
+        )}
+      </>
+    );
+  }
+
+  const utilityActions = [
+    {
+      key: "theme",
+      name: showThemePicker ? "Hide Theme Picker" : "Change Theme",
+      icon: <Palette />,
+      onClick: toggleThemePicker,
+    },
+    {
+      key: "todos",
+      name: "Quick Todos",
+      icon: <PlaylistAddCheck />,
+      onClick: () => setTodoOpen(true),
+    },
+    ...(isMyProjectRoute
+      ? [
+          {
+            key: "notes",
+            name: "Open Notes",
+            icon: <NoteAlt />,
+            onClick: () => window.dispatchEvent(new CustomEvent("myproject-open-notes")),
+          },
+          {
+            key: "task",
+            name: "Add Task",
+            icon: <AddTask />,
+            onClick: () => window.dispatchEvent(new CustomEvent("myproject-open-create-task")),
+          },
+        ]
+      : []),
+  ];
+
+  return (
+    <>
+      <SpeedDial
+        ariaLabel="Workspace quick actions"
+        icon={<SpeedDialIcon />}
+        direction="up"
+        FabProps={{
+          sx: {
+            width: { xs: 54, sm: 58 },
+            height: { xs: 54, sm: 58 },
+            background: `linear-gradient(135deg, ${muiTheme.palette.primary.main} 0%, ${muiTheme.palette.secondary.main} 100%)`,
+            color: muiTheme.palette.primary.contrastText,
+            boxShadow: `0 10px 28px ${alpha(muiTheme.palette.primary.main, 0.32)}`,
+            "&:hover": {
+              background: `linear-gradient(135deg, ${muiTheme.palette.primary.dark} 0%, ${muiTheme.palette.secondary.dark} 100%)`,
+            },
+          },
+        }}
+        sx={{
+          position: "fixed",
+          right: { xs: 14, sm: 20 },
+          bottom: {
+            xs: "calc(14px + env(safe-area-inset-bottom, 0px))",
+            sm: 20,
+          },
+          zIndex: muiTheme.zIndex.modal - 2,
+        }}
+      >
+        {utilityActions.map((action) => (
+          <SpeedDialAction
+            key={action.key}
+            icon={action.icon}
+            tooltipTitle={action.name}
+            tooltipOpen={!isMobile}
+            onClick={action.onClick}
+            FabProps={{
+              sx: {
+                bgcolor: alpha(muiTheme.palette.background.paper, 0.96),
+                color: muiTheme.palette.primary.main,
+                border: `1px solid ${alpha(muiTheme.palette.primary.main, 0.18)}`,
+                "&:hover": {
+                  bgcolor: alpha(muiTheme.palette.primary.main, 0.1),
+                },
+              },
+            }}
+          />
+        ))}
+      </SpeedDial>
+
+      <TodoButtonDialog showTrigger={false} open={todoOpen} onOpenChange={setTodoOpen} />
+
+      {showThemePicker && (
+        <div className="theme-picker">
+          <ThemePicker
+            themes={themes}
+            themeNames={themeNames}
+            currentThemeName={themeName}
+            onThemeChange={handleThemeChange}
+            onClose={toggleThemePicker}
+          />
+        </div>
+      )}
+    </>
+  );
+}
 
 const getSavedTheme = () => {
   try {
@@ -164,27 +307,14 @@ export default function App() {
             </Routes>
           </Suspense>
 
-          {/* Theme Toggle Button */}
-          <div className="theme-toggle-button">
-            <ThemeToggleButton 
-              theme={themes[themeName]}
-              onClick={toggleThemePicker}
-              isPickerOpen={showThemePicker}
-            />
-          </div>
-
-          {/* Theme Picker */}
-          {showThemePicker && (
-            <div className="theme-picker">
-              <ThemePicker 
-                themes={themes}
-                themeNames={themeNames}
-                currentThemeName={themeName}
-                onThemeChange={handleThemeChange}
-                onClose={toggleThemePicker}
-              />
-            </div>
-          )}
+          <FloatingUtilities
+            themes={themes}
+            themeNames={themeNames}
+            themeName={themeName}
+            showThemePicker={showThemePicker}
+            toggleThemePicker={toggleThemePicker}
+            handleThemeChange={handleThemeChange}
+          />
         </Router>
       </Box>
     </ThemeProvider>

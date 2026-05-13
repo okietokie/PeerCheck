@@ -47,7 +47,6 @@ import axiosClient from '@/api/axiosClient';
 import NotificationBell from '../Notifications/NotificationBell';
 import { getUserData } from '@/utils/user.js';
 import TourGuide from '../TourGuide';
-import TodoButtonDialog from '../user-dashboard/HelperComp/ToDoList';
 
 export default function TeacherApp() {
   const navigate = useNavigate();
@@ -491,7 +490,6 @@ export default function TeacherApp() {
           mt: { xs: 1, sm: 2 }
         }}
       >
-          <TodoButtonDialog/>
         <Outlet />
       </Container>
 

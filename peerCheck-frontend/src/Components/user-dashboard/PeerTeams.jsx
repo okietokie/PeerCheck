@@ -20,7 +20,8 @@ import {
   DialogActions,
   TextField,
   IconButton,
-  Tooltip
+  Tooltip,
+  useMediaQuery
 } from '@mui/material';
 import {
   Groups as TeamsIcon,
@@ -51,6 +52,7 @@ import TourGuide from '../TourGuide';
 
 export default function PeerTeams() {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [teams, setTeams] = useState([]);
   const [peerConnections, setPeerConnections] = useState([]);
   const [pendingTeamInvites, setPendingTeamInvites] = useState([]);
@@ -243,6 +245,7 @@ const respondToTeamInvite = async (teamId, action) => {
     onClose={handleCloseDialog}
     maxWidth="sm"
     fullWidth
+    fullScreen={isMobile}
   >
     <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
       <Warning color="warning" />
@@ -263,19 +266,19 @@ const respondToTeamInvite = async (teamId, action) => {
         </Typography>
       )}
     </DialogContent>
-    <DialogActions sx={{ p: 3, pt: 0 }}>
+    <DialogActions sx={{ p: { xs: 2, sm: 3 }, pt: 0, flexDirection: { xs: 'column-reverse', sm: 'row' }, gap: 1.25 }}>
       <Button 
         onClick={handleCloseDialog} 
         variant="outlined"
-        sx={{ borderRadius: 2 }}
+        sx={{ borderRadius: 2, width: { xs: '100%', sm: 'auto' } }}
       >
         Cancel
       </Button>
       <Button 
-        onClick={leaveTeam} 
+        onClick={() => leaveTeam(selectedTeam?.id)} 
         variant="contained" 
         color="error"
-        sx={{ borderRadius: 2 }}
+        sx={{ borderRadius: 2, width: { xs: '100%', sm: 'auto' } }}
       >
         Leave Team
       </Button>
@@ -298,19 +301,19 @@ const respondToTeamInvite = async (teamId, action) => {
 
     return (
       <Box sx={{ mb: 5 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700, mb: 2, color: 'text.primary' }}>
+        <Typography variant="h5" sx={{ fontWeight: 700, mb: 2, color: 'text.primary', fontSize: { xs: '1.35rem', sm: '1.5rem' } }}>
           Pending Team Invitations
         </Typography>
         <Typography variant="body1" sx={{ color: 'text.secondary', mb: 3 }}>
           Accept or reject the teams that have invited you.
         </Typography>
 
-        <Grid container spacing={3}>
+        <Grid container spacing={{ xs: 2, sm: 3 }}>
           {pendingTeamInvites.map((invite) => (
             <Grid item xs={12} md={6} key={invite.teamId}>
               <Card
                 sx={{
-                  p: 3,
+                  p: { xs: 2, sm: 3 },
                   borderRadius: 4,
                   border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
                   background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.background.paper, 1)} 100%)`
@@ -349,13 +352,13 @@ const respondToTeamInvite = async (teamId, action) => {
                   </Typography>
                 </Box>
 
-                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', flexDirection: { xs: 'column', sm: 'row' } }}>
                   <Button
                     variant="contained"
                     color="success"
                     startIcon={<CheckCircle />}
                     onClick={() => respondToTeamInvite(invite.teamId, 'accept')}
-                    sx={{ borderRadius: 2, fontWeight: 600 }}
+                    sx={{ borderRadius: 2, fontWeight: 600, width: { xs: '100%', sm: 'auto' } }}
                   >
                     Accept
                   </Button>
@@ -364,7 +367,7 @@ const respondToTeamInvite = async (teamId, action) => {
                     color="error"
                     startIcon={<Cancel />}
                     onClick={() => respondToTeamInvite(invite.teamId, 'reject')}
-                    sx={{ borderRadius: 2, fontWeight: 600 }}
+                    sx={{ borderRadius: 2, fontWeight: 600, width: { xs: '100%', sm: 'auto' } }}
                   >
                     Reject
                   </Button>
@@ -402,7 +405,7 @@ const respondToTeamInvite = async (teamId, action) => {
   // No teams and no peer connections
   if (teams.length === 0 && peerConnections.length === 0 && pendingTeamInvites.length === 0) {
     return (
-      <Container maxWidth="md" sx={{ py: 8 }} className='peer-connections-preview'>
+      <Container maxWidth="md" sx={{ py: { xs: 4, sm: 8 }, px: { xs: 1.5, sm: 3 } }} className='peer-connections-preview'>
         {error && (
           <Alert severity="error" sx={{ mb: 4 }} onClose={() => setError('')}>
             {error}
@@ -431,7 +434,7 @@ const respondToTeamInvite = async (teamId, action) => {
             <TeamsIcon sx={{ fontSize: 60, color: 'primary.main' }} />
           </Box>
 
-          <Typography variant="h4" sx={{ mb: 2, fontWeight: 700, color: 'text.primary' }}>
+          <Typography variant="h4" sx={{ mb: 2, fontWeight: 700, color: 'text.primary', fontSize: { xs: '2rem', sm: '2.125rem' } }}>
             No Teams Yet
           </Typography>
           
@@ -439,7 +442,7 @@ const respondToTeamInvite = async (teamId, action) => {
             Start by connecting with peers to build your first team
           </Typography>
 
-          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap', flexDirection: { xs: 'column', sm: 'row' } }}>
             <Button
               variant="contained"
               size="large"
@@ -450,6 +453,7 @@ const respondToTeamInvite = async (teamId, action) => {
                 px: 4,
                 py: 1.5,
                 fontWeight: 600,
+                width: { xs: '100%', sm: 'auto' },
                 fontSize: '1.1rem'
               }}
             >
@@ -467,6 +471,7 @@ const respondToTeamInvite = async (teamId, action) => {
                 px: 4,
                 py: 1.5,
                 fontWeight: 600,
+                width: { xs: '100%', sm: 'auto' },
                 fontSize: '1.1rem'
               }}
             >
@@ -486,7 +491,7 @@ const respondToTeamInvite = async (teamId, action) => {
   // No teams but has peer connections
   if (teams.length === 0 && (peerConnections.length > 0 || pendingTeamInvites.length > 0)) {
     return (
-      <Container maxWidth="lg" sx={{ py: 6 }}>
+      <Container maxWidth="lg" sx={{ py: { xs: 4, sm: 6 }, px: { xs: 1.5, sm: 3 } }}>
         {error && (
           <Alert severity="error" sx={{ mb: 4 }} onClose={() => setError('')}>
             {error}
@@ -500,7 +505,7 @@ const respondToTeamInvite = async (teamId, action) => {
 
         {/* Header */}
         <Box sx={{ textAlign: 'center', mb: 6 }}>
-          <Typography variant="h3" sx={{ fontWeight: 700, mb: 2, color: 'primary.main' }}>
+          <Typography variant="h3" sx={{ fontWeight: 700, mb: 2, color: 'primary.main', fontSize: { xs: '2.1rem', sm: '3rem' } }}>
             Your Teams
           </Typography>
           <Typography variant="h6" sx={{ color: 'text.secondary' }}>
@@ -511,7 +516,7 @@ const respondToTeamInvite = async (teamId, action) => {
         {renderPendingInvitesSection()}
 
         {/* Empty State with Connections */}
-        <Grid container spacing={4}>
+        <Grid container spacing={{ xs: 2.5, sm: 4 }}>
           {/* Create Team Card */}
           <Grid item xs={12} md={6}>
             <Card
@@ -566,7 +571,8 @@ const respondToTeamInvite = async (teamId, action) => {
                 sx={{
                   borderRadius: 3,
                   px: 4,
-                  fontWeight: 600
+                  fontWeight: 600,
+                  width: { xs: '100%', sm: 'auto' }
                 }}
               >
                 Create Team
@@ -650,6 +656,7 @@ const respondToTeamInvite = async (teamId, action) => {
           onClose={() => !creatingTeam && setCreateTeamDialog(false)}
           maxWidth="sm"
           fullWidth
+          fullScreen={isMobile}
         >
           <DialogTitle sx={{ fontWeight: 600, fontSize: '1.25rem' }}> 
             Create New Team
@@ -671,10 +678,11 @@ const respondToTeamInvite = async (teamId, action) => {
             />
           </DialogContent>
           
-          <DialogActions sx={{ p: 3, gap: 1 }}>
+          <DialogActions sx={{ p: { xs: 2, sm: 3 }, gap: 1, flexDirection: { xs: 'column-reverse', sm: 'row' } }}>
             <Button 
               onClick={() => setCreateTeamDialog(false)}
               disabled={creatingTeam}
+              sx={{ width: { xs: '100%', sm: 'auto' } }}
             >
               Cancel
             </Button>
@@ -683,6 +691,7 @@ const respondToTeamInvite = async (teamId, action) => {
               onClick={createTeam}
               disabled={creatingTeam || !newTeamName.trim()}
               startIcon={creatingTeam ? <CircularProgress size={16} /> : <GroupAddIcon />}
+              sx={{ width: { xs: '100%', sm: 'auto' } }}
             >
               {creatingTeam ? 'Creating...' : 'Create Team'}
             </Button>
@@ -696,7 +705,7 @@ const respondToTeamInvite = async (teamId, action) => {
 
   // Has teams - Display teams
   return (
-    <Container maxWidth="lg" sx={{ py: 6 }}>
+    <Container maxWidth="lg" sx={{ py: { xs: 4, sm: 6 }, px: { xs: 1.5, sm: 3 } }}>
       {error && (
         <Alert severity="error" sx={{ mb: 4 }} onClose={() => setError('')}>
           {error}
@@ -709,9 +718,9 @@ const respondToTeamInvite = async (teamId, action) => {
       )}
 
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 6 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, mb: { xs: 4, sm: 6 }, gap: 2 }}>
         <Box>
-          <Typography variant="h3" sx={{ fontWeight: 700, mb: 1, color: 'primary.main' }}>
+          <Typography variant="h3" sx={{ fontWeight: 700, mb: 1, color: 'primary.main', fontSize: { xs: '2.1rem', sm: '3rem' } }}>
             Your Teams
           </Typography>
           <Typography variant="h6" sx={{ color: 'text.secondary' }}>
@@ -727,7 +736,8 @@ const respondToTeamInvite = async (teamId, action) => {
             borderRadius: 3,
             px: 4,
             py: 1.5,
-            fontWeight: 600
+            fontWeight: 600,
+            width: { xs: '100%', sm: 'auto' }
           }}
         >
           Create Team
@@ -749,7 +759,7 @@ const respondToTeamInvite = async (teamId, action) => {
           <Card
             key={team._id}
             sx={{
-              p: 3,
+              p: { xs: 2, sm: 3 },
               borderRadius: 4,
               bgcolor: theme.palette.background.paper,
               border: `1px solid ${alpha(theme.palette.primary.main, 0.08)}`,
@@ -761,7 +771,7 @@ const respondToTeamInvite = async (teamId, action) => {
               position: 'relative',
               overflow: 'hidden',
               '&:hover': {
-                transform: 'translateX(8px)',
+                transform: { xs: 'translateY(-3px)', sm: 'translateX(8px)' },
                 boxShadow: `0 8px 32px ${alpha(theme.palette.primary.main, 0.12)}`,
                 borderColor: alpha(theme.palette.primary.main, 0.2),
                 '&::before': {
@@ -787,21 +797,24 @@ const respondToTeamInvite = async (teamId, action) => {
             <Box
               sx={{
                 display: 'flex',
+                flexDirection: { xs: 'column', md: 'row' },
                 alignItems: 'stretch',
-                gap: 4,
-                height: '180px'
+                gap: { xs: 2.5, md: 4 },
+                minHeight: { xs: 'auto', md: '180px' }
               }}
             >
               {/* Team Info Sidebar */}
               <Box
                 sx={{
-                  width: '280px',
-                  minWidth: '280px',
+                  width: { xs: '100%', md: '280px' },
+                  minWidth: { xs: 0, md: '280px' },
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  pr: 3,
-                  borderRight: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+                  pr: { xs: 0, md: 3 },
+                  pb: { xs: 2, md: 0 },
+                  borderRight: { xs: 'none', md: `1px solid ${alpha(theme.palette.divider, 0.1)}` },
+                  borderBottom: { xs: `1px solid ${alpha(theme.palette.divider, 0.1)}`, md: 'none' }
                 }}
               > 
 
@@ -860,7 +873,7 @@ const respondToTeamInvite = async (teamId, action) => {
                   </Box>
                 </Box>
 
-                <Box sx={{ display: 'flex', gap: 1 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1 }}>
                   <Button
                     variant="contained"
                     color="primary"
@@ -880,11 +893,11 @@ const respondToTeamInvite = async (teamId, action) => {
                     <Button
                       variant="outlined"
                       color="error"
-                      onClick={() => leaveTeam(team._id)}
+                      onClick={() => openLeaveDialog(team._id, team.name || team.teamName)}
                       sx={{
                         borderRadius: 2,
-                        minWidth: 'auto',
-                        px: 2,
+                        minWidth: 0,
+                        px: 0,
                         borderWidth: 2
                       }}
                     >
@@ -900,8 +913,8 @@ const respondToTeamInvite = async (teamId, action) => {
                       onClick={() => deleteTeam(team._id)}
                       sx={{
                         borderRadius: 2,
-                        minWidth: 'auto',
-                        px: 2,
+                        minWidth: 0,
+                        px: 0,
                         borderWidth: 2
                       }}
                     >
@@ -961,8 +974,8 @@ const respondToTeamInvite = async (teamId, action) => {
                     className='team-members'
                       key={member._id || member.user?._id || index}
                       sx={{
-                        width: '140px',
-                        minWidth: '140px',
+                        width: { xs: '132px', sm: '140px' },
+                        minWidth: { xs: '132px', sm: '140px' },
                         p: 2,
                         borderRadius: 3,
                         bgcolor: alpha(theme.palette.background.default, 0.5),
@@ -1049,15 +1062,17 @@ const respondToTeamInvite = async (teamId, action) => {
               {/* Quick Actions Sidebar */}
               <Box
                 sx={{
-                  width: '120px',
-                  minWidth: '120px',
+                  width: { xs: '100%', md: '120px' },
+                  minWidth: { xs: 0, md: '120px' },
                   display: 'flex',
-                  flexDirection: 'column',
+                  flexDirection: { xs: 'row', md: 'column' },
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: 2,
-                  pl: 3,
-                  borderLeft: `1px solid ${alpha(theme.palette.divider, 0.1)}`
+                  pl: { xs: 0, md: 3 },
+                  pt: { xs: 1.5, md: 0 },
+                  borderLeft: { xs: 'none', md: `1px solid ${alpha(theme.palette.divider, 0.1)}` },
+                  borderTop: { xs: `1px solid ${alpha(theme.palette.divider, 0.1)}`, md: 'none' }
                 }}
               >
                 <Tooltip title="Team Settings">
@@ -1114,6 +1129,7 @@ const respondToTeamInvite = async (teamId, action) => {
         onClose={() => !creatingTeam && setCreateTeamDialog(false)}
         maxWidth="sm"
         fullWidth
+        fullScreen={isMobile}
       >
         <DialogTitle>
           <Typography variant="h5" fontWeight={600}>
@@ -1137,10 +1153,11 @@ const respondToTeamInvite = async (teamId, action) => {
           />
         </DialogContent>
         
-        <DialogActions sx={{ p: 3, gap: 1 }}>
+        <DialogActions sx={{ p: { xs: 2, sm: 3 }, gap: 1, flexDirection: { xs: 'column-reverse', sm: 'row' } }}>
           <Button 
             onClick={() => setCreateTeamDialog(false)}
             disabled={creatingTeam}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
             Cancel
           </Button>
@@ -1149,6 +1166,7 @@ const respondToTeamInvite = async (teamId, action) => {
             onClick={createTeam}
             disabled={creatingTeam || !newTeamName.trim()}
             startIcon={creatingTeam ? <CircularProgress size={16} /> : <GroupAddIcon />}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
             
             {creatingTeam ? 'Creating...' : 'Create Team'}

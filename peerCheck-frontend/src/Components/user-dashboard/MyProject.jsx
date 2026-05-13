@@ -1,5 +1,5 @@
 // MyProject.jsx
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   Box, 
   Container, 
@@ -80,7 +80,6 @@ import {
   Folder,
   Info,
   TrendingUp,
-  Comment,
   Speed,
   Warning,
   Error,
@@ -130,6 +129,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
+import axiosClient from '@/api/axiosClient';
 
 // Components
 import { CreateTaskModal } from './Projects';
@@ -155,6 +155,57 @@ const formatTime = (seconds) => {
   }
   return `${minutes}m`;
 };
+
+const InviteUserSuggestion = ({ user, isSelected, onSelect, theme }) => (
+  <Paper
+    elevation={isSelected ? 2 : 0}
+    onClick={() => onSelect(user)}
+    sx={{
+      p: 1.75,
+      mb: 1,
+      borderRadius: 2.5,
+      cursor: 'pointer',
+      border: `1.5px solid ${
+        isSelected ? alpha(theme.palette.primary.main, 0.5) : alpha(theme.palette.divider, 0.16)
+      }`,
+      backgroundColor: isSelected
+        ? alpha(theme.palette.primary.main, 0.08)
+        : alpha(theme.palette.background.paper, 0.76),
+      transition: 'all 0.2s ease',
+      '&:hover': {
+        borderColor: alpha(theme.palette.primary.main, 0.35),
+        transform: 'translateY(-1px)',
+      },
+    }}
+  >
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+      <Avatar
+        src={user.avatar}
+        sx={{
+          width: 44,
+          height: 44,
+          bgcolor: alpha(theme.palette.primary.main, 0.9),
+        }}
+      >
+        {user.name?.[0]?.toUpperCase() || 'U'}
+      </Avatar>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography variant="subtitle2" fontWeight={700} sx={{ wordBreak: 'break-word' }}>
+          {user.name || 'Unknown'}
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', wordBreak: 'break-word' }}>
+          @{user.username || 'unknown'}
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', wordBreak: 'break-word' }}>
+          {user.email || 'No email'}
+        </Typography>
+      </Box>
+      {isSelected && (
+        <CheckCircle sx={{ color: theme.palette.success.main, flexShrink: 0 }} />
+      )}
+    </Box>
+  </Paper>
+);
 
 const MyProject = () => {
   const theme = useTheme();
@@ -249,7 +300,6 @@ const MyProject = () => {
     getEfficiencyColor,
     TabContent,
     StatCard,
-    FloatingActionButton,
       isEditing,
   editedProject,
   handleCancelEdit,
@@ -258,6 +308,162 @@ const MyProject = () => {
     parseDateFromInput,
     formatDate
   } = useMyProject(projectId, navigate, theme);
+
+  const [inviteData, setInviteData] = useState({
+    email: '',
+    username: '',
+    inviteMethod: 'email'
+  });
+  const [inviteSuggestedUsers, setInviteSuggestedUsers] = useState([]);
+  const [inviteSearchQuery, setInviteSearchQuery] = useState('');
+  const [inviteSearchResults, setInviteSearchResults] = useState([]);
+  const [inviteSearchLoading, setInviteSearchLoading] = useState(false);
+  const [inviteSubmitting, setInviteSubmitting] = useState(false);
+  const [selectedInviteUser, setSelectedInviteUser] = useState(null);
+
+  const existingMemberIds = useMemo(
+    () => new Set((members || []).map((member) => member?._id).filter(Boolean)),
+    [members]
+  );
+
+  const inviteDisplayUsers = useMemo(() => {
+    const baseUsers = inviteSearchQuery.trim().length > 2 ? inviteSearchResults : inviteSuggestedUsers;
+    return (baseUsers || []).filter((candidate) => candidate?._id && !existingMemberIds.has(candidate._id));
+  }, [existingMemberIds, inviteSearchQuery, inviteSearchResults, inviteSuggestedUsers]);
+
+  const resetInviteDialog = () => {
+    setInviteData({ email: '', username: '', inviteMethod: 'email' });
+    setInviteSearchQuery('');
+    setInviteSearchResults([]);
+    setSelectedInviteUser(null);
+  };
+
+  useEffect(() => {
+    if (!addMemberDialog) return;
+
+    const fetchSuggestedUsers = async () => {
+      try {
+        setInviteSearchLoading(true);
+        const token = localStorage.getItem('token');
+        const response = await axiosClient.get('/user/suggested-users', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.data?.success) {
+          setInviteSuggestedUsers(response.data.users || []);
+        } else {
+          setInviteSuggestedUsers([]);
+        }
+      } catch (error) {
+        console.error('Error fetching suggested users:', error);
+        setInviteSuggestedUsers([]);
+      } finally {
+        setInviteSearchLoading(false);
+      }
+    };
+
+    fetchSuggestedUsers();
+  }, [addMemberDialog]);
+
+  useEffect(() => {
+    if (!addMemberDialog) return;
+    if (inviteSearchQuery.trim().length <= 2) {
+      setInviteSearchResults([]);
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        setInviteSearchLoading(true);
+        const token = localStorage.getItem('token');
+        const response = await axiosClient.get(
+          `/user/search-users?q=${encodeURIComponent(inviteSearchQuery)}`,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+
+        setInviteSearchResults(response.data?.users || []);
+      } catch (error) {
+        console.error('Error searching users:', error);
+        setInviteSearchResults([]);
+      } finally {
+        setInviteSearchLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [addMemberDialog, inviteSearchQuery]);
+
+  useEffect(() => {
+    const handleOpenNotes = () => {
+      setActiveTab(6);
+    };
+
+    const handleOpenCreateTask = () => {
+      if (project) {
+        onCreateTask(project);
+      }
+    };
+
+    window.addEventListener('myproject-open-notes', handleOpenNotes);
+    window.addEventListener('myproject-open-create-task', handleOpenCreateTask);
+
+    return () => {
+      window.removeEventListener('myproject-open-notes', handleOpenNotes);
+      window.removeEventListener('myproject-open-create-task', handleOpenCreateTask);
+    };
+  }, [onCreateTask, project, setActiveTab]);
+
+  const handleInviteUserSelect = (selectedUser) => {
+    setSelectedInviteUser(selectedUser);
+    setInviteData({
+      email: selectedUser.email || '',
+      username: selectedUser.username || '',
+      inviteMethod: selectedUser.email ? 'email' : 'username'
+    });
+    setInviteSearchQuery('');
+    setInviteSearchResults([]);
+  };
+
+  const handleInviteSubmit = async () => {
+    const teamId = project?.teamId?._id || project?.teamId;
+    if (!teamId) {
+      showSnackbar('This project is not linked to a team yet.', 'error');
+      return;
+    }
+
+    if (!inviteData.email && !inviteData.username) {
+      showSnackbar('Please choose a user or enter an email/username.', 'error');
+      return;
+    }
+
+    try {
+      setInviteSubmitting(true);
+      const token = localStorage.getItem('token');
+      const response = await axiosClient.post(
+        `/user/invite-to-team/${teamId}`,
+        {
+          email: inviteData.email,
+          username: inviteData.username,
+          message: `You've been invited to join ${project?.teamName || project?.projectName || 'the project team'}. Accept or reject this request from your notifications.`
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      showSnackbar(response.data?.message || 'Invitation sent successfully!', 'success');
+      setAddMemberDialog(false);
+      resetInviteDialog();
+      await handleRefresh();
+    } catch (error) {
+      console.error('Error sending invitation:', error);
+      showSnackbar(error.response?.data?.message || 'Failed to send invitation', 'error');
+    } finally {
+      setInviteSubmitting(false);
+    }
+  };
 
   if (!projectId) {
     return (
@@ -346,17 +552,35 @@ const MyProject = () => {
           ))}
         </Box>
 
-        <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 1, py: 4 }}>
+        <Container
+          maxWidth="xl"
+          sx={{
+            position: 'relative',
+            zIndex: 1,
+            py: { xs: 2, sm: 4 },
+            px: { xs: 1.5, sm: 3 },
+          }}
+        >
           {/* Header */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: { xs: 'stretch', sm: 'center' },
+              flexDirection: { xs: 'column', sm: 'row' },
+              mb: { xs: 1.5, sm: 2 },
+              gap: { xs: 1.5, sm: 2 },
+            }}
+          >
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
               <Button
                 startIcon={<ArrowBack />}
                 onClick={() => navigate('/user-app/projects')}
                 sx={{
                   borderRadius: 2,
-                  px: 3,
+                  px: { xs: 2, sm: 3 },
                   py: 1,
+                  width: { xs: '100%', sm: 'auto' },
                   fontFamily: '"Adlam Display", serif',
                   backgroundColor: alpha(theme.palette.primary.main, 0.1),
                   border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
@@ -372,13 +596,24 @@ const MyProject = () => {
               </Button>
             </motion.div>
 
-            <Box sx={{display: 'flex', gap:'1em', px: 1}}>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(2, auto)' },
+                gap: 1,
+                px: { xs: 0, sm: 1 },
+                width: { xs: '100%', sm: 'auto' },
+              }}
+            >
               <Tooltip title="Create New Task">
                 <IconButton 
-                  size="small" 
+                  size="small"
                   onClick={() => onCreateTask(project)} 
                   disabled={project?.status === 'COMPLETED' || project?.createdBy._id !== user?._id}
                   sx={{
+                    width: '100%',
+                    borderRadius: 2.5,
+                    py: 1.1,
                     backgroundColor: alpha(theme.palette.primary.main, 0.1),
                     border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
                     color: theme.palette.primary.main,
@@ -397,6 +632,9 @@ const MyProject = () => {
                 <IconButton
                   onClick={handleRefresh}
                   sx={{
+                    width: '100%',
+                    borderRadius: 2.5,
+                    py: 1.1,
                     backgroundColor: alpha(theme.palette.primary.main, 0.1),
                     border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
                     color: theme.palette.primary.main,
@@ -417,7 +655,8 @@ const MyProject = () => {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
             <Box
               sx={{
-                display: "flex", 
+                display: "flex",
+                flexDirection: { xs: 'column', lg: 'row' },
                 gap: 2, 
                 alignItems:"stretch",
                 alignContent: 'center'
@@ -428,9 +667,9 @@ const MyProject = () => {
                 sx={{
                   flex:1,
                   height:'auto',
-                  p: { xs: 3, md: 4 },
-                  mb: 4,
-                  borderRadius: 4,
+                  p: { xs: 2, sm: 3, md: 4 },
+                  mb: { xs: 3, sm: 4 },
+                  borderRadius: { xs: 3, sm: 4 },
                   ...getGlassEffect(),
                   position: 'relative',
                   overflow: 'hidden',
@@ -451,15 +690,15 @@ const MyProject = () => {
                 }}
               >
                 <Box sx={{ position: 'relative', zIndex: 1 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-                    <Box sx={{ flex: 1, minWidth: '300px' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: { xs: 2.5, sm: 2 }, mb: 3 }}>
+                    <Box sx={{ flex: 1, minWidth: 0, width: '100%' }}>
+                      <Box sx={{ display: 'flex', alignItems: { xs: 'flex-start', sm: 'center' }, gap: { xs: 1.5, sm: 2 }, mb: 2 }}>
                         <Avatar
                           sx={{
-                            width: 60,
-                            height: 60,
+                            width: { xs: 52, sm: 60 },
+                            height: { xs: 52, sm: 60 },
                             background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                            fontSize: 24,
+                            fontSize: { xs: 20, sm: 24 },
                             fontWeight: 'bold',
                             boxShadow: `0 8px 25px ${alpha(theme.palette.primary.main, 0.3)}`,
                             border: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
@@ -467,7 +706,7 @@ const MyProject = () => {
                         >
                           <Psychology />
                         </Avatar>
-                        <Box>
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
                           {isEditing ? (
                             <TextField
                               value={editedProject?.projectName || ''}
@@ -477,7 +716,7 @@ const MyProject = () => {
                               sx={{
                                 mb: 2,
                                 '& .MuiOutlinedInput-root': {
-                                  fontSize: '2rem',
+                                  fontSize: { xs: '1.35rem', sm: '2rem' },
                                   fontWeight: 500,
                                   borderRadius: 2,
                                   backgroundColor: alpha(theme.palette.background.paper, 0.8),
@@ -489,6 +728,9 @@ const MyProject = () => {
                               fontFamily: '"Adlam Display", serif',
                               fontWeight: 500,
                               mb: 0.5,
+                              fontSize: { xs: '2.4rem', sm: '3.75rem' },
+                              lineHeight: { xs: 1.02, sm: 1.1 },
+                              wordBreak: 'break-word',
                               background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
                               backgroundClip: 'text',
                               WebkitBackgroundClip: 'text',
@@ -514,7 +756,7 @@ const MyProject = () => {
                             />
                             
                             {isEditing ? (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: { xs: '100%', sm: 'auto' } }}>
                                 <CalendarToday fontSize="small" />
                                 <TextField
                                   type="date"
@@ -538,7 +780,15 @@ const MyProject = () => {
                                 />
                               </Box>
                             ) : (
-                              <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 1,
+                                  flexWrap: 'wrap',
+                                }}
+                              >
                                 <CalendarToday fontSize="small" />
                                 Deadline: {formatDate(project?.deadline) || 'No date set'}
                               </Typography>
@@ -578,7 +828,15 @@ const MyProject = () => {
                     </Box>
 
                     {/* Action Buttons */}
-                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
+                        gap: 1.5,
+                        width: { xs: '100%', sm: 'auto' },
+                        minWidth: { sm: 320 },
+                      }}
+                    >
                       {isEditing ? (
                         <>
                           <Button 
@@ -588,8 +846,9 @@ const MyProject = () => {
                             sx={{ 
                               fontFamily: '"Adlam Display", serif',
                               borderRadius: 2,
-                              px: 3,
+                              px: { xs: 2, sm: 3 },
                               py: 1,
+                              width: '100%',
                               background: `linear-gradient(135deg, ${getThemeColor('success')}, ${alpha(getThemeColor('success'), 0.8)})`,
                               color: getContrastColor(getThemeColor('success')),
                               boxShadow: `0 4px 20px ${alpha(getThemeColor('success'), 0.4)}`,
@@ -609,8 +868,9 @@ const MyProject = () => {
                             sx={{ 
                               fontFamily: '"Adlam Display", serif',
                               borderRadius: 2,
-                              px: 3,
+                              px: { xs: 2, sm: 3 },
                               py: 1,
+                              width: '100%',
                               borderWidth: 2,
                               borderColor: alpha(theme.palette.error.main, 0.3),
                               color: theme.palette.error.main,
@@ -634,8 +894,9 @@ const MyProject = () => {
                             sx={{ 
                               fontFamily: '"Adlam Display", serif',
                               borderRadius: 2,
-                              px: 3,
+                              px: { xs: 2, sm: 3 },
                               py: 1,
+                              width: '100%',
                               borderWidth: 2,
                               borderColor: alpha(theme.palette.primary.main, 0.3),
                               color: theme.palette.primary.main,
@@ -655,8 +916,9 @@ const MyProject = () => {
                             sx={{ 
                               fontFamily: '"Adlam Display", serif',
                               borderRadius: 2,
-                              px: 3,
+                              px: { xs: 2, sm: 3 },
                               py: 1,
+                              width: '100%',
                               background: projectCompleted === 'completed'
                                           ? `darkyellow`
                                           :  `linear-gradient(135deg, ${getThemeColor('success')}, ${alpha(getThemeColor('success'), 0.8)})`,
@@ -831,7 +1093,89 @@ const MyProject = () => {
                   </Box>
                 </Box>
               </Paper>
-              
+
+              {isMobile && (
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2,
+                    borderRadius: 3,
+                    ...getGlassEffect(),
+                    mb: 3,
+                    border: `1px solid ${alpha(theme.palette.divider, 0.22)}`,
+                  }}
+                >
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      mb: 2,
+                      fontFamily: '"Adlam Display", serif',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                    }}
+                  >
+                    <Info /> Quick Overview
+                  </Typography>
+
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                      gap: 1.25,
+                      mb: 2,
+                    }}
+                  >
+                    <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2.5, backgroundColor: alpha(theme.palette.primary.main, 0.08) }}>
+                      <Typography variant="caption" color="text.secondary">Start</Typography>
+                      <Typography variant="body2" fontWeight={700} sx={{ mt: 0.35, wordBreak: 'break-word' }}>
+                        {formatDate(project?.startDate) || 'Not set'}
+                      </Typography>
+                    </Paper>
+                    <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2.5, backgroundColor: alpha(theme.palette.secondary.main, 0.08) }}>
+                      <Typography variant="caption" color="text.secondary">End</Typography>
+                      <Typography variant="body2" fontWeight={700} sx={{ mt: 0.35, wordBreak: 'break-word' }}>
+                        {formatDate(project?.endDate) || 'Not set'}
+                      </Typography>
+                    </Paper>
+                    <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2.5, backgroundColor: alpha(getThemeColor('success'), 0.08) }}>
+                      <Typography variant="caption" color="text.secondary">Weighted Progress</Typography>
+                      <Typography variant="body2" fontWeight={700} sx={{ mt: 0.35 }}>
+                        {projectMetrics?.weightedProgress || 0}%
+                      </Typography>
+                    </Paper>
+                    <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2.5, backgroundColor: alpha(getThemeColor('info'), 0.08) }}>
+                      <Typography variant="caption" color="text.secondary">Proof Compliance</Typography>
+                      <Typography variant="body2" fontWeight={700} sx={{ mt: 0.35 }}>
+                        {projectMetrics?.proofComplianceRate || 0}%
+                      </Typography>
+                    </Paper>
+                  </Box>
+
+                  {(project?.tags || []).length > 0 && (
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                        Tags
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                        {(project?.tags || []).map((tag, index) => (
+                          <Chip
+                            key={index}
+                            label={tag}
+                            size="small"
+                            sx={{
+                              borderRadius: 1.5,
+                              backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                              border: `1px solid ${alpha(theme.palette.primary.main, 0.22)}`,
+                            }}
+                          />
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+                </Paper>
+              )}
+
               {/* Right Column - Sidebar */}
               {!isMobile && (
                 <Box sx={{ width: { lg: 320 }, minWidth: { lg: 320 }}}>
@@ -1060,11 +1404,11 @@ const MyProject = () => {
               {/* Tabs */}
               <Paper
                 elevation={0}
-                sx={{
-                  mb: 3,
-                  borderRadius: 3,
-                  ...getGlassEffect(),
-                  overflow: 'hidden',
+              sx={{
+                mb: { xs: 2.5, sm: 3 },
+                borderRadius: 3,
+                ...getGlassEffect(),
+                overflow: 'hidden',
                 }}
               >
                 <Box sx={{ 
@@ -1208,13 +1552,15 @@ const MyProject = () => {
                 <Box sx={{ p: { xs: 2, sm: 3 } }}>
                   <TabContent value={activeTab} index={0}>
                     <Box sx={{ mb: 3 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 2 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, flexDirection: { xs: 'column', sm: 'row' }, mb: 2, flexWrap: 'wrap', gap: 2 }}>
                         <Typography variant="h5" sx={{ 
                           fontFamily: '"Adlam Display", serif',
                           fontWeight: 500,
                           display: 'flex',
                           alignItems: 'center',
                           gap: 1,
+                          flexWrap: 'wrap',
+                          fontSize: { xs: '1.45rem', sm: '1.75rem' },
                           background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
                           backgroundClip: 'text',
                           WebkitBackgroundClip: 'text',
@@ -1223,14 +1569,22 @@ const MyProject = () => {
                           <Task /> Task Board ({tasks.length} tasks)
                         </Typography>
 
-                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                        <Box
+                          sx={{
+                            display: 'grid',
+                            gridTemplateColumns: { xs: '1fr 1fr auto', sm: 'minmax(220px, 1fr) auto auto' },
+                            gap: 1,
+                            alignItems: 'center',
+                            width: { xs: '100%', sm: 'auto' },
+                          }}
+                        >
                           <TextField
                             size="small"
                             placeholder="Search tasks..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             sx={{ 
-                              width: 200,
+                              width: '100%',
                               '& .MuiOutlinedInput-root': {
                                 borderRadius: 2,
                                 backgroundColor: alpha(theme.palette.background.paper, 0.5),
@@ -1243,7 +1597,7 @@ const MyProject = () => {
                           />
                           
                           {/* Filter controls */}
-                          <FormControl size="small" sx={{ minWidth: 120 }}>
+                          <FormControl size="small" sx={{ minWidth: 0, width: '100%' }}>
                             <InputLabel>Status</InputLabel>
                             <Select
                               value={filters.status}
@@ -1263,6 +1617,16 @@ const MyProject = () => {
                               size="small"
                               color={filters.isOverdue ? "error" : "default"}
                               onClick={() => setFilters(prev => ({ ...prev, isOverdue: !prev.isOverdue }))}
+                              sx={{
+                                borderRadius: 2,
+                                border: `1px solid ${alpha(
+                                  filters.isOverdue ? theme.palette.error.main : theme.palette.divider,
+                                  0.35
+                                )}`,
+                                backgroundColor: filters.isOverdue
+                                  ? alpha(theme.palette.error.main, 0.08)
+                                  : alpha(theme.palette.background.paper, 0.35),
+                              }}
                             >
                               <Warning />
                             </IconButton>
@@ -1308,13 +1672,13 @@ const MyProject = () => {
                               key={stat.label}
                               elevation={0}
                               sx={{
-                                p: 2,
+                                p: { xs: 1.5, sm: 2 },
                                 borderRadius: 2,
                                 backgroundColor: alpha(stat.color, 0.05),
                                 border: `1px solid ${alpha(stat.color, 0.1)}`,
                               }}
                             >
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
                                 <Box sx={{ 
                                   p: 1,
                                   borderRadius: 1,
@@ -1322,11 +1686,11 @@ const MyProject = () => {
                                 }}>
                                   {stat.icon}
                                 </Box>
-                                <Box>
-                                  <Typography variant="h6" sx={{ color: stat.color }}>
+                                <Box sx={{ minWidth: 0 }}>
+                                  <Typography variant="h6" sx={{ color: stat.color, fontSize: { xs: '1.05rem', sm: '1.25rem' } }}>
                                     {stat.value}
                                   </Typography>
-                                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                                  <Typography variant="caption" sx={{ color: 'text.secondary', lineHeight: 1.2 }}>
                                     {stat.label}
                                   </Typography>
                                 </Box>
@@ -1482,7 +1846,7 @@ const MyProject = () => {
                           {tasks.length === 0 && (
                             <Box
                               sx={{
-                                p: 8,
+                                p: { xs: 4, sm: 8 },
                                 display: 'flex',
                                 flexDirection: 'column',
                                 alignItems: 'center',
@@ -1523,10 +1887,12 @@ const MyProject = () => {
                           {selectedTasks.size > 0 && (
                             <Paper
                               sx={{
-                                p: 3,
+                                p: { xs: 2, sm: 3 },
                                 display: 'flex',
                                 justifyContent: 'space-between',
-                                alignItems: 'center',
+                                alignItems: { xs: 'stretch', sm: 'center' },
+                                flexDirection: { xs: 'column', sm: 'row' },
+                                gap: 1.5,
                                 borderRadius: '0 0 12px 12px',
                                 background: `linear-gradient(135deg, 
                                   ${alpha(theme.palette.primary.main, 0.08)} 0%, 
@@ -1583,6 +1949,7 @@ const MyProject = () => {
                                 color="error"
                                 onClick={() => handleDeleteSelected(Array.from(selectedTasks))}
                                 sx={{
+                                  width: { xs: '100%', sm: 'auto' },
                                   borderRadius: 2,
                                   px: 3,
                                   py: 1,
@@ -1614,7 +1981,8 @@ const MyProject = () => {
                       <Box sx={{ 
                         display: 'flex', 
                         justifyContent: 'space-between', 
-                        alignItems: 'center', 
+                        alignItems: { xs: 'stretch', sm: 'center' }, 
+                        flexDirection: { xs: 'column', sm: 'row' },
                         mb: 3,
                         flexWrap: 'wrap',
                         gap: 2
@@ -1625,6 +1993,8 @@ const MyProject = () => {
                           alignItems: 'center',
                           gap: 1,
                           color: theme.palette.primary.main,
+                          flexWrap: 'wrap',
+                          fontSize: { xs: '1.45rem', sm: '1.75rem' },
                         }}>
                           <Group /> Team Members ({members.length})
                         </Typography>
@@ -1636,6 +2006,7 @@ const MyProject = () => {
                             borderRadius: 2,
                             px: 3,
                             py: 1,
+                            width: { xs: '100%', sm: 'auto' },
                             backgroundColor: theme.palette.primary.main,
                             color: '#ffffff',
                             '&:hover': {
@@ -1654,10 +2025,10 @@ const MyProject = () => {
                       <Box sx={{ 
                         display: 'flex', 
                         flexWrap: 'wrap', 
-                        gap: 3,
+                        gap: { xs: 2, sm: 3 },
                         '& > *': { 
-                          flex: '1 1 calc(33.333% - 16px)', 
-                          minWidth: 280,
+                          flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 12px)', md: '1 1 calc(33.333% - 16px)' }, 
+                          minWidth: { xs: 0, sm: 280 },
                           maxWidth: '100%'
                         }
                       }}>
@@ -1684,7 +2055,7 @@ const MyProject = () => {
                             >
                               <Paper
                                 sx={{
-                                  p: 3,
+                                  p: { xs: 2, sm: 3 },
                                   borderRadius: 3,
                                   backgroundColor: alpha(theme.palette.background.paper, 0.8),
                                   border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
@@ -1708,9 +2079,9 @@ const MyProject = () => {
                                     <Avatar 
                                       src={member.avatar}
                                       sx={{ 
-                                        width: 56, 
-                                        height: 56,
-                                        fontSize: 20,
+                                        width: { xs: 48, sm: 56 }, 
+                                        height: { xs: 48, sm: 56 },
+                                        fontSize: { xs: 18, sm: 20 },
                                         fontWeight: 'bold',
                                         backgroundColor: alpha(theme.palette.primary.main, 0.1),
                                         color: theme.palette.primary.main,
@@ -1734,11 +2105,11 @@ const MyProject = () => {
                                       }}
                                     />
                                   </Box>
-                                  <Box sx={{ flex: 1 }}>
-                                    <Typography variant="h6" fontWeight="600">
+                                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Typography variant={isMobile ? 'subtitle1' : 'h6'} fontWeight="600">
                                       {member.name || 'Unknown'}
                                     </Typography>
-                                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, wordBreak: 'break-word' }}>
                                       {member.email || 'No email'}
                                     </Typography>
                                   </Box>
@@ -1793,13 +2164,13 @@ const MyProject = () => {
                                   display: 'flex', 
                                   justifyContent: 'space-between', 
                                   alignItems: 'center',
-                                  gap: 2
+                                  gap: 1.5
                                 }}>
                                   <Box sx={{ textAlign: 'center', flex: 1 }}>
                                     <Typography variant="caption" color="text.secondary" display="block">
                                       Tasks
                                     </Typography>
-                                    <Typography variant="h6" fontWeight="700" color={theme.palette.primary.main}>
+                                    <Typography variant={isMobile ? 'subtitle1' : 'h6'} fontWeight="700" color={theme.palette.primary.main}>
                                       {memberEff.taskCount}
                                     </Typography>
                                   </Box>
@@ -1807,7 +2178,7 @@ const MyProject = () => {
                                     <Typography variant="caption" color="text.secondary" display="block">
                                       Completed
                                     </Typography>
-                                    <Typography variant="h6" fontWeight="700" color={theme.palette.success.main}>
+                                    <Typography variant={isMobile ? 'subtitle1' : 'h6'} fontWeight="700" color={theme.palette.success.main}>
                                       {completedTasks}
                                     </Typography>
                                   </Box>
@@ -1816,7 +2187,7 @@ const MyProject = () => {
                                       Efficiency
                                     </Typography>
                                     <Typography 
-                                      variant="h6" 
+                                      variant={isMobile ? 'subtitle1' : 'h6'} 
                                       fontWeight="700"
                                       sx={{ 
                                         color: getEfficiencyColor(memberEff.efficiency)
@@ -1943,10 +2314,12 @@ const MyProject = () => {
                         display: 'flex',
                         alignItems: 'center',
                         gap: 1,
+                        flexWrap: 'wrap',
                         background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
                         backgroundClip: 'text',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
+                        fontSize: { xs: '1.45rem', sm: '1.75rem' },
                       }}>
                         <Timeline /> Recent Activity ({activityLog.length})
                       </Typography>
@@ -1976,11 +2349,12 @@ const MyProject = () => {
                               <Paper
                                 elevation={0}
                                 sx={{
-                                  p: 2.5,
+                                  p: { xs: 2, sm: 2.5 },
                                   borderRadius: 3,
                                   ...getGlassEffect(),
                                   display: 'flex',
                                   alignItems: 'flex-start',
+                                  flexDirection: { xs: 'column', sm: 'row' },
                                   gap: 2,
                                   '&:hover': {
                                     borderColor: getBorderColor('primary', 0.5),
@@ -1994,15 +2368,15 @@ const MyProject = () => {
                                   sx={{
                                     background: `linear-gradient(135deg, ${getThemeColor('primary')}, ${alpha(getThemeColor('primary'), 0.8)})`,
                                     color: getContrastColor(getThemeColor('primary')),
-                                    width: 40,
-                                    height: 40,
+                                    width: { xs: 36, sm: 40 },
+                                    height: { xs: 36, sm: 40 },
                                     boxShadow: `0 4px 12px ${alpha(getThemeColor('primary'), 0.3)}`,
                                   }}
                                 >
                                   {log.user?.avatar || log.user?.name?.charAt(0) || '?'}
                                 </Avatar>
-                                <Box sx={{ flex: 1 }}>
-                                  <Typography variant="body1">
+                                <Box sx={{ flex: 1, width: '100%' }}>
+                                  <Typography variant="body1" sx={{ wordBreak: 'break-word' }}>
                                     <strong>{log.user?.name || 'System'}</strong> {log.action}
                                   </Typography>
                                   <Typography variant="caption" color="text.secondary">
@@ -2025,17 +2399,19 @@ const MyProject = () => {
                   {/* Files Tab */}
                   <TabContent value={activeTab} index={3}>
                     <Box sx={{ mb: 3 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
                         <Typography variant="h5" sx={{ 
                           fontFamily: '"Adlam Display", serif',
                           fontWeight: 500,
                           display: 'flex',
                           alignItems: 'center',
                           gap: 1,
+                          flexWrap: 'wrap',
                           background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
                           backgroundClip: 'text',
                           WebkitBackgroundClip: 'text',
                           WebkitTextFillColor: 'transparent',
+                          fontSize: { xs: '1.45rem', sm: '1.75rem' },
                         }}>
                           <AttachFile /> Project Files ({projectFiles.length})
                         </Typography>
@@ -2049,6 +2425,7 @@ const MyProject = () => {
                             borderRadius: 2,
                             px: 3,
                             py: 1,
+                            width: { xs: '100%', sm: 'auto' },
                             fontFamily: '"Adlam Display", serif',
                             background: `linear-gradient(135deg, ${getThemeColor('primary')}, ${alpha(getThemeColor('primary'), 0.8)})`,
                             color: getContrastColor(getThemeColor('primary')),
@@ -2086,7 +2463,7 @@ const MyProject = () => {
                                 <Paper
                                   elevation={0}
                                   sx={{
-                                    p: 2.5,
+                                    p: { xs: 2, sm: 2.5 },
                                     borderRadius: 3,
                                     ...getGlassEffect(),
                                     height: '100%',
@@ -2097,7 +2474,7 @@ const MyProject = () => {
                                     transition: 'all 0.3s ease',
                                   }}
                                 >
-                                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
+                                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 2 }}>
                                     <Avatar
                                       sx={{
                                         background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${alpha(theme.palette.primary.main, 0.8)})`,
@@ -2107,19 +2484,19 @@ const MyProject = () => {
                                     >
                                       <Folder />
                                     </Avatar>
-                                    <Box sx={{ flex: 1 }}>
-                                      <Typography variant="body1" fontWeight="500" noWrap>
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                      <Typography variant="body1" fontWeight="500" sx={{ wordBreak: 'break-word' }}>
                                         {file.fileName}
                                       </Typography>
-                                      <Typography variant="caption" color="text.secondary">
+                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, wordBreak: 'break-word' }}>
                                         From: {file.taskTitle}
                                       </Typography>
-                                      <Typography variant="caption" color="text.secondary" display="block">
+                                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.25, wordBreak: 'break-word' }}>
                                         {file.uploadedBy} • {file.uploadedAt}
                                       </Typography>
                                     </Box>
                                   </Box>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
                                     <Chip
                                       label={file.fileType}
                                       size="small"
@@ -2134,11 +2511,12 @@ const MyProject = () => {
                                       {file.fileSize}
                                     </Typography>
                                   </Box>
-                                  <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                                  <Box sx={{ display: 'flex', gap: 1, mt: 2, justifyContent: { xs: 'stretch', sm: 'flex-start' } }}>
                                     <IconButton 
                                       size="small"
                                       onClick={() => window.open(file.fileUrl, '_blank')}
                                       sx={{
+                                        flex: { xs: 1, sm: '0 0 auto' },
                                         backgroundColor: alpha(getThemeColor('info'), 0.1),
                                         color: getThemeColor('info'),
                                         '&:hover': {
@@ -2157,6 +2535,7 @@ const MyProject = () => {
                                         link.click();
                                       }}
                                       sx={{
+                                        flex: { xs: 1, sm: '0 0 auto' },
                                         backgroundColor: alpha(getThemeColor('success'), 0.1),
                                         color: getThemeColor('success'),
                                         '&:hover': {
@@ -2186,20 +2565,22 @@ const MyProject = () => {
                         display: 'flex',
                         alignItems: 'center',
                         gap: 1,
+                        flexWrap: 'wrap',
                         background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
                         backgroundClip: 'text',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
+                        fontSize: { xs: '1.5rem', sm: '1.75rem' },
                       }}>
                         <Analytics /> Project Analytics
                       </Typography>
 
-                      <Grid container spacing={3} sx={{ mb: 3 }}>
+                      <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ mb: 3 }}>
                         <Grid item xs={12} md={6}>
                           <Paper
                             elevation={0}
                             sx={{
-                              p: 3,
+                              p: { xs: 2, sm: 3 },
                               borderRadius: 3,
                               ...getGlassEffect(),
                               border: `1.5px solid ${getBorderColor('success', 0.4)}`,
@@ -2212,6 +2593,7 @@ const MyProject = () => {
                               alignItems: 'center', 
                               gap: 1,
                               color: getThemeColor('success'),
+                              fontSize: { xs: '1rem', sm: '1.25rem' },
                             }}>
                               <CheckCircle /> Efficiency Overview
                             </Typography>
@@ -2221,6 +2603,7 @@ const MyProject = () => {
                                 color: getThemeColor('success'),
                                 mb: 1,
                                 textShadow: `0 2px 8px ${alpha(getThemeColor('success'), 0.3)}`,
+                                fontSize: { xs: '2.5rem', sm: '3.75rem' },
                               }}>
                                 {overallEfficiency || 0}%
                               </Typography>
@@ -2248,7 +2631,7 @@ const MyProject = () => {
                           <Paper
                             elevation={0}
                             sx={{
-                              p: 3,
+                              p: { xs: 2, sm: 3 },
                               borderRadius: 3,
                               ...getGlassEffect(),
                               border: `1.5px solid ${getBorderColor('info', 0.4)}`,
@@ -2261,6 +2644,7 @@ const MyProject = () => {
                               alignItems: 'center', 
                               gap: 1,
                               color: getThemeColor('info'),
+                              fontSize: { xs: '1rem', sm: '1.25rem' },
                             }}>
                               <AccessTime /> Time Tracking
                             </Typography>
@@ -2270,13 +2654,14 @@ const MyProject = () => {
                                 color: getThemeColor('info'),
                                 mb: 1,
                                 textShadow: `0 2px 8px ${alpha(getThemeColor('info'), 0.3)}`,
+                                fontSize: { xs: '2.5rem', sm: '3.75rem' },
                               }}>
                                 {Math.round((projectMetrics?.totalFocusTime || 0) / 3600)}h
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
                                 Total Focus Time
                               </Typography>
-                              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
+                              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', mt: 2, gap: 1 }}>
                                 <Typography variant="body2">
                                   Estimated: {Math.round((projectMetrics?.totalEstimatedTime || 0) / 3600)}h
                                 </Typography>
@@ -2293,7 +2678,7 @@ const MyProject = () => {
                       <Paper
                         elevation={0}
                         sx={{
-                          p: 3,
+                          p: { xs: 2, sm: 3 },
                           borderRadius: 3,
                           ...getGlassEffect(),
                           border: `1.5px solid ${getBorderColor('warning', 0.4)}`,
@@ -2305,13 +2690,14 @@ const MyProject = () => {
                           alignItems: 'center', 
                           gap: 1,
                           color: getThemeColor('warning'),
+                          fontSize: { xs: '1rem', sm: '1.25rem' },
                         }}>
                           <Warning /> Risk Analysis
                         </Typography>
-                        <Grid container spacing={2}>
+                        <Grid container spacing={{ xs: 1.5, sm: 2 }}>
                           <Grid item xs={6} sm={3}>
-                            <Box sx={{ textAlign: 'center' }}>
-                              <Typography variant="h4" fontWeight="800" color={getThemeColor('error')}>
+                            <Box sx={{ textAlign: 'center', p: { xs: 1.25, sm: 0 }, borderRadius: 2, backgroundColor: { xs: alpha(getThemeColor('error'), 0.06), sm: 'transparent' } }}>
+                              <Typography variant="h4" fontWeight="800" color={getThemeColor('error')} sx={{ fontSize: { xs: '1.65rem', sm: '2.125rem' } }}>
                                 {projectMetrics?.highRiskTasks || 0}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
@@ -2320,8 +2706,8 @@ const MyProject = () => {
                             </Box>
                           </Grid>
                           <Grid item xs={6} sm={3}>
-                            <Box sx={{ textAlign: 'center' }}>
-                              <Typography variant="h4" fontWeight="800" color={getThemeColor('warning')}>
+                            <Box sx={{ textAlign: 'center', p: { xs: 1.25, sm: 0 }, borderRadius: 2, backgroundColor: { xs: alpha(getThemeColor('warning'), 0.06), sm: 'transparent' } }}>
+                              <Typography variant="h4" fontWeight="800" color={getThemeColor('warning')} sx={{ fontSize: { xs: '1.65rem', sm: '2.125rem' } }}>
                                 {projectMetrics?.mediumRiskTasks || 0}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
@@ -2330,8 +2716,8 @@ const MyProject = () => {
                             </Box>
                           </Grid>
                           <Grid item xs={6} sm={3}>
-                            <Box sx={{ textAlign: 'center' }}>
-                              <Typography variant="h4" fontWeight="800" color={getThemeColor('error')}>
+                            <Box sx={{ textAlign: 'center', p: { xs: 1.25, sm: 0 }, borderRadius: 2, backgroundColor: { xs: alpha(getThemeColor('error'), 0.06), sm: 'transparent' } }}>
+                              <Typography variant="h4" fontWeight="800" color={getThemeColor('error')} sx={{ fontSize: { xs: '1.65rem', sm: '2.125rem' } }}>
                                 {projectMetrics?.overdueTasks || 0}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
@@ -2340,8 +2726,8 @@ const MyProject = () => {
                             </Box>
                           </Grid>
                           <Grid item xs={6} sm={3}>
-                            <Box sx={{ textAlign: 'center' }}>
-                              <Typography variant="h4" fontWeight="800" color={getThemeColor('success')}>
+                            <Box sx={{ textAlign: 'center', p: { xs: 1.25, sm: 0 }, borderRadius: 2, backgroundColor: { xs: alpha(getThemeColor('success'), 0.06), sm: 'transparent' } }}>
+                              <Typography variant="h4" fontWeight="800" color={getThemeColor('success')} sx={{ fontSize: { xs: '1.65rem', sm: '2.125rem' } }}>
                                 {projectMetrics?.tasksWithProof || 0}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
@@ -2370,12 +2756,13 @@ const MyProject = () => {
                       <Box sx={{ 
                         display: 'flex', 
                         justifyContent: 'space-between', 
-                        alignItems: 'center', 
+                        alignItems: { xs: 'stretch', sm: 'center' }, 
+                        flexDirection: { xs: 'column', sm: 'row' },
                         mb: 3,
                         flexWrap: 'wrap',
                         gap: 2
                       }}>
-                        <Typography variant="h5" sx={{ 
+                        <Typography variant="h5" sx={{
                           fontFamily: '"Adlam Display", serif',
                           fontWeight: 500,
                           display: 'flex',
@@ -2388,11 +2775,21 @@ const MyProject = () => {
                         }}>
                           <Note /> Collaborative Notes
                         </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            width: '100%',
+                            maxWidth: { xs: '100%', sm: 720 },
+                            color: alpha(theme.palette.text.primary, 0.72),
+                          }}
+                        >
+                          Keep short team updates, blockers, and mentor reminders here so the latest context is easy to find on both desktop and mobile.
+                        </Typography>
                       </Box>
 
-                      {/* Your StickyNoteEditor Component */}
+                      {/* Notes workspace */}
                       <Box sx={{ 
-                        height: '600px',
+                        minHeight: { xs: 420, sm: 620 },
                         borderRadius: 3,
                         overflow: 'hidden',
                         border: `1px solid ${alpha(theme.palette.divider, 0.3)}`,
@@ -2467,42 +2864,43 @@ const MyProject = () => {
           </Box>
         </Container>
 
-        {/* Floating Action Buttons */}
-        <FloatingActionButton
-          icon={<Add />}
-          onClick={() => {
-            showSnackbar('Add task functionality coming soon', 'info');
-          }}
-          tooltip="Add Task"
-          color="primary"
-        />
-        <FloatingActionButton
-          icon={<Comment />}
-          onClick={() => setActiveTab(6)}
-          tooltip="Go to Notes"
-          color="secondary"
-          sx={{ bottom: 90, right: 24 }}
-        />
-
         {/* Dialog for adding members */}
         <Dialog 
           open={addMemberDialog} 
-          onClose={() => setAddMemberDialog(false)}
+          onClose={() => {
+            if (inviteSubmitting) return;
+            setAddMemberDialog(false);
+            resetInviteDialog();
+          }}
+          fullScreen={isMobile}
+          fullWidth
+          maxWidth="sm"
           PaperProps={{
             sx: {
-              borderRadius: 4,
-              minWidth: 400,
+              borderRadius: { xs: 0, sm: 4 },
+              minWidth: { xs: '100%', sm: 400 },
               ...getGlassEffect(),
               border: `1px solid ${getBorderColor('primary', 0.3)}`,
             }
           }}
         >
-          <DialogTitle>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h6">Add Team Member</Typography>
+          <DialogTitle sx={{ pb: 1 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 2 }}>
+              <Box>
+                <Typography variant={isMobile ? 'h6' : 'h5'} sx={{ fontFamily: '"Adlam Display", serif' }}>
+                  Invite Team Member
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  Send an invitation to join {project?.teamName || 'this team'} from the project view.
+                </Typography>
+              </Box>
               <IconButton 
-                onClick={() => setAddMemberDialog(false)} 
+                onClick={() => {
+                  setAddMemberDialog(false);
+                  resetInviteDialog();
+                }} 
                 size="small"
+                disabled={inviteSubmitting}
                 sx={{
                   backgroundColor: alpha(getThemeColor('error'), 0.1),
                   color: getThemeColor('error'),
@@ -2515,18 +2913,37 @@ const MyProject = () => {
               </IconButton>
             </Box>
           </DialogTitle>
-          <DialogContent>
+          <DialogContent sx={{ pt: 1 }}>
+            <Box
+              sx={{
+                p: 2,
+                mb: 2.5,
+                borderRadius: 2.5,
+                background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(theme.palette.secondary.main, 0.05)} 100%)`,
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
+              }}
+            >
+              <Typography variant="body2" color="text.secondary">
+                Search for teammates by name, username, or email, or enter an email/username manually if they don’t appear below.
+              </Typography>
+            </Box>
+
             <TextField
               autoFocus
               fullWidth
-              label="Search members by email or username"
+              label="Search users"
+              placeholder="Type at least 3 characters..."
+              value={inviteSearchQuery}
+              onChange={(e) => setInviteSearchQuery(e.target.value)}
               margin="normal"
+              disabled={inviteSubmitting}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
                     <Search />
                   </InputAdornment>
                 ),
+                endAdornment: inviteSearchLoading ? <CircularProgress size={18} /> : null,
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
@@ -2536,10 +2953,129 @@ const MyProject = () => {
                 }
               }}
             />
+
+            {selectedInviteUser && (
+              <Paper
+                elevation={0}
+                sx={{
+                  mt: 2,
+                  p: 2,
+                  borderRadius: 2.5,
+                  border: `1px solid ${alpha(theme.palette.success.main, 0.28)}`,
+                  background: `linear-gradient(135deg, ${alpha(theme.palette.success.main, 0.1)} 0%, transparent 100%)`,
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+                    <Avatar src={selectedInviteUser.avatar} sx={{ bgcolor: theme.palette.success.main }}>
+                      {selectedInviteUser.name?.[0]?.toUpperCase() || 'U'}
+                    </Avatar>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="subtitle2" fontWeight={700} sx={{ wordBreak: 'break-word' }}>
+                        {selectedInviteUser.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        @{selectedInviteUser.username}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <IconButton
+                    size="small"
+                    disabled={inviteSubmitting}
+                    onClick={() => {
+                      setSelectedInviteUser(null);
+                      setInviteData({ email: '', username: '', inviteMethod: 'email' });
+                    }}
+                  >
+                    <Close fontSize="small" />
+                  </IconButton>
+                </Box>
+              </Paper>
+            )}
+
+            <Box
+              sx={{
+                mt: 2.5,
+                mb: 2.5,
+                maxHeight: { xs: 300, sm: 360 },
+                overflow: 'auto',
+                pr: 0.5,
+              }}
+            >
+              {inviteSearchLoading && inviteDisplayUsers.length === 0 ? (
+                <Box sx={{ py: 5, textAlign: 'center' }}>
+                  <CircularProgress size={28} />
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Looking for users...
+                  </Typography>
+                </Box>
+              ) : inviteDisplayUsers.length > 0 ? (
+                <>
+                  <Typography variant="subtitle2" sx={{ mb: 1.25, color: 'text.secondary' }}>
+                    {inviteSearchQuery.trim().length > 2 ? 'Search Results' : 'Suggested Users'}
+                  </Typography>
+                  {inviteDisplayUsers.map((candidate) => (
+                    <InviteUserSuggestion
+                      key={candidate._id}
+                      user={candidate}
+                      isSelected={selectedInviteUser?._id === candidate._id}
+                      onSelect={handleInviteUserSelect}
+                      theme={theme}
+                    />
+                  ))}
+                </>
+              ) : (
+                <Box
+                  sx={{
+                    py: 5,
+                    px: 2,
+                    borderRadius: 2.5,
+                    textAlign: 'center',
+                    border: `1px dashed ${alpha(theme.palette.divider, 0.24)}`,
+                    backgroundColor: alpha(theme.palette.background.paper, 0.35),
+                  }}
+                >
+                  <PersonAdd sx={{ fontSize: 38, color: alpha(theme.palette.text.secondary, 0.4), mb: 1 }} />
+                  <Typography variant="body2" color="text.secondary">
+                    {inviteSearchQuery.trim().length > 2
+                      ? `No users found for "${inviteSearchQuery}".`
+                      : 'Suggested users will appear here.'}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+
+            {!selectedInviteUser && (
+              <TextField
+                fullWidth
+                label="Or enter email / username manually"
+                placeholder="alex@example.com or alexuser"
+                value={inviteData.email || inviteData.username}
+                onChange={(e) => {
+                  const value = e.target.value.trimStart();
+                  if (value.includes('@')) {
+                    setInviteData({ email: value, username: '', inviteMethod: 'email' });
+                  } else {
+                    setInviteData({ email: '', username: value, inviteMethod: 'username' });
+                  }
+                }}
+                disabled={inviteSubmitting}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    backgroundColor: alpha(theme.palette.background.paper, 0.5),
+                  }
+                }}
+              />
+            )}
           </DialogContent>
           <DialogActions sx={{ p: 2 }}>
             <Button 
-              onClick={() => setAddMemberDialog(false)}
+              onClick={() => {
+                setAddMemberDialog(false);
+                resetInviteDialog();
+              }}
+              disabled={inviteSubmitting}
               sx={{
                 color: theme.palette.text.secondary,
                 '&:hover': {
@@ -2551,10 +3087,9 @@ const MyProject = () => {
             </Button>
             <Button 
               variant="contained"
-              onClick={() => {
-                showSnackbar('Member added successfully', 'success');
-                setAddMemberDialog(false);
-              }}
+              onClick={handleInviteSubmit}
+              disabled={inviteSubmitting || (!inviteData.email && !inviteData.username)}
+              startIcon={inviteSubmitting ? <CircularProgress size={18} color="inherit" /> : <PersonAdd />}
               sx={{
                 background: `linear-gradient(135deg, ${getThemeColor('primary')}, ${alpha(getThemeColor('primary'), 0.8)})`,
                 color: getContrastColor(getThemeColor('primary')),
@@ -2564,7 +3099,11 @@ const MyProject = () => {
                 }
               }}
             >
-              Add Member
+              {inviteSubmitting
+                ? 'Sending Invite...'
+                : selectedInviteUser
+                ? `Invite ${selectedInviteUser.name}`
+                : 'Send Invitation'}
             </Button>
           </DialogActions>
         </Dialog>

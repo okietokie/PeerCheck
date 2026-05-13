@@ -166,18 +166,27 @@ const Tasks = () => {
             </Typography>
           </Box>
           
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, alignSelf: { xs: 'stretch', sm: 'center' }, width: { xs: '100%', sm: 'auto' } }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: 'auto auto' },
+              alignItems: 'center',
+              gap: 1.25,
+              alignSelf: { xs: 'stretch', sm: 'center' },
+              width: { xs: '100%', sm: 'auto' }
+            }}
+          >
             <Tooltip title="How task efficiency is calculated">
               <IconButton
                 onClick={(event) => setEfficiencyHelpAnchor(event.currentTarget)}
                 sx={{
                   border: `1px solid ${alpha(theme.palette.primary.main, 0.25)}`,
                   borderRadius: 2,
-                  width: 48,
+                  width: { xs: '100%', sm: 48 },
                   height: 48,
                   color: theme.palette.primary.main,
                   flexShrink: 0,
-                  alignSelf: { xs: 'flex-end', sm: 'center' }
+                  alignSelf: { xs: 'stretch', sm: 'center' }
                 }}
               >
                 <HelpOutline />
@@ -361,7 +370,7 @@ const Tasks = () => {
                 />
               </Grid>
               
-              <Grid item xs={6} sm={4} md={3}>
+              <Grid item xs={12} sm={6} md={3}>
                   <FormControl size="small" fullWidth>
                     <InputLabel>Status</InputLabel>
                     <Select
@@ -378,7 +387,7 @@ const Tasks = () => {
                   </FormControl>
               </Grid>
 
-              <Grid item xs={6} sm={4} md={3}>
+              <Grid item xs={12} sm={6} md={3}>
                   <FormControl size="small" fullWidth>
                     <InputLabel>Risk Level</InputLabel>
                     <Select
@@ -394,7 +403,7 @@ const Tasks = () => {
                   </FormControl>
               </Grid>
 
-              <Grid item xs={4} sm={4} md={2}>
+              <Grid item xs={12} sm={4} md={2}>
                   <Tooltip title="Overdue Only">
                     <IconButton 
                       size="small"
@@ -402,9 +411,12 @@ const Tasks = () => {
                       onClick={() => setFilters(prev => ({ ...prev, isOverdue: !prev.isOverdue }))}
                       sx={{
                         width: '100%',
-                        minHeight: 40,
+                        minHeight: { xs: 48, sm: 40 },
                         borderRadius: 2,
                         border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                        backgroundColor: filters.isOverdue
+                          ? alpha(theme.palette.error.main, 0.08)
+                          : alpha(theme.palette.background.paper, 0.32),
                       }}
                     >
                       <Warning />
@@ -412,7 +424,7 @@ const Tasks = () => {
                   </Tooltip>
               </Grid>
 
-              <Grid item xs={8} sm={12} md={4}>
+              <Grid item xs={12} sm={8} md={4}>
                   <FormControl size="small" fullWidth>
                     <InputLabel>Sort By</InputLabel>
                     <Select
@@ -748,7 +760,7 @@ const Tasks = () => {
                     ? 'No tasks have been created for this project yet'
                     : 'You don\'t have any assigned tasks yet'}
               </Typography>
-              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexDirection: { xs: 'column', sm: 'row' } }}>
                 {(searchQuery || Object.values(filters).some(v => v !== 'all' && v !== false)) && (
                   <Button
                     variant="outlined"
@@ -761,6 +773,7 @@ const Tasks = () => {
                         isOverdue: false
                       });
                     }}
+                    sx={{ width: { xs: '100%', sm: 'auto' } }}
                   >
                     Clear Filters
                   </Button>
@@ -770,6 +783,7 @@ const Tasks = () => {
                     variant="contained"
                     onClick={() => {/* Open create task modal */}}
                     startIcon={<Add />}
+                    sx={{ width: { xs: '100%', sm: 'auto' } }}
                   >
                     Create First Task
                   </Button>

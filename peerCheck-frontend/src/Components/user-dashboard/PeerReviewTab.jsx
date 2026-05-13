@@ -18,7 +18,8 @@ import {
   IconButton,
   DialogContent,
   TextField,
-  DialogActions
+  DialogActions,
+  useMediaQuery
 } from '@mui/material';
 import { Assessment, CheckCircle, Close, ExpandMore, People, RateReview, Star, Visibility, Warning } from '@mui/icons-material';
 import { alpha, useTheme } from '@mui/material/styles';
@@ -28,7 +29,7 @@ import { motion } from 'framer-motion';
 import { usePeerReview } from '@/hooks/usePeerReview';
 import { canReviewMember } from '@/utils/peerReviewUtils';
 
-const CompletionStatusCard = ({ completionStatus, user, theme }) => {
+const CompletionStatusCard = ({ completionStatus, user, theme, isMobile }) => {
   if (!completionStatus) return null;
 
   return (
@@ -54,20 +55,21 @@ const CompletionStatusCard = ({ completionStatus, user, theme }) => {
       >
         <Box sx={{ 
           display: 'flex', 
-          alignItems: 'center', 
+          alignItems: { xs: 'stretch', md: 'center' }, 
           justifyContent: 'space-between',
+          flexDirection: { xs: 'column', md: 'row' },
           flexWrap: 'wrap',
           gap: 2
         }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
             {completionStatus.isCompleted ? (
               <>
                 <CheckCircle sx={{ 
-                  fontSize: 40,
+                  fontSize: { xs: 32, sm: 40 },
                   color: theme.palette.success.main 
                 }} />
                 <Box>
-                  <Typography variant="h6" sx={{ 
+                  <Typography variant={isMobile ? 'subtitle1' : 'h6'} sx={{ 
                     fontWeight: 600,
                     color: theme.palette.success.main,
                     display: 'flex',
@@ -84,11 +86,11 @@ const CompletionStatusCard = ({ completionStatus, user, theme }) => {
             ) : (
               <>
                 <Assessment sx={{ 
-                  fontSize: 40,
+                  fontSize: { xs: 32, sm: 40 },
                   color: theme.palette.info.main 
                 }} />
                 <Box>
-                  <Typography variant="h6" sx={{ 
+                  <Typography variant={isMobile ? 'subtitle1' : 'h6'} sx={{ 
                     fontWeight: 600,
                     color: theme.palette.info.main,
                     display: 'flex',
@@ -106,7 +108,7 @@ const CompletionStatusCard = ({ completionStatus, user, theme }) => {
           </Box>
           
           {/* Progress Bar */}
-          <Box sx={{ flex: 1, maxWidth: 300 }}>
+          <Box sx={{ flex: 1, width: { xs: '100%', md: 'auto' }, maxWidth: { xs: '100%', md: 300 } }}>
             <Box sx={{ 
               display: 'flex', 
               justifyContent: 'space-between', 
@@ -176,8 +178,9 @@ const CompletionStatusCard = ({ completionStatus, user, theme }) => {
                     key={member.userId}
                     sx={{ 
                       display: 'flex', 
-                      alignItems: 'center', 
+                      alignItems: { xs: 'flex-start', sm: 'center' }, 
                       justifyContent: 'space-between',
+                      flexDirection: { xs: 'column', sm: 'row' },
                       p: 1.5,
                       borderRadius: 2,
                       backgroundColor: member.isComplete 
@@ -188,7 +191,7 @@ const CompletionStatusCard = ({ completionStatus, user, theme }) => {
                         : alpha(theme.palette.divider, 0.2)}`,
                     }}
                   >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
                       <Avatar 
                         src={member?.avatar}
                         sx={{ 
@@ -215,7 +218,7 @@ const CompletionStatusCard = ({ completionStatus, user, theme }) => {
                       </Box>
                     </Box>
                     
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: { xs: '100%', sm: 'auto' }, justifyContent: { xs: 'space-between', sm: 'flex-end' } }}>
                       {member.isComplete ? (
                         <Chip
                           label="Complete"
@@ -262,7 +265,8 @@ const MemberCard = ({
   project, 
   onReviewClick, 
   canReview,
-  theme 
+  theme,
+  isMobile
 }) => {
   const hasReviewed = !canReview && !isSelf;
   
@@ -311,7 +315,7 @@ const MemberCard = ({
     >
       <Paper
         sx={{
-          p: 3,
+          p: { xs: 2, sm: 3 },
           borderRadius: 3,
           backgroundColor: alpha(theme.palette.background.paper, 0.8),
           border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
@@ -329,7 +333,7 @@ const MemberCard = ({
       >
         {/* Status Badge - Only show if not viewing self and reviews aren't locked */}
         {statusConfig && !project?.peerReviewLocked && (
-          <Box sx={{ position: 'absolute', top: 12, right: 12 }}>
+          <Box sx={{ position: 'absolute', top: 12, right: 12, maxWidth: { xs: 110, sm: 'none' } }}>
             <Chip
               label={statusConfig.label}
               size="small"
@@ -359,13 +363,13 @@ const MemberCard = ({
         )}
         
         {/* Member Info */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, pr: { xs: 9, sm: 10 } }}>
           <Avatar 
             src={member.avatar}
             sx={{ 
-              width: 56, 
-              height: 56,
-              fontSize: 20,
+              width: { xs: 48, sm: 56 }, 
+              height: { xs: 48, sm: 56 },
+              fontSize: { xs: 18, sm: 20 },
               fontWeight: 'bold',
               backgroundColor: alpha(theme.palette.primary.main, 0.1),
               color: theme.palette.primary.main,
@@ -374,11 +378,11 @@ const MemberCard = ({
           >
             {member.avatar || member.name?.charAt(0).toUpperCase() || '?'}
           </Avatar>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="h6" fontWeight="600">
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant={isMobile ? 'subtitle1' : 'h6'} fontWeight="600">
               {member.name || 'Unknown'}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-word' }}>
               {member.email || 'No email'}
             </Typography>
           </Box>
@@ -390,7 +394,7 @@ const MemberCard = ({
             <Typography variant="body2" color="text.secondary" gutterBottom>
               Peer Score
             </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Box sx={{ flex: 1 }}>
                 <LinearProgress 
                   variant="determinate" 
@@ -405,7 +409,7 @@ const MemberCard = ({
                   }}
                 />
               </Box>
-              <Typography variant="h5" fontWeight="800" sx={{ 
+              <Typography variant={isMobile ? 'h6' : 'h5'} fontWeight="800" sx={{ 
                 color: theme.palette.primary.main,
               }}>
                 {memberScore.averageScore.toFixed(1)}
@@ -484,7 +488,7 @@ const MemberCard = ({
   );
 };
 
-const PersonalScoreCard = ({ userPeerScore, theme }) => {
+const PersonalScoreCard = ({ userPeerScore, theme, isMobile }) => {
   if (!userPeerScore) return null;
 
   return (
@@ -513,7 +517,7 @@ const PersonalScoreCard = ({ userPeerScore, theme }) => {
           gap: 2
         }}>
           <Box>
-            <Typography variant="h6" sx={{ 
+            <Typography variant={isMobile ? 'subtitle1' : 'h6'} sx={{ 
               mb: 1, 
               display: 'flex', 
               alignItems: 'center', 
@@ -527,7 +531,7 @@ const PersonalScoreCard = ({ userPeerScore, theme }) => {
             </Typography>
           </Box>
           <Box sx={{ textAlign: { xs: 'left', sm: 'center' } }}>
-            <Typography variant="h2" fontWeight="800" sx={{ 
+            <Typography variant={isMobile ? 'h3' : 'h2'} fontWeight="800" sx={{ 
               color: theme.palette.primary.main,
               lineHeight: 1,
             }}>
@@ -549,7 +553,7 @@ const PersonalScoreCard = ({ userPeerScore, theme }) => {
               display: 'flex', 
               flexWrap: 'wrap', 
               gap: 2,
-              '& > *': { flex: '1 1 calc(25% - 16px)', minWidth: 120 }
+              '& > *': { flex: { xs: '1 1 calc(50% - 8px)', sm: '1 1 calc(25% - 16px)' }, minWidth: { xs: 0, sm: 120 } }
             }}>
               {Object.entries(userPeerScore?.criteriaScores).map(([criteria, score]) => (
                 <Box key={criteria} sx={{ 
@@ -615,10 +619,8 @@ const PersonalScoreCard = ({ userPeerScore, theme }) => {
 };
 
 
-const ProjectsSummaryCard = ({ aggregatedScores, project, theme }) => {
+const ProjectsSummaryCard = ({ aggregatedScores, project, theme, isMobile }) => {
   if (!aggregatedScores) return null;
-  console.log("aggregatedscore: ", aggregatedScores);
-  console.log("project in summary card: ", project);
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -634,7 +636,7 @@ const ProjectsSummaryCard = ({ aggregatedScores, project, theme }) => {
           border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`,
         }}
       >
-        <Typography variant="h6" sx={{ 
+        <Typography variant={isMobile ? 'subtitle1' : 'h6'} sx={{ 
           mb: 3, 
           display: 'flex', 
           alignItems: 'center', 
@@ -649,8 +651,8 @@ const ProjectsSummaryCard = ({ aggregatedScores, project, theme }) => {
           flexWrap: 'wrap', 
           gap: 3,
           '& > *': { 
-            flex: '1 1 calc(50% - 12px)', 
-            minWidth: 280 
+            flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 12px)' }, 
+            minWidth: { xs: 0, sm: 280 } 
           }
         }}>
           <Box sx={{ 
@@ -662,7 +664,7 @@ const ProjectsSummaryCard = ({ aggregatedScores, project, theme }) => {
             <Typography variant="body2" color="text.secondary" gutterBottom>
               Average Team Score
             </Typography>
-            <Typography variant="h3" fontWeight="800" sx={{ 
+            <Typography variant={isMobile ? 'h4' : 'h3'} fontWeight="800" sx={{ 
               color: theme.palette.primary.main,
             }}>
               {aggregatedScores.summary?.projectAverage?.toFixed(1) || '0.0'}
@@ -681,7 +683,7 @@ const ProjectsSummaryCard = ({ aggregatedScores, project, theme }) => {
             <Typography variant="body2" color="text.secondary" gutterBottom>
               Total Reviews Submitted
             </Typography>
-            <Typography variant="h3" fontWeight="800" sx={{ 
+            <Typography variant={isMobile ? 'h4' : 'h3'} fontWeight="800" sx={{ 
               color: theme.palette.secondary.main,
             }}>
               {aggregatedScores.summary?.totalReviews || 0}
@@ -758,7 +760,8 @@ const ReviewDialog = ({
   onCommentChange,
   onSubmit,
   project,
-  theme
+  theme,
+  isMobile
 }) => {
   const getThemeColor = (color) => {
     return theme.palette[color]?.main || theme.palette.primary.main;
@@ -785,9 +788,10 @@ const ReviewDialog = ({
       onClose={onClose}
       maxWidth="sm"
       fullWidth
+      fullScreen={isMobile}
       PaperProps={{
         sx: {
-          borderRadius: 4,
+          borderRadius: { xs: 0, sm: 4 },
           background: theme.palette.primary.color,
           border: `1.5px solid ${getBorderColor('primary', 0.3)}`,
         }
@@ -795,7 +799,7 @@ const ReviewDialog = ({
     >
       <DialogTitle>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h5" sx={{ 
+          <Typography variant={isMobile ? 'h6' : 'h5'} sx={{ 
             fontFamily: '"Adlam Display", serif',
             display: 'flex',
             alignItems: 'center',
@@ -831,7 +835,7 @@ const ReviewDialog = ({
             {selectedReviewee.name?.charAt(0) || '?'}
           </Avatar>
           <Box>
-            <Typography variant="h6">
+            <Typography variant={isMobile ? 'subtitle1' : 'h6'}>
               {selectedReviewee.name || 'Teammate'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
@@ -956,6 +960,7 @@ const ReviewDialog = ({
 
 const PeerReviewTab = ({ projectId, members, user, project, showSnackbar }) => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [selectedReviewee, setSelectedReviewee] = useState(null);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [reviewScores, setReviewScores] = useState({
@@ -965,7 +970,6 @@ const PeerReviewTab = ({ projectId, members, user, project, showSnackbar }) => {
     punctuality: 5
   });
   const [reviewComment, setReviewComment] = useState('');
-  console.log("user in peer review tab: ", user);
   const {
     peerReviews,
     aggregatedScores,
@@ -1062,6 +1066,7 @@ const PeerReviewTab = ({ projectId, members, user, project, showSnackbar }) => {
           completionStatus={completionStatus}
           user={user}
           theme={theme}
+          isMobile={isMobile}
         />
       )}
 
@@ -1070,6 +1075,7 @@ const PeerReviewTab = ({ projectId, members, user, project, showSnackbar }) => {
         <PersonalScoreCard 
           userPeerScore={userPeerScore}
           theme={theme}
+          isMobile={isMobile}
         />
       )}
 
@@ -1077,10 +1083,10 @@ const PeerReviewTab = ({ projectId, members, user, project, showSnackbar }) => {
       <Box sx={{ 
         display: 'flex', 
         flexWrap: 'wrap', 
-        gap: 3,
+        gap: { xs: 2, sm: 3 },
         '& > *': { 
-          flex: '1 1 calc(33.333% - 16px)', 
-          minWidth: 280,
+          flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 12px)', md: '1 1 calc(33.333% - 16px)' }, 
+          minWidth: { xs: 0, sm: 280 },
           maxWidth: '100%'
         }
       }}>
@@ -1102,6 +1108,7 @@ const PeerReviewTab = ({ projectId, members, user, project, showSnackbar }) => {
               }}
               canReview={canReview}
               theme={theme}
+              isMobile={isMobile}
             />
           );
         })}
@@ -1113,6 +1120,7 @@ const PeerReviewTab = ({ projectId, members, user, project, showSnackbar }) => {
           aggregatedScores={aggregatedScores}
           project={project}
           theme={theme}
+          isMobile={isMobile}
         />
       )}
 
@@ -1128,6 +1136,7 @@ const PeerReviewTab = ({ projectId, members, user, project, showSnackbar }) => {
         onSubmit={handleSubmitReview}
         project={project}
         theme={theme}
+        isMobile={isMobile}
       />
     </Box>
   );

@@ -39,7 +39,6 @@ import axiosClient from '@/api/axiosClient';
 import NotificationBell from '../Notifications/NotificationBell';
 import { getUserData } from '@/utils/user';
 import TourGuide from '../TourGuide';
-import TodoButtonDialog from './HelperComp/ToDoList';
 export default function UserApp() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -357,8 +356,7 @@ export default function UserApp() {
         }}
       >
         <Outlet />
-      <TodoButtonDialog/>
-        
+
       </Container>
     </Box>
 
