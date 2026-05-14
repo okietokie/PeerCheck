@@ -2,7 +2,25 @@ import { AccessAlarm, AttachFile, CalendarMonth, Circle, EditCalendarTwoTone, Er
 import { alpha, Checkbox, TableCell, TableHead, TableRow, Typography } from '@mui/material'
 import React from 'react'
 
-export default function TaskTableHeader({allSelected,selectedTasks, handleSelectAll, theme}) {
+export default function TaskTableHeader({
+  allSelected,
+  selectedTasks,
+  handleSelectAll,
+  theme,
+  showProjectColumn = false
+}) {
+  const headers = [
+    { label: '', width: '2%' },
+    { label: 'TASK TITLE', width: showProjectColumn ? '20%' : '25%' },
+    ...(showProjectColumn ? [{ label: 'PROJECT', width: '14%' }] : []),
+    { label: 'STATUS', width: '12%' },
+    { label: 'ASSIGNEE', width: '15%' },
+    { label: 'PRIORITY', width: '10%' },
+    { label: 'DUE', width: '10%' },
+    { label: 'EFFICIENCY', width: '10%' },
+    { label: 'ACTIONS', width: '10%' },
+  ];
+
   return (
                 <TableHead>
                   <TableRow sx={{ backgroundColor: 'transparent' }}>
@@ -35,15 +53,7 @@ export default function TaskTableHeader({allSelected,selectedTasks, handleSelect
                         }}
                       />
                     </TableCell>
-                    {[{ label: '', width: '2%'},
-                      { label: 'TASK TITLE', width: '25%' },
-                      { label: 'STATUS', width: '12%' },
-                      { label: 'ASSIGNEE', width: '15%' },
-                      { label: 'PRIORITY', width: '10%' },
-                      { label: 'DUE', width: '10%'},
-                      { label: 'EFFICIENCY', width: '10%'},
-                      { label: 'ACTIONS', width: '10%' },
-                    ].map((header, index) => (
+                    {headers.map((header, index) => (
                       <TableCell 
                         key={header.label}
                         sx={{
@@ -56,7 +66,7 @@ export default function TaskTableHeader({allSelected,selectedTasks, handleSelect
                           position: 'sticky',
                           top: 0,
                           zIndex: 2,
-                          ...(index === 7 && { borderRadius: '0 12px 0 0' })
+                          ...(index === headers.length - 1 && { borderRadius: '0 12px 0 0' })
                         }}
                       >
                         <Typography
@@ -75,12 +85,13 @@ export default function TaskTableHeader({allSelected,selectedTasks, handleSelect
                         >
                           {index === 0 }
                           {index === 1 }
-                          {index === 2 && <SignalWifiStatusbar1BarTwoTone fontSize="small" />}
-                          {index === 3 && <Person  fontSize="small" />}
-                          {index === 4 && <Error fontSize="small" />}
-                          {index === 5 && <ErrorOutline fontSize='small' /> } 
-                          {index === 6 && <AccessAlarm fontSize='small'/>}
-                          {index === 7 && <PlayArrow fontSize="small" />}
+                          {header.label === 'PROJECT' && <Task fontSize="small" />}
+                          {header.label === 'STATUS' && <SignalWifiStatusbar1BarTwoTone fontSize="small" />}
+                          {header.label === 'ASSIGNEE' && <Person  fontSize="small" />}
+                          {header.label === 'PRIORITY' && <Error fontSize="small" />}
+                          {header.label === 'DUE' && <ErrorOutline fontSize='small' /> } 
+                          {header.label === 'EFFICIENCY' && <AccessAlarm fontSize='small'/>}
+                          {header.label === 'ACTIONS' && <PlayArrow fontSize="small" />}
 
                           {header.label}
                         </Typography>

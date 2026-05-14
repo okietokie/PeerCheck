@@ -99,6 +99,7 @@ export const TaskTableRow = ({
   onViewDetails,
   onStatusChange,
   onTaskUpdate,
+  showProjectColumn = false,
   mobile = false
 }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -123,6 +124,11 @@ export const TaskTableRow = ({
   const {
     getEfficiencyColor
   } = useGeneral();
+
+  const projectName =
+    typeof task.projectId === 'object'
+      ? task.projectId?.projectName || task.projectId?.name || task.projectName
+      : task.projectName;
 
   // Helper functions
   const getStatusColor = (status) => {
@@ -730,7 +736,7 @@ useEffect(() => {
                         Project
                       </Typography>
                       <Typography variant="body2" fontWeight={600} noWrap>
-                        {task.projectId?.name || 'No project'}
+                        {projectName || 'No project'}
                       </Typography>
                     </Box>
                     <Box sx={{ minWidth: 0 }}>
@@ -1056,6 +1062,18 @@ useEffect(() => {
         </TableCell>
 
         {/* Status (Editable) */}
+        {showProjectColumn && (
+          <TableCell>
+            <Typography
+              variant="body2"
+              fontWeight="500"
+              sx={{ color: theme.palette.text.secondary }}
+            >
+              {projectName || 'No project'}
+            </Typography>
+          </TableCell>
+        )}
+
         <TableCell>
           <Box
             onClick={handleStatusClick}
@@ -1473,7 +1491,7 @@ useEffect(() => {
 
       {/* Expanded Details Row */}
       <TableRow>
-        <TableCell colSpan={9} sx={{ p: 0, borderBottom: expanded ? `1px solid ${alpha(theme.palette.divider, 0.3)}` : 0 }}>
+        <TableCell colSpan={showProjectColumn ? 10 : 9} sx={{ p: 0, borderBottom: expanded ? `1px solid ${alpha(theme.palette.divider, 0.3)}` : 0 }}>
           <Collapse in={expanded} timeout="auto" unmountOnExit>
             <Box sx={{ 
               p: 3, 

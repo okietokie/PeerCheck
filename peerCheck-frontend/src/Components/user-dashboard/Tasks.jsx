@@ -1019,6 +1019,7 @@ const Tasks = () => {
                     selectedTasks= {selectedTasks}
                     handleSelectAll={handleSelectAll}
                     theme={theme}
+                    showProjectColumn={!isProjectView}
                   />
                   <TableBody>
                     {filteredTasks.map((task) => (
@@ -1033,6 +1034,7 @@ const Tasks = () => {
                         onViewDetails={handleViewDetails}
                         onStatusChange={handleStatusChange}
                         onTaskUpdate={handleTaskFieldUpdate}
+                        showProjectColumn={!isProjectView}
                         userTeacher={userTeacher}
                       />
                     ))}
